@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - LinguistFeed</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="navbar-brand">LinguistFeed</a>
+            <ul class="navbar-nav">
+                <li class="nav-item"><a href="login.html" class="nav-link">Login</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>Create an Account</h1>
+        
+        <div class="card">
+            <form id="register-form">
+                <div class="form-group">
+                    <label for="name">Full Name</label>
+                    <input type="text" id="name" class="form-control" placeholder="John Doe" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" class="form-control" placeholder="your@email.com" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" class="form-control" placeholder="Min. 6 characters" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="confirm-password">Confirm Password</label>
+                    <input type="password" id="confirm-password" class="form-control" placeholder="Repeat password" required>
+                </div>
+                
+                <div id="error-message" class="mb-3" style="color: #dc3545; display: none; font-weight: bold;"></div>
+                
+                <button type="submit" class="btn btn-block">Register</button>
+            </form>
+            
+            <p class="text-center mt-3">Already have an account? <a href="login.html">Login here</a></p>
+        </div>
+    </div>
+
+    <footer class="container text-center mt-3">
+        <p>&copy; 2026 LinguistFeed. All rights reserved.</p>
+    </footer>
+
+    <script type="module">
+        import { register, getUser } from './js/auth.js';
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // 1. Redirección si ya está logueado
+            const user = getUser();
+            if (user && user.id) {
+                window.location.href = 'dashboard.html';
+            }
+
+            // 2. Manejo del formulario
+            const registerForm = document.getElementById('register-form');
+            if (registerForm) {
+                registerForm.addEventListener('submit', async function(event) {
+                    event.preventDefault();
+                    
+                    const name = document.getElementById('name').value;
+                    const email = document.getElementById('email').value;
+                    const password = document.getElementById('password').value;
+                    const confirmPassword = document.getElementById('confirm-password').value;
+                    const errorMessage = document.getElementById('error-message');
+                    
+                    errorMessage.style.display = 'none';
+                    
+                    if (password !== confirmPassword) {
+                        errorMessage.textContent = 'Passwords do not match.';
+                        errorMessage.style.display = 'block';
+                        return;
+                    }
+                    
+                    try {
+                        await register(email, password, name);
+                        window.location.href = 'dashboard.html';
+                    } catch (error) {
+                        errorMessage.textContent = error.message || 'Registration failed. Please try again.';
+                        errorMessage.style.display = 'block';
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

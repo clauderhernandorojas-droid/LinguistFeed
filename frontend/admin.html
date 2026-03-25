@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - LinguistFeed</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="dashboard.html" class="navbar-brand">LinguistFeed</a>
+            <ul class="navbar-nav">
+                <li class="nav-item"><a href="reader.html" class="nav-link">Topics</a></li>
+                <li class="nav-item"><a href="my-flashcards.html" class="nav-link">My Flashcards</a></li>
+                <li class="nav-item"><a href="#" id="logout-link" class="nav-link">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>Admin Panel</h1>
+        
+        <div class="card">
+            <h2>Coming Soon!</h2>
+            <p>The admin panel is under development and will be available in a future update.</p>
+            <p>This panel will allow teachers and administrators to manage users, content, and view analytics.</p>
+            
+            <div class="text-center mt-3">
+                <a href="dashboard.html" class="btn">Back to Dashboard</a>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <h2>Admin Features</h2>
+            <div class="admin-section">
+                <h3>User Management</h3>
+                <p>View and manage student accounts, create teacher accounts, and organize students into classes.</p>
+            </div>
+            
+            <div class="admin-section">
+                <h3>Content Management</h3>
+                <p>Review and edit articles, create custom quizzes, and manage vocabulary lists.</p>
+            </div>
+            
+            <div class="admin-section">
+                <h3>Analytics</h3>
+                <p>View detailed statistics on student progress, identify areas for improvement, and track engagement.</p>
+            </div>
+        </div>
+    </div>
+
+    <footer class="container text-center mt-3">
+        <p>&copy; 2026 LinguistFeed. All rights reserved.</p>
+    </footer>
+
+    <script type="module">
+        import { requireAuth, logout, getUser } from './js/auth.js';
+        // Importamos la función que unifica el Logout
+        import { handleLogout } from './js/reader.js';
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // 1. Verificamos autenticación
+            requireAuth();
+            
+            // 2. Verificamos si es admin/teacher
+            const user = getUser();
+            if (user && user.role !== 'admin' && user.role !== 'teacher') {
+                window.location.href = 'dashboard.html';
+            }
+            
+            // 3. Activamos el botón de Logout (limpio y unificado)
+            handleLogout(logout);
+        });
+    </script>
+</body>
+</html>

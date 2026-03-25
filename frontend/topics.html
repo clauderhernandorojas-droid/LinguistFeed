@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Topics - LinguistFeed</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .row-topics {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .topic-card {
+            padding: 25px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid #eee;
+        }
+        .topic-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+            border-color: #0066cc;
+        }
+        .topic-card h2 {
+            color: #0066cc;
+            margin-top: 0;
+            font-size: 1.5rem;
+        }
+        .topic-card p {
+            color: #555;
+            margin-bottom: 0;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="dashboard.html" class="navbar-brand">LinguistFeed</a>
+            <ul class="navbar-nav">
+                <li class="nav-item"><a href="reader.html" class="nav-link active">Topics</a></li>
+                <li class="nav-item"><a href="my-flashcards.html" class="nav-link">My Flashcards</a></li>
+                <li class="nav-item"><a href="#" id="logout-link" class="nav-link">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>Browse Topics</h1>
+        <p>Select a category to find articles tailored to your level.</p>
+        
+        <div class="row-topics">
+            <div class="topic-card" data-topic="technology">
+                <h2>Technology</h2>
+                <p>Latest trends, AI, and digital innovations.</p>
+            </div>
+            
+            <div class="topic-card" data-topic="science">
+                <h2>Science</h2>
+                <p>Discoveries in space, biology, and physics.</p>
+            </div>
+            
+            <div class="topic-card" data-topic="world">
+                <h2>World</h2>
+                <p>Global news and international current events.</p>
+            </div>
+            
+            <div class="topic-card" data-topic="culture">
+                <h2>Culture</h2>
+                <p>Arts, lifestyle, and social phenomena.</p>
+            </div>
+        </div>
+    </div>
+
+    <footer class="container text-center mt-3">
+        <p>&copy; 2026 LinguistFeed. All rights reserved.</p>
+    </footer>
+
+    <script type="module">
+        import { requireAuth, logout } from './js/auth.js';
+        import { handleLogout } from './js/reader.js';
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Verificamos sesión
+            requireAuth();
+            
+            // Logout unificado
+            handleLogout(logout);
+
+            // Redirección a la lista de artículos
+            document.querySelectorAll('.topic-card').forEach(card => {
+                card.addEventListener('click', function() {
+                    const topic = this.getAttribute('data-topic');
+                    // IMPORTANTE: Redirige a articles.html con el parámetro del tema
+                    window.location.href = `articles.html?topic=${topic}`;
+                });
+            });
+        });
+    </script>
+</body>
+</html>

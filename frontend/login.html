@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - LinguistFeed</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="navbar-brand">LinguistFeed</a>
+            <ul class="navbar-nav">
+                <li class="nav-item"><a href="register.html" class="nav-link">Register</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>Login to Your Account</h1>
+        
+        <div class="card">
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" class="form-control" placeholder="your@email.com" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" class="form-control" placeholder="••••••••" required>
+                </div>
+                
+                <div id="error-message" class="mb-3" style="color: red; display: none; font-weight: bold;"></div>
+                
+                <button type="submit" class="btn btn-block">Login</button>
+            </form>
+            
+            <p class="text-center mt-3">Don't have an account? <a href="register.html">Register here</a></p>
+        </div>
+    </div>
+
+    <footer class="container text-center mt-3">
+        <p>&copy; 2026 LinguistFeed. All rights reserved.</p>
+    </footer>
+
+    <script type="module">
+        import { login, getUser } from './js/auth.js';
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // 1. Redirección automática si ya está logueado
+            const user = getUser();
+            if (user && user.id) {
+                window.location.href = 'dashboard.html';
+            }
+
+            // 2. Manejo del formulario
+            const loginForm = document.getElementById('login-form');
+            if (loginForm) {
+                loginForm.addEventListener('submit', async function(event) {
+                    event.preventDefault();
+                    
+                    const email = document.getElementById('email').value;
+                    const password = document.getElementById('password').value;
+                    const errorMessage = document.getElementById('error-message');
+                    
+                    try {
+                        // Ocultamos el error anterior si existe
+                        errorMessage.style.display = 'none';
+                        
+                        // Intentamos login
+                        await login(email, password);
+                        
+                        // Redirección exitosa
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const redirectUrl = urlParams.get('redirect');
+                        window.location.href = redirectUrl || 'dashboard.html';
+                        
+                    } catch (error) {
+                        // Mostramos el error específico del backend o uno genérico
+                        errorMessage.textContent = error.message || 'Login failed. Please check your credentials.';
+                        errorMessage.style.display = 'block';
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - LinguistFeed</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        /* Mantenemos tus estilos personalizados aquí arriba por orden */
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            margin: 0 -10px;
+        }
+        
+        .dashboard-card {
+            flex: 1 0 200px;
+            margin: 10px;
+            padding: 15px;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .dashboard-card h3 {
+            margin-top: 0;
+            color: #333;
+            font-size: 18px;
+        }
+        
+        .dashboard-card p {
+            font-size: 24px;
+            font-weight: bold;
+            color: #0066cc;
+            margin: 10px 0 0;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="dashboard.html" class="navbar-brand">LinguistFeed</a>
+            <ul class="navbar-nav">
+                <li class="nav-item">
+                    <a href="reader.html" class="nav-link" 
+                       onclick="localStorage.removeItem('selectedTopic'); localStorage.removeItem('selectedArticleId');">
+                       Topics
+                    </a>
+                </li>
+                <li class="nav-item"><a href="my-flashcards.html" class="nav-link">My Flashcards</a></li>
+                <li class="nav-item"><a href="#" id="logout-link" class="nav-link">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>Welcome, <span id="user-name">Student</span>!</h1>
+        
+        <div class="card">
+            <h2>Your Learning Dashboard</h2>
+            <p>Track your progress and continue learning English with LinguistFeed.</p>
+            
+            <div class="text-center mt-3">
+                <a href="reader.html" class="btn">Read Today's Articles</a>
+                <a href="my-flashcards.html" class="btn" style="margin-left: 10px;">My Flashcards</a>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <h2>Your Progress</h2>
+            
+            <div class="row">
+                <div class="dashboard-card">
+                    <h3>Articles Read</h3>
+                    <p id="articles-read">0</p>
+                </div>
+                
+                <div class="dashboard-card">
+                    <h3>Quizzes Taken</h3>
+                    <p id="quizzes-taken">0</p>
+                </div>
+                
+                <div class="dashboard-card">
+                    <h3>Vocabulary Learned</h3>
+                    <p id="vocabulary-learned">0</p>
+                </div>
+                
+                <div class="dashboard-card">
+                    <h3>Current Streak</h3>
+                    <p id="streak">0</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <h2>Recent Activity</h2>
+            <p>Your recent learning activities will appear here.</p>
+            <p class="text-center">No recent activities yet. Start by reading today's articles!</p>
+        </div>
+    </div>
+
+    <footer class="container text-center mt-3">
+        <p>&copy; 2026 LinguistFeed. All rights reserved.</p>
+    </footer>
+
+    <script type="module">
+        import { logout } from './js/auth.js';
+        import { initDashboard } from './js/dashboard.js';
+        // Importamos la herramienta de logout unificada
+        import { handleLogout } from './js/reader.js';
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Inicializa las estadísticas y el nombre del usuario
+            initDashboard();
+            
+            // Activa el botón de Logout usando la función centralizada
+            handleLogout(logout);
+        });
+    </script>
+</body>
+</html>

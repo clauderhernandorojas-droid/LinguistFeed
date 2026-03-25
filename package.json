@@ -1,0 +1,27 @@
+{
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "node-schedule": "^2.1.1",
+    "rss-parser": "^3.13.0",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "serve": "^14.2.6"
+  },
+  "name": "linguistfeed",
+  "version": "1.0.0",
+  "description": "LinguistFeed is a Flutter Web application that simplifies text from external websites and adapts it to different language proficiency levels using the Gemini API.",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
