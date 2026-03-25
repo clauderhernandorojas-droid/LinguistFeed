@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quizzes - LinguistFeed</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="dashboard.html" class="navbar-brand">LinguistFeed</a>
+            <ul class="navbar-nav">
+                <li class="nav-item"><a href="reader.html" class="nav-link">Topics</a></li>
+                <li class="nav-item"><a href="my-flashcards.html" class="nav-link">My Flashcards</a></li>
+                <li class="nav-item"><a href="#" id="logout-link" class="nav-link">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>Reading Comprehension Quizzes</h1>
+        
+        <div class="card">
+            <h2>Coming Soon!</h2>
+            <p>Reading comprehension quizzes will be available in the next update.</p>
+            <p>These quizzes will help you test your understanding of the articles you read and improve your English comprehension skills.</p>
+            
+            <div class="text-center mt-3">
+                <a href="reader.html" class="btn">Back to Articles</a>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <h2>Quiz Features</h2>
+            <ul>
+                <li>Multiple-choice questions about article content</li>
+                <li>Vocabulary exercises</li>
+                <li>Grammar practice related to article topics</li>
+                <li>Instant feedback on your answers</li>
+                <li>Progress tracking to monitor your improvement</li>
+            </ul>
+        </div>
+    </div>
+
+    <footer class="container text-center mt-3">
+        <p>&copy; 2026 LinguistFeed. All rights reserved.</p>
+    </footer>
+
+    <script type="module">
+        import { requireAuth, logout } from './js/auth.js';
+        // Importamos la función que unifica el Logout
+        import { handleLogout } from './js/reader.js';
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Verificamos que el usuario esté logueado
+            requireAuth();
+            
+            // Activamos el botón de salir de forma centralizada
+            handleLogout(logout);
+        });
+    </script>
+</body>
+</html>

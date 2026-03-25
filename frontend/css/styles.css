@@ -1,0 +1,247 @@
+/* LinguistFeed - Main Stylesheet */
+
+/* Global Styles */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Un toque más moderno */
+    line-height: 1.6;
+    margin: 0;
+    padding: 20px;
+    background-color: #f5f8fa;
+    color: #333;
+}
+
+h1 {
+    text-align: center;
+    color: #2c3e50;
+    margin-bottom: 30px;
+}
+
+/* Container Styles */
+.container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0 15px;
+}
+
+/* Navigation */
+.navbar {
+    background-color: #2c3e50;
+    color: white;
+    padding: 12px 0;
+    margin-bottom: 30px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.navbar .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.navbar-brand {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #ecf0f1;
+    text-decoration: none;
+}
+
+.navbar-nav {
+    display: flex;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.nav-item {
+    margin-left: 20px;
+}
+
+.nav-link {
+    color: #bdc3c7;
+    text-decoration: none;
+    transition: color 0.3s;
+}
+
+.nav-link:hover {
+    color: white;
+}
+
+/* Common Components (Cards & Buttons) */
+.btn {
+    display: inline-block;
+    padding: 10px 18px;
+    background-color: #3498db;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 15px;
+    text-decoration: none;
+    transition: background 0.3s, transform 0.1s;
+}
+
+.btn:hover {
+    background-color: #2980b9;
+}
+
+.btn:active {
+    transform: translateY(1px);
+}
+
+.card, .article, .dashboard-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    margin-bottom: 25px;
+    padding: 25px;
+    border: 1px solid #edf2f7;
+}
+
+/* Reader & Interactive Text */
+.clickable-word {
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+    border-radius: 3px;
+    padding: 0 1px;
+}
+
+.clickable-word:hover {
+    background-color: #e6f0ff;
+    color: #0066cc;
+    text-decoration: underline;
+}
+
+.saved-word {
+    background-color: #fff3a0;
+    border-bottom: 2px solid #f1c40f;
+}
+
+/* Flashcard Styles (The "Bigger" Card) */
+.flashcard {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    padding: 50px;
+    margin: 30px auto;
+    text-align: center;
+    max-width: 500px;
+}
+
+#flashcard-word {
+    font-size: 3rem;
+    color: #2c3e50;
+    margin-bottom: 15px;
+}
+
+/* POPUPS (The Floating Menus) */
+.flashcard-popup, #selection-menu {
+    position: absolute; /* Esencial para el posicionamiento por JS */
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    z-index: 999999; /* Máxima prioridad visual */
+    pointer-events: auto;
+}
+
+.flashcard-popup {
+    width: 320px;
+    padding: 20px;
+    display: none; /* Controlado por JS */
+}
+/* --- AJUSTE DE TAMAÑOS PARA EL POPUP --- */
+
+.flashcard-popup h3 {
+    font-size: 1.4rem !important; /* Tamaño moderado para el título */
+    margin-bottom: 10px;
+    color: #2c3e50;
+    line-height: 1.2;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+}
+
+.flashcard-popup p {
+    font-size: 0.95rem !important; /* Texto de lectura cómodo */
+    color: #4a5568;
+    margin-bottom: 8px;
+    line-height: 1.4;
+}
+
+.flashcard-popup .flashcard-example {
+    font-size: 0.85rem !important;
+    font-style: italic;
+    color: #718096;
+    background: #f7fafc;
+    padding: 5px;
+    border-radius: 4px;
+}
+
+/* Reducimos también los botones dentro del popup */
+.flashcard-popup .btn {
+    padding: 6px 12px;
+    font-size: 13px;
+}
+.flashcard-popup #flashcard-word {
+    word-break: break-word; /* Evita que las frases largas se salgan del cuadro */
+    display: block;
+}
+
+#selection-menu {
+    padding: 8px;
+    display: flex;
+    gap: 8px;
+    animation: fadeInMenu 0.2s ease-out;
+}
+
+#selection-menu button {
+    border: none;
+    background: #f1f5f9;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+#selection-menu button:hover {
+    background: #3498db;
+    color: white;
+}
+
+/* Quiz Styles */
+#quiz-container {
+    background: #f8fafc;
+    border-radius: 12px;
+    padding: 30px;
+    border: 2px dashed #cbd5e0;
+}
+
+.question {
+    margin-bottom: 25px;
+}
+
+.option {
+    padding: 12px 15px;
+    margin-bottom: 8px;
+    background-color: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.option:hover {
+    background-color: #edf2f7;
+    border-color: #3498db;
+}
+
+/* Animations */
+@keyframes fadeInMenu {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Utilities */
+.text-center { text-align: center; }
+.mt-3 { margin-top: 1.5rem; }
+.mb-3 { margin-bottom: 1.5rem; }
