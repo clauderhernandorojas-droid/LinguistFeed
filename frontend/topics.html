@@ -93,11 +93,13 @@
             handleLogout(logout);
 
             // Redirección a la lista de artículos
+            // Busca esto en topics.html y corrígelo:
+            // Busca esto en topics.html y corrígelo:
             document.querySelectorAll('.topic-card').forEach(card => {
                 card.addEventListener('click', function() {
                     const topic = this.getAttribute('data-topic');
-                    // IMPORTANTE: Redirige a articles.html con el parámetro del tema
-                    window.location.href = `articles.html?topic=${topic}`;
+                    // CAMBIO: Redirigir a reader.html en lugar de articles.html
+                    window.location.href = `reader.html?topic=${topic}`;
                 });
             });
         });
