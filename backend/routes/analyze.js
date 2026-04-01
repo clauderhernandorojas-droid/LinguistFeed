@@ -1,45 +1,33 @@
 const express = require('express');
 const router = express.Router();
+const aiService = require('../services/aiService'); // Importamos tu servicio de IA
 
 router.post('/analyze-text', async (req, res) => {
+    const { text } = req.body;
+
+    const prompt = `Analyze the English text: "${text}". 
+    Return ONLY a JSON object: {"translation": "Spanish", "definition": "English", "example": "Sentence"}`;
 
     try {
-
-        const { text, type } = req.body;
-
-        if (!text) {
-            return res.status(400).json({ error: "Text is required" });
+        console.log(`🤖 IA analizando: "${text}"`);
+        const aiResponse = await aiService.ask(prompt); 
+        
+        // LIMPIEZA AGRESIVA: Busca el primer '{' y el último '}' para extraer solo el JSON
+        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+            throw new Error("La IA no devolvió un formato JSON válido");
         }
-
-        if (type === "translate") {
-
-            // simple demo translation
-            return res.json({
-                translation: `Spanish translation of: "${text}"`
-            });
-
-        }
-
-        if (type === "explain") {
-
-            return res.json({
-                explanation: `Explanation for learners: "${text}" is a sentence that describes something happening.`
-            });
-
-        }
-
-        res.status(400).json({ error: "Invalid analysis type" });
-
+        
+        const data = JSON.parse(jsonMatch[0]);
+        res.json(data);
     } catch (error) {
-
-        console.error("Analyze text error:", error);
-
-        res.status(500).json({
-            error: "Failed to analyze text"
+        console.error("❌ Error en la ruta analyze-text:", error.message);
+        res.status(500).json({ 
+            translation: "Error de formato", 
+            definition: "La IA respondió en un formato incorrecto",
+            example: error.message 
         });
-
     }
-
 });
 
 module.exports = router;

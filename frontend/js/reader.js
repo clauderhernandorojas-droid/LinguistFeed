@@ -115,6 +115,8 @@ async function loadDailyArticlesList(filterTopic = null) {
             `).join('')}
         </div>
     `;
+    const cardTitles = container.querySelectorAll('.card h3');
+    cardTitles.forEach(title => attachTranslationListener(title));
 }
 
 /**
@@ -150,6 +152,7 @@ export async function loadFullArticle(id, level = null) {
             </button>
         `).join('');
 
+        // --- EL CAMBIO ESTÁ AQUÍ ABAJO ---
         container.innerHTML = `
             <article class="article-reader" style="max-width: 800px; margin: 0 auto; padding: 20px;">
                 <header>
@@ -157,12 +160,16 @@ export async function loadFullArticle(id, level = null) {
                     <h1 style="font-size: 2.2rem; margin: 25px 0 10px; line-height: 1.2; color: #1a202c;">${article.title}</h1>
                 </header>
 
-                <div class="level-selector-container" style="background: #f0f4f8; padding: 15px; border-radius: 10px; margin-bottom: 30px;">
+                <div class="level-selector-container" style="background: #f0f4f8; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
                     <span style="font-weight: bold; color: #334e68; display: block; margin-bottom: 10px;">Reading Level:</span>
                     ${levelButtons}
                 </div>
 
-                <div id="interactive-text" style="font-size: 1.25rem; line-height: 1.8; color: #2d3748;">
+                <button id="listen-full-article" class="listen-article-btn">
+                    <span>🔊</span> Listen to Article
+                </button>
+
+                <div id="interactive-text" style="font-size: 1.25rem; line-height: 1.8; color: #2d3748; margin-top: 30px;">
                     ${article.content.split('\n').map(p => p.trim() ? `<p style="margin-bottom: 20px;">${p}</p>` : '').join('')}
                 </div>
 
@@ -172,6 +179,17 @@ export async function loadFullArticle(id, level = null) {
                 </section>
             </article>
         `;
+
+        // Ahora que el botón EXISTE en el DOM, podemos asignarle el evento
+        const listenBtn = document.getElementById('listen-full-article');
+        if (listenBtn) {
+            listenBtn.onclick = () => {
+                toggleArticleAudio(article.content, listenBtn);
+            };
+        }
+
+        const mainTitle = container.querySelector('h1');
+        attachTranslationListener(mainTitle);
 
         if (typeof displayQuiz === 'function' && article.quizzes) {
             displayQuiz(article);
@@ -193,9 +211,21 @@ function setupTextInteractivity() {
     const textContainer = document.getElementById('interactive-text');
     if (!textContainer) return;
 
-    textContainer.addEventListener('click', (e) => {
+    textContainer.addEventListener('mouseup', (e) => {
+        // Validamos que exista una selección válida como sugirió Cursor
         const selection = window.getSelection();
-        if (selection.toString().trim().length === 0) {
+        
+        // Si no hay selección o es un clic accidental sin rango, abortamos
+        if (!selection || selection.rangeCount === 0) return;
+
+        const selectedText = selection.toString().trim();
+
+        // CASO A: Selección manual de frase o palabra
+        if (selectedText.length > 0) {
+            showFlashcardPopup(selectedText, e.clientX, e.clientY);
+        } 
+        // CASO B: Clic simple (intentamos capturar la palabra bajo el cursor)
+        else {
             const range = document.caretRangeFromPoint(e.clientX, e.clientY);
             if (range) {
                 selection.removeAllRanges();
@@ -203,9 +233,11 @@ function setupTextInteractivity() {
                 selection.modify('move', 'backward', 'word');
                 selection.modify('extend', 'forward', 'word');
                 const word = selection.toString().trim().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "");
-                if (word.length > 2 && typeof showFlashcardPopup === 'function') {
-                    showFlashcardPopup(word);
+                
+                if (word.length > 2) {
+                    showFlashcardPopup(word, e.clientX, e.clientY);
                 }
+                // Limpiamos la selección automática para no ensuciar la vista
                 selection.removeAllRanges();
             }
         }
@@ -258,9 +290,154 @@ export function handleLogout(logoutFn) {
     }
 }
 
+/**
+ * Muestra el popup con la palabra, traducción y ejemplo
+ */
+export async function showFlashcardPopup(text, mouseX, mouseY) {
+    const popup = document.getElementById('flashcard-popup');
+    if (!popup) return;
+
+    popup.style.display = 'block';
+    popup.style.position = 'fixed';
+    popup.style.zIndex = "10001";
+
+    // --- CÁLCULO DE POSICIÓN INTELIGENTE ---
+    const popupWidth = 300;
+    const popupHeight = 300; // Altura de seguridad para que quepa todo
+    const margin = 20;
+
+    // Eje X: No salirse por la derecha
+    let leftPos = mouseX + 10;
+    if (leftPos + popupWidth > window.innerWidth) {
+        leftPos = window.innerWidth - popupWidth - margin;
+    }
+
+    // Eje Y: EL SALTO (Si no cabe abajo, sube)
+    let topPos = mouseY + 15;
+    if (topPos + popupHeight > window.innerHeight) {
+        topPos = mouseY - popupHeight - 15; // Lo patea hacia arriba del cursor
+    }
+
+    // Seguridad: Que no se salga por el techo
+    if (topPos < margin) topPos = margin;
+
+    popup.style.top = `${topPos}px`;
+    popup.style.left = `${leftPos}px`;
+
+    // --- CARGA DE DATOS ---
+    document.getElementById('flashcard-word').textContent = text;
+    document.getElementById('flashcard-definition').textContent = "Analyzing selection...";
+    document.getElementById('flashcard-translation').textContent = "Translating...";
+
+    // Configurar Botón Audio
+    const ttsBtn = document.getElementById('tts-btn');
+    if (ttsBtn) {
+        ttsBtn.onclick = (e) => {
+            e.stopPropagation();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US';
+            window.speechSynthesis.speak(utterance);
+        };
+    }
+
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/analyze-text`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text })
+        });
+        const data = await response.json();
+        
+        // Rellenamos los campos con lo que devuelve la IA
+        document.getElementById('flashcard-definition').textContent = data.definition || "No definition";
+        document.getElementById('flashcard-translation').textContent = data.translation || "No translation";
+        
+        const exElem = document.getElementById('flashcard-example');
+        if (exElem) exElem.textContent = data.example || `Context: "${text}"`;
+
+    } catch (error) {
+        document.getElementById('flashcard-definition').textContent = "Service error";
+    }
+}
+
+/**
+ * Cierra el popup
+ */
+export function closeFlashcardPopup() {
+    const popup = document.getElementById('flashcard-popup');
+    if (popup) popup.style.display = 'none';
+}
+
+/**
+ * Agrega el escuchador de selección de texto a cualquier elemento
+ */
+function attachTranslationListener(element) {
+    if (!element) return;
+
+    element.addEventListener('mouseup', (e) => {
+        const selection = window.getSelection();
+        let selectedText = selection.toString().trim();
+
+        // Si el usuario NO seleccionó nada manualmente (solo hizo clic)
+        if (selectedText.length === 0) {
+            // Seleccionamos todo el texto del elemento (el título completo)
+            const range = document.createRange();
+            range.selectNodeContents(element);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            selectedText = selection.toString().trim();
+        }
+
+        // Si tenemos texto (ya sea por arrastre o por selección automática)
+        if (selectedText.length > 0) {
+            console.log("🎯 Traduciendo título completo:", selectedText);
+            showFlashcardPopup(selectedText, e.clientX, e.clientY);
+        }
+    });
+}
+/**
+ * Controla la lectura del artículo completo, limpiando HTML
+ */
+function toggleArticleAudio(htmlContent, btn) {
+    // 1. Si ya está hablando, lo detenemos (botón de Stop)
+    if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+        btn.classList.remove('playing');
+        btn.innerHTML = '<span>🔊</span> Listen to Article';
+        return;
+    }
+
+    // 2. LIMPIEZA: Extraemos solo el texto para que la voz no lea etiquetas HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = htmlContent;
+    const plainText = tempDiv.textContent || tempDiv.innerText || "";
+
+    if (!plainText.trim()) return;
+
+    // 3. Configuración de la voz
+    const utterance = new SpeechSynthesisUtterance(plainText);
+    utterance.lang = 'en-US';
+    utterance.rate = 0.9; // Velocidad cómoda para estudiantes
+
+    // Cambios visuales en el botón durante la lectura
+    utterance.onstart = () => {
+        btn.classList.add('playing');
+        btn.innerHTML = '<span>⏹️</span> Stop Listening';
+    };
+
+    utterance.onend = () => {
+        btn.classList.remove('playing');
+        btn.innerHTML = '<span>🔊</span> Listen to Article';
+    };
+
+    window.speechSynthesis.speak(utterance);
+}
+
 // FUNCIONES GLOBALES PARA EL HTML
 window.changeArticleLevel = (id, lvl) => loadFullArticle(id, lvl);
 window.saveFlashcardToStorage = saveFlashcardToStorage;
+window.showFlashcardPopup = showFlashcardPopup; // Añade esta línea
+window.closeFlashcardPopup = closeFlashcardPopup; // Añade esta línea
 
 // ESCUCHAR CAMBIOS DE NAVEGACIÓN
 window.addEventListener('hashchange', initReader);

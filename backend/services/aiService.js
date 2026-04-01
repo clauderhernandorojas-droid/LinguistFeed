@@ -270,6 +270,29 @@ async generateSimplifiedArticle(text, level = 'B1', userContext = {}) {
       throw error;
     }
   }
+  async ask(prompt, systemRole = "You are a helpful language learning assistant.") {
+    try {
+        const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
+            model: 'google/gemini-2.0-flash-001', // O el modelo que estés usando
+            messages: [
+                { role: 'system', content: systemRole },
+                { role: 'user', content: prompt }
+            ]
+        }, {
+            headers: {
+                'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                'HTTP-Referer': 'http://localhost:3000',
+                'Content-Type': 'application/json'
+            }
+        });
+  
+        return response.data.choices[0].message.content;
+    } catch (error) {
+        console.error("❌ Error en AiService.ask:", error.response?.data || error.message);
+        throw error;
+    }
+  }
 }
+// Dentro de la clase AiService en backend/services/aiService.j
 
 module.exports = new AiService();
