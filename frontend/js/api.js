@@ -11,39 +11,39 @@ export const API_BASE_URL = 'http://localhost:3001';
 
 /** Obtener los artículos diarios */
 export async function fetchDailyArticles(level = 'B1') {
-    return new Promise((resolve) => {
-        setTimeout(() => {
-            const articleData = MOCK_ARTICLES[level] || MOCK_ARTICLES["B1"];
-            
-            // CREAMOS EL OBJETO COMPLETO
-            const fullArticle = {
-                ...articleData,
-                id: "sim-" + level, // ID único para la simulación
-                topic: "Science",
-                date: "March 24, 2026"
-            };
-
-            // GUARDAMOS EN LA VENTANA GLOBAL PARA QUE EL LECTOR LO ENCUENTRE
-            window.currentSimulationArticle = fullArticle;
-
-            resolve({ articles: [fullArticle] });
-        }, 300);
-    });
-}
-
-/** Obtener un artículo específico por su ID */
-export async function fetchArticleById(id) {
     try {
         const response = await fetch(`${API_BASE_URL}/daily-articles`); 
-        if (!response.ok) throw new Error(`API error: ${response.status}`);
+        if (!response.ok) throw new Error(`Error en API: ${response.status}`);
+        
         const data = await response.json();
-        // Usamos == para que compare número con texto sin problemas
-        return data.articles.find(a => a.id == id);
+        // data.articles ya viene filtrado del backend
+        return data; 
     } catch (error) {
-        console.error('Error fetching article by id:', error);
+        console.error("❌ Error al obtener artículos reales:", error);
+        return { articles: [] };
+    }
+}
+
+/**
+ * Obtiene un artículo específico por su ID y Nivel desde el backend real (SQLite)
+ */
+export async function fetchArticleById(id, level = 'B1') {
+    try {
+        // Usamos la constante API_BASE_URL que ya tienes definida arriba en api.js
+        const response = await fetch(`${API_BASE_URL}/articles/${id}?level=${level}`);
+        
+        if (!response.ok) {
+            console.warn(`⚠️ Artículo ${id} no encontrado en nivel ${level}`);
+            return null;
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error("❌ Error de conexión en fetchArticleById:", error);
         return null;
     }
 }
+
 
 /** Generar flashcard de vocabulario usando IA */
 export async function generateFlashcard(word, context) {
