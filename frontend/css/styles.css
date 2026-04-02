@@ -134,56 +134,110 @@ h1 {
 }
 
 /* POPUPS (The Floating Menus) */
-.flashcard-popup, #selection-menu {
-    position: absolute; /* Esencial para el posicionamiento por JS */
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-    z-index: 999999; /* Máxima prioridad visual */
-    pointer-events: auto;
-}
+/* ============================================================
+   ESTILO DEFINITIVO DEL POPUP DE TRADUCCIÓN (CON SCROLL)
+   ============================================================ */
 
 .flashcard-popup {
-    width: 320px;
+    display: none;
+    position: fixed;
+    width: 330px;
+    height: 440px;
+    background: white !important;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    z-index: 10001;
     padding: 20px;
-    display: none; /* Controlado por JS */
+    box-sizing: border-box; 
+    flex-direction: column;
+    overflow: hidden; /* Corta lo que se salga */
 }
-/* --- AJUSTE DE TAMAÑOS PARA EL POPUP --- */
 
-.flashcard-popup h3 {
-    font-size: 1.4rem !important; /* Tamaño moderado para el título */
+.flashcard-header {
+    flex-shrink: 0; /* No se encoge */
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f1f5f9;
     margin-bottom: 10px;
-    color: #2c3e50;
-    line-height: 1.2;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 5px;
+}
+
+/* --- ZONA A: ÁREA DE TEXTO CON SCROLL --- */
+.flashcard-scroll-area {
+    flex: 1;           /* Toma el resto del espacio */
+    min-height: 0;      /* SECRETO DE CURSOR: Permite que el scroll funcione bien */
+    overflow-y: auto !important;
+    padding-right: 8px;
+}
+
+/* --- ZONA B: ÁREA DE BOTONES FIJA ABAJO --- */
+.flashcard-actions {
+    flex-shrink: 0;    /* No se encoge */
+    display: flex;
+    gap: 10px;
+    padding-top: 15px;
+    border-top: 1px solid #edf2f7;
+    background: white;
+}
+
+/* --- AJUSTE DE TIPOGRAFÍA (DOMANDO LAS LETRAS) --- */
+
+.flashcard-popup h3#flashcard-word {
+    font-size: 1.25rem !important; /* Tamaño moderado, no masivo */
+    margin: 0 0 12px 0;
+    color: #1a202c;
+    line-height: 1.3;
+    word-break: break-word;      /* Evita que títulos largos rompan el ancho */
+    display: block;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #f1f5f9;
 }
 
 .flashcard-popup p {
-    font-size: 0.95rem !important; /* Texto de lectura cómodo */
+    font-size: 0.92rem !important; /* Lectura cómoda pero contenida */
     color: #4a5568;
-    margin-bottom: 8px;
-    line-height: 1.4;
+    margin-bottom: 10px;
+    line-height: 1.5;
 }
 
-.flashcard-popup .flashcard-example {
+.flashcard-popup strong {
+    color: #2d3748;
+    font-size: 0.85rem;
+}
+
+/* Estilo para el ejemplo (gris e itálica) */
+#flashcard-example {
     font-size: 0.85rem !important;
     font-style: italic;
     color: #718096;
-    background: #f7fafc;
-    padding: 5px;
-    border-radius: 4px;
+    background: #f8fafc;
+    padding: 8px;
+    border-radius: 6px;
+    border-left: 3px solid #cbd5e0;
+    margin-top: 10px;
 }
 
-/* Reducimos también los botones dentro del popup */
-.flashcard-popup .btn {
-    padding: 6px 12px;
+/* --- BOTONES --- */
+.flashcard-popup .btn, 
+.flashcard-actions button {
+    padding: 8px 12px;
     font-size: 13px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
 }
-.flashcard-popup #flashcard-word {
-    word-break: break-word; /* Evita que las frases largas se salgan del cuadro */
-    display: block;
+
+/* Personalización del Scrollbar (para que se vea elegante) */
+.flashcard-scroll-area::-webkit-scrollbar {
+    width: 6px;
+}
+.flashcard-scroll-area::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+.flashcard-scroll-area::-webkit-scrollbar-thumb {
+    background: #cbd5e0;
+    border-radius: 10px;
 }
 
 #selection-menu {
