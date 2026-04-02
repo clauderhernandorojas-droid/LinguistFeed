@@ -297,40 +297,40 @@ export async function showFlashcardPopup(text, mouseX, mouseY) {
     const popup = document.getElementById('flashcard-popup');
     if (!popup) return;
 
-    popup.style.display = 'flex';
-    
-    const viewportHeight = window.innerHeight;
-    const popupHeight = 440;
-    const margin = 30; // Margen generoso para los botones
+    // --- 1. RESETEO TOTAL DE POSICIÓN ---
+    // Limpiamos rastros de clics anteriores para evitar conflictos top/bottom
+    popup.style.top = 'auto';
+    popup.style.bottom = 'auto';
+    popup.style.left = 'auto';
+    popup.style.display = 'flex'; 
 
-    // Eje X (Lo que ya tenías)
+    const viewportHeight = window.innerHeight;
+    const popupWidth = 330;  // Coincide con tu CSS
+    const margin = 30;
+
+    // --- 2. POSICIONAMIENTO HORIZONTAL ---
     let leftPos = mouseX + 10;
-    if (leftPos + 330 > window.innerWidth) leftPos = window.innerWidth - 330 - 20;
+    if (leftPos + popupWidth > window.innerWidth) {
+        leftPos = window.innerWidth - popupWidth - 20;
+    }
     popup.style.left = `${leftPos}px`;
 
-    // Eje Y: Anclaje Dinámico
+    // --- 3. POSICIONAMIENTO VERTICAL INTELIGENTE ---
     if (mouseY > viewportHeight / 2) {
-        // PARTE INFERIOR: Anclamos al Bottom (crece hacia arriba)
-        popup.style.bottom = `${viewportHeight - mouseY + margin}px`;
-        popup.style.top = 'auto'; // Limpieza sugerida por Cursor
+        // Mitad inferior: el popup crece hacia ARRIBA (anclado al bottom)
+        popup.style.bottom = `${viewportHeight - mouseY + 20}px`;
     } else {
-        // PARTE SUPERIOR: Anclamos al Top (crece hacia abajo)
-        popup.style.top = `${mouseY + 15}px`;
-        popup.style.bottom = 'auto'; // Limpieza sugerida por Cursor
+        // Mitad superior: el popup crece hacia ABAJO (anclado al top)
+        popup.style.top = `${mouseY + 20}px`;
     }
 
-    // Seguridad extra: Si el popup es muy alto para la pantalla, forzar un margen
-    if (popupHeight > viewportHeight) {
-        popup.style.top = '10px';
-        popup.style.height = `${viewportHeight - 20}px`;
-    }
-
-    // --- CARGA DE DATOS (Lo que ya tenías) ---
+    // --- 4. PREPARACIÓN DE LA TARJETA (Limpieza de textos) ---
     document.getElementById('flashcard-word').textContent = text;
     document.getElementById('flashcard-definition').textContent = "Analyzing selection...";
     document.getElementById('flashcard-translation').textContent = "";
     document.getElementById('flashcard-example').textContent = "";
 
+    // --- 5. CONFIGURACIÓN DEL BOTÓN DE AUDIO (TTS) ---
     const ttsBtn = document.getElementById('tts-btn');
     if (ttsBtn) {
         ttsBtn.onclick = (e) => {
@@ -341,6 +341,7 @@ export async function showFlashcardPopup(text, mouseX, mouseY) {
         };
     }
 
+    // --- 6. LLAMADA A LA IA ---
     try {
         const response = await fetch(`${CONFIG.API_BASE_URL}/analyze-text`, {
             method: 'POST',
@@ -348,12 +349,19 @@ export async function showFlashcardPopup(text, mouseX, mouseY) {
             body: JSON.stringify({ text: text })
         });
         const data = await response.json();
-        document.getElementById('flashcard-definition').textContent = data.definition || "No definition";
-        document.getElementById('flashcard-translation').textContent = data.translation || "No translation";
+        
+        // Rellenamos con los datos finales
+        document.getElementById('flashcard-definition').textContent = data.definition || "No definition found";
+        document.getElementById('flashcard-translation').textContent = data.translation || "No translation found";
+        
         const exElem = document.getElementById('flashcard-example');
-        if (exElem) exElem.textContent = data.example || `Context: "${text}"`;
+        if (exElem) {
+            // Si hay ejemplo, lo mostramos; si no, ponemos un contexto genérico
+            exElem.textContent = data.example || `Context: "${text}"`;
+        }
     } catch (error) {
-        document.getElementById('flashcard-definition').textContent = "Service error";
+        console.error("Error al analizar texto:", error);
+        document.getElementById('flashcard-definition').textContent = "Service error. Please try again.";
     }
 }
 

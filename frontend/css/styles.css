@@ -140,6 +140,7 @@ h1 {
 
 .flashcard-popup {
     display: none;
+    align-items: stretch;
     position: fixed;
     width: 330px;
     height: 440px;
@@ -154,11 +155,22 @@ h1 {
     overflow: hidden; /* Corta lo que se salga */
 }
 
+/* Esto fuerza al título a quedarse en su sitio, sin excepciones */
 .flashcard-header {
-    flex-shrink: 0; /* No se encoge */
-    padding-bottom: 12px;
-    border-bottom: 1px solid #f1f5f9;
-    margin-bottom: 10px;
+    flex-shrink: 0 !important;
+    height: auto !important;
+    min-height: 60px !important; /* Le damos un suelo firme */
+    display: block !important;
+    padding: 0 !important;
+    margin-bottom: 10px !important;
+}
+
+.flashcard-header h3#flashcard-word {
+    margin: 0 !important;
+    padding: 10px 40px 5px 0 !important; /* Espacio real arriba */
+    font-size: 1.2rem !important;
+    line-height: 1.2 !important;
+    display: block !important;
 }
 
 /* --- ZONA A: ÁREA DE TEXTO CON SCROLL --- */
