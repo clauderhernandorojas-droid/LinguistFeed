@@ -297,39 +297,40 @@ export async function showFlashcardPopup(text, mouseX, mouseY) {
     const popup = document.getElementById('flashcard-popup');
     if (!popup) return;
 
-    popup.style.display = 'block';
-    popup.style.position = 'fixed';
-    popup.style.zIndex = "10001";
+    popup.style.display = 'flex';
+    
+    const viewportHeight = window.innerHeight;
+    const popupHeight = 440;
+    const margin = 30; // Margen generoso para los botones
 
-    // --- CÁLCULO DE POSICIÓN INTELIGENTE ---
-    const popupWidth = 300;
-    const popupHeight = 300; // Altura de seguridad para que quepa todo
-    const margin = 20;
-
-    // Eje X: No salirse por la derecha
+    // Eje X (Lo que ya tenías)
     let leftPos = mouseX + 10;
-    if (leftPos + popupWidth > window.innerWidth) {
-        leftPos = window.innerWidth - popupWidth - margin;
-    }
-
-    // Eje Y: EL SALTO (Si no cabe abajo, sube)
-    let topPos = mouseY + 15;
-    if (topPos + popupHeight > window.innerHeight) {
-        topPos = mouseY - popupHeight - 15; // Lo patea hacia arriba del cursor
-    }
-
-    // Seguridad: Que no se salga por el techo
-    if (topPos < margin) topPos = margin;
-
-    popup.style.top = `${topPos}px`;
+    if (leftPos + 330 > window.innerWidth) leftPos = window.innerWidth - 330 - 20;
     popup.style.left = `${leftPos}px`;
 
-    // --- CARGA DE DATOS ---
+    // Eje Y: Anclaje Dinámico
+    if (mouseY > viewportHeight / 2) {
+        // PARTE INFERIOR: Anclamos al Bottom (crece hacia arriba)
+        popup.style.bottom = `${viewportHeight - mouseY + margin}px`;
+        popup.style.top = 'auto'; // Limpieza sugerida por Cursor
+    } else {
+        // PARTE SUPERIOR: Anclamos al Top (crece hacia abajo)
+        popup.style.top = `${mouseY + 15}px`;
+        popup.style.bottom = 'auto'; // Limpieza sugerida por Cursor
+    }
+
+    // Seguridad extra: Si el popup es muy alto para la pantalla, forzar un margen
+    if (popupHeight > viewportHeight) {
+        popup.style.top = '10px';
+        popup.style.height = `${viewportHeight - 20}px`;
+    }
+
+    // --- CARGA DE DATOS (Lo que ya tenías) ---
     document.getElementById('flashcard-word').textContent = text;
     document.getElementById('flashcard-definition').textContent = "Analyzing selection...";
-    document.getElementById('flashcard-translation').textContent = "Translating...";
+    document.getElementById('flashcard-translation').textContent = "";
+    document.getElementById('flashcard-example').textContent = "";
 
-    // Configurar Botón Audio
     const ttsBtn = document.getElementById('tts-btn');
     if (ttsBtn) {
         ttsBtn.onclick = (e) => {
@@ -347,14 +348,10 @@ export async function showFlashcardPopup(text, mouseX, mouseY) {
             body: JSON.stringify({ text: text })
         });
         const data = await response.json();
-        
-        // Rellenamos los campos con lo que devuelve la IA
         document.getElementById('flashcard-definition').textContent = data.definition || "No definition";
         document.getElementById('flashcard-translation').textContent = data.translation || "No translation";
-        
         const exElem = document.getElementById('flashcard-example');
         if (exElem) exElem.textContent = data.example || `Context: "${text}"`;
-
     } catch (error) {
         document.getElementById('flashcard-definition').textContent = "Service error";
     }

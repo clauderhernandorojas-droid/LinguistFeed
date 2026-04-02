@@ -38,27 +38,23 @@
         <div id="quiz-container" style="margin-top: 30px;"></div>
     </div>
 
-    <div id="flashcard-popup" class="flashcard-popup" style="display:none; position:fixed; background:white; border:2px solid #007bff; padding:15px; border-radius:12px; box-shadow: 0 8px 30px rgba(0,0,0,0.3); width: 300px; z-index: 10001;">
-        <div class="flashcard-content">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
-                <h3 id="flashcard-word" style="margin:0; color:#1a202c; font-size: 1.2rem;"></h3>
-                <button id="tts-btn" style="background:#f0f4f8; border:none; cursor:pointer; font-size:1.4rem; border-radius: 50%; width: 40px; height: 40px;" title="Listen">🔊</button>
+    <div id="flashcard-popup" class="flashcard-popup">
+        <div class="flashcard-header">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <h3 id="flashcard-word" style="margin:0; padding-right: 40px; color:#1a202c; font-size: 1.15rem; line-height: 1.3;"></h3>
+                <button id="tts-btn" style="background:#f0f4f8; border:none; cursor:pointer; font-size:1.2rem; border-radius: 50%; width: 35px; height: 35px; flex-shrink: 0;">🔊</button>
             </div>
-            
-            <div style="border-top: 1px solid #edf2f7; padding-top: 10px;">
-                <p style="margin-bottom: 5px;"><strong>Definition:</strong> <span id="flashcard-definition" style="color: #4a5568;"></span></p>
-                <p style="margin-bottom: 5px;"><strong>Translation:</strong> <span id="flashcard-translation" style="color: #28a745; font-weight: bold;"></span></p>
-                <p id="flashcard-example" style="font-style:italic; color:#718096; font-size:0.85rem; margin-top: 8px; border-left: 3px solid #cbd5e0; padding-left: 8px;"></p>
-            </div>
+        </div>
     
-            <div style="display:flex; gap:10px; margin-top:15px;">
-                <button id="save-flashcard-btn" class="btn" style="flex:2; background:#28a745; color:white; border:none; padding:8px; border-radius:6px; cursor:pointer; font-weight:bold;">
-                    Save to Flashcards
-                </button>
-                <button onclick="window.closeFlashcardPopup()" style="flex:1; background:#edf2f7; color:#4a5568; border:1px solid #cbd5e0; padding:8px; border-radius:6px; cursor:pointer;">
-                    Close
-                </button>
-            </div>
+        <div class="flashcard-scroll-area">
+            <p><strong>Definition:</strong> <span id="flashcard-definition"></span></p>
+            <p><strong>Translation:</strong> <span id="flashcard-translation" style="color: #28a745; font-weight: bold;"></span></p>
+            <p id="flashcard-example"></p>
+        </div>
+    
+        <div class="flashcard-actions">
+            <button id="save-flashcard-btn" class="btn-save" style="background:#28a745; color:white; border:none; flex:2; padding:8px; border-radius:6px; font-weight:bold; cursor:pointer;">Save to Flashcards</button>
+            <button onclick="window.closeFlashcardPopup()" class="btn-close" style="background:#edf2f7; color:#4a5568; border:1px solid #cbd5e0; flex:1; padding:8px; border-radius:6px; cursor:pointer;">Close</button>
         </div>
     </div>
 
