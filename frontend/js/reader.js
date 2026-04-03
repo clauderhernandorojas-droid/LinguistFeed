@@ -16,7 +16,10 @@ export async function initReader() {
     const loadingDiv = document.getElementById('loading');
     if (!container) return;
 
-    // LEER DESDE EL HASH (#) para evitar redirecciones 301 del servidor
+    // 1. OBTENER EL NIVEL (Esto evita el error de 'not defined')
+    const currentLevel = localStorage.getItem('selectedLevel') || 'A2'; 
+
+    // 2. LEER DESDE EL HASH (#)
     const hash = window.location.hash.substring(1); 
     const params = new URLSearchParams(hash);
     
@@ -29,6 +32,8 @@ export async function initReader() {
         if (articleId) {
             // Caso A: Mostrar el artículo completo
             await loadFullArticle(articleId);
+            // Ahora 'currentLevel' ya existe aquí
+            renderLevelSelector(articleId, currentLevel);
         } else if (topic) {
             // Caso B: Mostrar lista de artículos de un tema
             await loadDailyArticlesList(topic);
@@ -217,6 +222,24 @@ export async function loadFullArticle(id, level = null) {
         if (loadingDiv) loadingDiv.style.display = 'none';
         container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
     }
+}
+function renderLevelSelector(currentArticleId, activeLevel) {
+    const levelContainer = document.getElementById('level-selector-container');
+    if (!levelContainer) return;
+
+    const levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+    
+    levelContainer.innerHTML = levels.map(level => `
+        <button 
+            class="level-btn ${level === activeLevel ? 'active' : ''}" 
+            onclick="changeArticleLevel('${currentArticleId}', '${level}')"
+            style="margin-right: 8px; padding: 5px 15px; cursor: pointer; border-radius: 15px; border: 1px solid #007bff; 
+                   background: ${level === activeLevel ? '#007bff' : 'white'}; 
+                   color: ${level === activeLevel ? 'white' : '#007bff'};"
+        >
+            ${level}
+        </button>
+    `).join('');
 }
 /**
  * Configura la interactividad de las palabras
@@ -608,7 +631,18 @@ function applyHighlights(container) {
     });
 }
 // FUNCIONES GLOBALES PARA EL HTML
-window.changeArticleLevel = (id, lvl) => loadFullArticle(id, lvl);
+window.changeArticleLevel = async (id, lvl) => {
+    console.log(`Cambiando artículo ${id} al nivel ${lvl}...`);
+    
+    // 1. Guardamos la preferencia en el navegador
+    localStorage.setItem('selectedLevel', lvl);
+    
+    // 2. Recargamos el contenido con el nuevo nivel
+    await loadFullArticle(id, lvl);
+    
+    // 3. Volvemos a dibujar los botones para que el nuevo nivel salga resaltado
+    renderLevelSelector(id, lvl);
+};
 window.saveFlashcardToStorage = saveFlashcardToStorage;
 window.showFlashcardPopup = showFlashcardPopup; // Añade esta línea
 window.closeFlashcardPopup = closeFlashcardPopup; // Añade esta línea
