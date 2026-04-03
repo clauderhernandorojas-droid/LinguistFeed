@@ -370,7 +370,21 @@ export async function showFlashcardPopup(text, mouseX, mouseY) {
         popup.style.bottom = `${viewportHeight - mouseY + 20}px`;
     } else {
         // Mitad superior: el popup crece hacia ABAJO (anclado al top)
-        popup.style.top = `${mouseY + 20}px`;
+        // --- Lógica de Rebote (Pégalo reemplazando la línea 373) ---
+        const popupHeight = 440; 
+        const margin = 20;
+
+        // Limpiamos estilos previos para evitar conflictos
+        popup.style.top = 'auto';
+        popup.style.bottom = 'auto';
+
+        if (mouseY + popupHeight > window.innerHeight) {
+            // Si no cabe abajo, lo pegamos al borde inferior con un margen
+            popup.style.bottom = `${margin}px`; 
+        } else {
+            // Si cabe, usamos la posición normal
+            popup.style.top = `${mouseY + margin}px`;
+        }
     }
 
     // --- 4. PREPARACIÓN DE LA TARJETA (Limpieza de textos) ---

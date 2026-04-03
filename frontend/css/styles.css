@@ -397,3 +397,47 @@ h1 {
     background-color: rgba(255, 193, 7, 0.4);
     box-shadow: 0 0 5px rgba(255, 193, 7, 0.5);
 }
+
+/* 1. EL CONTENEDOR (La ventana al mundo 3D) */
+.flashcard-container {
+    perspective: 1000px; /* ¡ESTO ES VITAL! Sin perspectiva, el giro se ve plano o no se ve */
+    width: 100%;
+    max-width: 500px;
+    margin: 30px auto;
+}
+
+/* 2. EL INNER (El que realmente rota) */
+.flashcard-inner {
+    position: relative;
+    width: 100%;
+    height: 350px;
+    transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    transform-style: preserve-3d; /* CRÍTICO: Permite que los hijos vivan en 3D */
+    cursor: pointer;
+}
+
+/* 3. LA CLASE DE GIRO (La que activa el JS) */
+.flashcard-inner.is-flipped {
+    transform: rotateY(180deg) !important;
+}
+
+/* 4. LAS CARAS (Los hijos que se ocultan al girar) */
+.flashcard-front, .flashcard-back {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden !important; 
+    -webkit-backface-visibility: hidden !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    border-radius: 15px;
+    top: 0;
+    left: 0;
+}
+
+/* 5. LA CARA DE ATRÁS (Debe estar rotada de inicio) */
+.flashcard-back {
+    transform: rotateY(180deg); /* Para que al girar el padre, esta quede de frente */
+}
