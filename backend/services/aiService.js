@@ -122,7 +122,8 @@ async generateSimplifiedArticle(text, level = 'B1', userContext = {}) {
         console.error('Raw response:', generatedText);
         
         // Retry once with a more explicit instruction
-        return this.retrySimplification(text);
+        console.error("Error en simplificación, abortando reintento inexistente.");
+        throw new Error("No se pudo simplificar el artículo ni generar el quiz.");
       }
       
     } else {
@@ -292,6 +293,38 @@ async generateSimplifiedArticle(text, level = 'B1', userContext = {}) {
         throw error;
     }
   }
+
+  async generateQuizFromText(text, level = 'B2') {
+    const systemRole = `You are an expert English teacher. 
+    Create a 3-question multiple-choice quiz based on the provided text.
+    Target level: ${level}.
+    Return ONLY a JSON object with this structure:
+    {
+      "quizzes": [
+        {
+          "question": "string",
+          "options": ["opt1", "opt2", "opt3"],
+          "correct_index": 0,
+          "hint": "string"
+        }
+      ]
+    }`;
+
+    try {
+        // Usamos la función 'ask' que ya existe en tu aiService
+        const response = await this.ask(text, systemRole);
+        
+        // --- LIMPIEZA DE LA RESPUESTA ---
+        // Eliminamos posibles bloques de código Markdown (```json o ```)
+        const cleanResponse = response.replace(/```json/g, "").replace(/```/g, "").trim();
+        
+        const parsed = JSON.parse(cleanResponse);
+        return parsed.quizzes; // Devolvemos solo el array de preguntas
+    } catch (error) {
+        console.error("Error generating quiz from text:", error);
+        return []; // Devolvemos array vacío si falla
+    }
+}
 }
 // Dentro de la clase AiService en backend/services/aiService.j
 

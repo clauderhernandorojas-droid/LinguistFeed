@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
 const { authenticate } = require('../middleware/auth');
+const aiService = require('../services/aiService'); // Asegúrate de que la ruta sea correcta
 
 /**
  * @route GET /articles
@@ -179,6 +180,22 @@ router.post('/simplify', async (req, res) => {
     });
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+});
+// NUEVA RUTA: Generación de Quiz sin simplificación
+router.post('/generate-quiz-only', async (req, res) => {
+  const { text, level } = req.body;
+
+  if (!text) {
+      return res.status(400).json({ error: "No text provided" });
+  }
+
+  try {
+      const quizzes = await aiService.generateQuizFromText(text, level);
+      res.json({ quizzes: quizzes });
+  } catch (error) {
+      console.error("Error en ruta generate-quiz-only:", error);
+      res.status(500).json({ error: "Failed to generate quiz" });
   }
 });
 

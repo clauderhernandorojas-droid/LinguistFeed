@@ -366,3 +366,34 @@ h1 {
     visibility: visible;
     bottom: 125%; /* Pequeña animación de subida al aparecer */
 }
+
+/* Forzamos el cursor de mano en todo el contenedor interactivo */
+#interactive-text, 
+#interactive-text p, 
+#interactive-title {
+    cursor: pointer !important;
+}
+
+/* Si tu JS crea elementos con la clase .word, esto es vital */
+.word {
+    cursor: pointer !important;
+}
+
+/* Para que el usuario sepa que la palabra es un "botón" */
+.word:hover {
+    background-color: rgba(0, 123, 255, 0.1) !important;
+    border-radius: 3px !important;
+}
+/* Resaltado de palabras que ya están en tus Flashcards */
+.lf-saved-word {
+    background-color: rgba(255, 193, 7, 0.2); /* Amarillo muy tenue */
+    border-bottom: 2px wavy #ffc107; /* Subrayado ondulado estilo diccionario */
+    border-radius: 2px;
+    padding: 0 1px;
+    transition: all 0.3s ease;
+}
+
+.lf-saved-word:hover {
+    background-color: rgba(255, 193, 7, 0.4);
+    box-shadow: 0 0 5px rgba(255, 193, 7, 0.5);
+}
