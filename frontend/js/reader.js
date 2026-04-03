@@ -9,6 +9,8 @@ import { fetchDailyArticles, fetchArticleById } from './api.js';
  * Función principal que arranca el lector.
  * Lee el Hash (#) para decidir qué mostrar sin recargar la página.
  */
+let savedWordsSet = new Set(); // Aquí guardaremos tus palabras "tesoro"
+
 export async function initReader() {
     const container = document.getElementById('articles-container');
     const loadingDiv = document.getElementById('loading');
@@ -123,6 +125,7 @@ async function loadDailyArticlesList(filterTopic = null) {
  * Carga y renderiza un artículo completo con niveles CEFR
  */
 export async function loadFullArticle(id, level = null) {
+    await refreshSavedWords();
     const container = document.getElementById('articles-container');
     const loadingDiv = document.getElementById('loading');
     if (!container) return;
@@ -138,72 +141,83 @@ export async function loadFullArticle(id, level = null) {
         if (!response.ok) throw new Error(`Artículo no encontrado`);
         const article = await response.json();
 
-        const levels = ['A1', 'A2', 'B1', 'B2', 'C1'];
-        const levelButtons = levels.map(lvl => `
-            <button 
-                onclick="window.changeArticleLevel('${id}', '${lvl}')"
-                class="level-btn ${lvl === currentLevel ? 'active' : ''}"
-                style="padding: 8px 16px; border-radius: 20px; cursor: pointer; font-weight: bold;
-                       border: 2px solid ${lvl === currentLevel ? '#007bff' : '#cbd5e0'};
-                       background: ${lvl === currentLevel ? '#007bff' : 'white'};
-                       color: ${lvl === currentLevel ? 'white' : '#4a5568'};
-                       margin-right: 5px; transition: 0.2s;">
-                ${lvl}
-            </button>
-        `).join('');
-
-        // --- EL CAMBIO ESTÁ AQUÍ ABAJO ---
+        // --- RENDERIZADO DEL ARTÍCULO ---
+        // IMPORTANTE: Usamos id="interactive-text" para que funcionen las flashcards
         container.innerHTML = `
-            <article class="article-reader" style="max-width: 800px; margin: 0 auto; padding: 20px;">
-                <header>
-                    <a href="reader.html#topic=${article.topic}" style="text-decoration:none; color:#007bff; font-weight:bold;">← Back to ${article.topic}</a>
-                    <h1 style="font-size: 2.2rem; margin: 25px 0 10px; line-height: 1.2; color: #1a202c;">${article.title}</h1>
-                </header>
-
-                <div class="level-selector-container" style="background: #f0f4f8; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
-                    <span style="font-weight: bold; color: #334e68; display: block; margin-bottom: 10px;">Reading Level:</span>
-                    ${levelButtons}
-                </div>
-
-                <button id="listen-full-article" class="listen-article-btn">
-                    <span>🔊</span> Listen to Article
+            <div class="article-full animate__animated animate__fadeIn">
+                <button onclick="window.location.hash=''" class="btn btn-outline-secondary mb-4">
+                    ← Back to Articles
                 </button>
-
-                <div id="interactive-text" style="font-size: 1.25rem; line-height: 1.8; color: #2d3748; margin-top: 30px;">
-                    ${article.content.split('\n').map(p => p.trim() ? `<p style="margin-bottom: 20px;">${p}</p>` : '').join('')}
+                
+                <h1 id="interactive-title" class="mb-3">${article.title}</h1>
+                
+                <div class="article-meta mb-4">
+                    <span class="badge bg-primary">${article.level}</span>
+                    <span class="text-muted ms-2">Topic: ${article.topic || 'General'}</span>
                 </div>
 
-                <section id="quiz-section" style="margin-top: 50px; padding: 30px; background: #fff; border: 1px solid #e2e8f0; border-radius: 15px;">
-                    <h2 style="margin-top:0;">📝 Comprehension Check</h2>
-                    <div id="quiz-container"></div>
-                </section>
-            </article>
+                <div id="interactive-text" class="article-body-text">
+                    ${article.content}
+                </div>
+                
+                <div id="quiz-section" class="text-center mt-5 p-4 border-top">
+                    <h4>Ready to test your knowledge?</h4>
+                    <button id="generate-quiz-btn" class="btn btn-primary btn-lg shadow-sm">
+                        🧠 Generate AI Quiz
+                    </button>
+                    <div id="quiz-container" class="mt-4 text-start" style="display:none;"></div>
+                </div>
+            </div>
         `;
 
-        // Ahora que el botón EXISTE en el DOM, podemos asignarle el evento
-        const listenBtn = document.getElementById('listen-full-article');
-        if (listenBtn) {
-            listenBtn.onclick = () => {
-                toggleArticleAudio(article.content, listenBtn);
+        // --- RESALTADO DE PALABRAS GUARDADAS ---
+        const interactiveContainer = document.getElementById('interactive-text');
+        if (interactiveContainer) {
+            applyHighlights(interactiveContainer);
+        }
+
+        if (loadingDiv) loadingDiv.style.display = 'none';
+
+        // --- 1. ACTIVAR FLASHCARDS (Vital) ---
+        if (typeof setupTextInteractivity === 'function') {
+            setupTextInteractivity(); 
+        }
+
+        // --- 2. LÓGICA DEL BOTÓN DEL QUIZ ---
+        const quizBtn = document.getElementById('generate-quiz-btn');
+        if (quizBtn) {
+            quizBtn.onclick = async () => {
+                const qContainer = document.getElementById('quiz-container');
+                quizBtn.disabled = true;
+                quizBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating...';
+                
+                try {
+                    const res = await fetch(`${CONFIG.API_BASE_URL}/generate-quiz-only`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: article.content, level: article.level })
+                    });
+                    const data = await res.json();
+                    
+                    if (data.quizzes) {
+                        quizBtn.style.display = 'none';
+                        displayQuiz(data.quizzes);
+                    } else {
+                        qContainer.style.display = 'block';
+                        qContainer.innerHTML = '<p class="text-warning">No quizzes returned by server.</p>';
+                    }
+                } catch (e) {
+                    quizBtn.disabled = false;
+                    quizBtn.innerHTML = '❌ Error';
+                }
             };
         }
 
-        const mainTitle = container.querySelector('h1');
-        attachTranslationListener(mainTitle);
-
-        if (typeof displayQuiz === 'function' && article.quizzes) {
-            displayQuiz(article);
-        }
-        setupTextInteractivity();
-
     } catch (error) {
-        console.error("❌ Error cargando artículo:", error);
-        container.innerHTML = `<div style="text-align:center; padding: 40px;"><h3 style="color:#e53e3e;">Content unavailable</h3><a href="reader.html#">Return to Topics</a></div>`;
-    } finally {
         if (loadingDiv) loadingDiv.style.display = 'none';
+        container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
     }
 }
-
 /**
  * Configura la interactividad de las palabras
  */
@@ -250,30 +264,65 @@ function setupTextInteractivity() {
 export async function saveFlashcardToStorage() {
     const wordElement = document.getElementById('flashcard-word');
     const exampleElement = document.getElementById('flashcard-example');
+    // --- NUEVO: Capturamos la traducción para no perderla ---
+    const translationElement = document.getElementById('flashcard-translation'); 
     
     if (!wordElement) return;
-
+    
     const word = wordElement.textContent;
     const example = exampleElement ? exampleElement.textContent : "";
+    const translation = translationElement ? translationElement.textContent : "";
     const currentLevel = localStorage.getItem('user-level') || 'B1';
 
     try {
         const response = await fetch(`${CONFIG.API_BASE_URL}/api/flashcards`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ word, context: example, level: currentLevel })
+            // MODIFICACIÓN: Guardamos la traducción dentro del campo 'context' 
+            // para que quepa en tu base de datos actual sin errores.
+            body: JSON.stringify({ 
+                word, 
+                context: `[${translation}] - ${example}`, 
+                level: currentLevel 
+            })
         });
 
         if (response.ok) {
-            alert("✨ Flashcard saved!");
-            const popup = document.getElementById('flashcard-popup');
-            if (popup) popup.style.display = 'none';
-        } else {
-            alert("❌ Could not save to server");
+            console.log("✅ Flashcard guardada!");
+            let localFlashcards = JSON.parse(localStorage.getItem("linguistfeed_flashcards")) || [];
+            
+            const newCard = {
+                word: word,
+                translation: translation, // Aquí sí guardamos la traducción limpia
+                example: example,
+                definition: "Saved from reader",
+                date: new Date().toISOString()
+            };
+
+            localFlashcards.push(newCard);
+            localStorage.setItem("linguistfeed_flashcards", JSON.stringify(localFlashcards));
+            console.log("✅ Sincronizado con LocalStorage para Repaso");
+            // ACTUALIZACIÓN CRÍTICA: Añadimos la palabra al Set para que se resalte de inmediato
+            if (typeof savedWordsSet !== 'undefined') {
+                savedWordsSet.add(word.toLowerCase().trim());
+                // Opcional: Re-aplicar resaltado en el momento
+                const textContainer = document.getElementById('interactive-text');
+                if (textContainer) applyHighlights(textContainer);
+            }
+            
+            // Feedback visual para el usuario
+            const btn = document.getElementById('save-flashcard-btn');
+            if (btn) {
+                btn.innerHTML = "✅ Saved!";
+                btn.classList.replace('btn-primary', 'btn-success');
+                setTimeout(() => {
+                    btn.innerHTML = "Save to Flashcards";
+                    btn.classList.replace('btn-success', 'btn-primary');
+                }, 2000);
+            }
         }
     } catch (error) {
-        console.error("Save error:", error);
-        alert("Connection error");
+        console.error("❌ Error al guardar flashcard:", error);
     }
 }
 
@@ -438,6 +487,112 @@ function toggleArticleAudio(htmlContent, btn) {
     window.speechSynthesis.speak(utterance);
 }
 
+// Función para renderizar el quiz de forma segura (usando textContent)
+function displayQuiz(questions) {
+    // Buscamos el contenedor específico dentro de la sección del artículo
+    const container = document.querySelector('#quiz-section #quiz-container') || 
+                      document.getElementById('quiz-container');
+    
+    if (!container) return;
+
+    container.innerHTML = '<h3 class="mt-4 mb-3">Reading Comprehension</h3>';
+    container.style.display = 'block';
+
+    questions.forEach((q, index) => {
+        const card = document.createElement('div');
+        card.className = 'card mb-3 shadow-sm border-0';
+        card.style.background = '#f8fafc';
+
+        const cardBody = document.createElement('div');
+        cardBody.className = 'card-body';
+
+        // Pregunta segura
+        const questionText = document.createElement('p');
+        questionText.className = 'fw-bold mb-3';
+        questionText.textContent = `${index + 1}. ${q.question}`;
+        cardBody.appendChild(questionText);
+
+        // Opciones seguras
+        const optionsDiv = document.createElement('div');
+        optionsDiv.className = 'd-grid gap-2';
+
+        q.options.forEach((opt, optIndex) => {
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-outline-primary text-start btn-sm py-2 px-3';
+            btn.textContent = opt;
+            
+            btn.onclick = () => {
+                // Deshabilitar todos los botones de esta pregunta
+                const allBtns = optionsDiv.querySelectorAll('button');
+                allBtns.forEach(b => b.disabled = true);
+
+                if (optIndex === q.correct_index) {
+                    btn.className = 'btn btn-success text-start btn-sm py-2 px-3';
+                    showFeedback(cardBody, '✅ Correct! Well done.', 'text-success');
+                } else {
+                    btn.className = 'btn btn-danger text-start btn-sm py-2 px-3';
+                    showFeedback(cardBody, `❌ Incorrect. The right answer was: ${q.options[q.correct_index]}`, 'text-danger');
+                }
+            };
+            optionsDiv.appendChild(btn);
+        });
+
+        cardBody.appendChild(optionsDiv);
+        card.appendChild(cardBody);
+        container.appendChild(card);
+    });
+}
+
+function showFeedback(parent, message, textClass) {
+    const feedback = document.createElement('div');
+    feedback.className = `mt-3 fw-bold ${textClass}`;
+    feedback.textContent = message;
+    parent.appendChild(feedback);
+}
+async function refreshSavedWords() {
+    try {
+        // Añadimos el /api/ que faltaba y corregimos la sintaxis
+        const response = await fetch(`${CONFIG.API_BASE_URL}/api/flashcards`);
+        const flashcards = await response.json();
+        
+        if (Array.isArray(flashcards)) {
+            savedWordsSet = new Set(flashcards.map(f => f.word.toLowerCase().trim()));
+            console.log("✅ Diccionario personal cargado:", savedWordsSet.size, "palabras.");
+        }
+    } catch (e) {
+        console.error("Error cargando flashcards para resaltado:", e);
+    }
+}
+function applyHighlights(container) {
+    if (savedWordsSet.size === 0) return;
+
+    // Usamos TreeWalker para tocar SOLO el texto, no las etiquetas HTML
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+    let node;
+    const nodesToReplace = [];
+
+    while (node = walker.nextNode()) {
+        const text = node.nodeValue;
+        // Buscamos palabras individuales (ignorando puntuación)
+        const newHtml = text.replace(/\b(\w+)\b/g, (match) => {
+            if (savedWordsSet.has(match.toLowerCase())) {
+                return `<span class="lf-saved-word word">${match}</span>`;
+            }
+            return match;
+        });
+
+        if (newHtml !== text) {
+            nodesToReplace.push({ node, newHtml });
+        }
+    }
+
+    // Aplicamos los cambios al final para no romper el bucle del Walker
+    nodesToReplace.forEach(({ node, newHtml }) => {
+        const span = document.createElement('span');
+        span.innerHTML = newHtml;
+        node.parentNode.replaceChild(span, node);
+    });
+}
 // FUNCIONES GLOBALES PARA EL HTML
 window.changeArticleLevel = (id, lvl) => loadFullArticle(id, lvl);
 window.saveFlashcardToStorage = saveFlashcardToStorage;
