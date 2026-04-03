@@ -32,16 +32,18 @@
             <p>No flashcards saved yet. Go to <a href="reader.html">Topics</a> to start learning!</p>
         </div>
 
-        <div id="flashcard-container" class="flashcard-box" style="margin-top: 20px;">
-            <div id="card-front" class="card-side" style="padding: 40px; border: 2px solid #007bff; border-radius: 15px; text-align: center; background: white; cursor: pointer;">
-                <h2 id="flashcard-word" style="font-size: 2.5rem; color: #007bff;"></h2>
-                <p style="color: #666; font-size: 0.9rem;">(Click to flip)</p>
-            </div>
-
-            <div id="card-back" class="card-side" style="display:none; padding: 40px; border: 2px solid #28a745; border-radius: 15px; background: #f8fff9; cursor: pointer;">
-                <p id="flashcard-definition" style="font-size: 1.2rem; font-weight: bold;"></p>
-                <p id="flashcard-example" class="flashcard-example" style="font-style: italic; color: #555; margin-top: 10px;"></p>
-                <p id="flashcard-translation" class="flashcard-translation" style="color: #28a745; margin-top: 10px; font-weight: bold;"></p>
+        <div id="flashcard-container" class="flashcard-container">
+            <div id="flashcard-inner" class="flashcard-inner">
+                <div class="flashcard-front">
+                    <h2 id="flashcard-word"></h2>
+                    <p style="font-size: 0.8rem; color: #888;">(Click to flip)</p>
+                </div>
+            
+                <div class="flashcard-back">
+                    <p id="flashcard-definition" style="font-weight: bold;"></p>
+                    <p id="flashcard-translation" style="color: #28a745;"></p>
+                    <p id="flashcard-example" style="font-style: italic;"></p>
+                </div>
             </div>
         </div>
 

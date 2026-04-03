@@ -1,11 +1,47 @@
 let flashcards = JSON.parse(localStorage.getItem("linguistfeed_flashcards")) || [];
 let currentIndex = 0;
 
+// 1. Esta función configura el clic en la tarjeta
+function setupFlashcardInteractions() {
+    const cardInner = document.getElementById("flashcard-inner");
+
+    if (cardInner) {
+        cardInner.onclick = function() {
+            this.classList.toggle("is-flipped");
+        };
+    }
+}
+
+// 2. Esta es tu función principal de inicio
 export function initFlashcards() {
-    // Actualizamos la lista por si hubo cambios en reader.js
-    flashcards = JSON.parse(localStorage.getItem("linguistfeed_flashcards")) || [];
-    loadFlashcards();
-    setupEventListeners();
+    console.log("🎴 Iniciando Flashcards...");
+
+    // 1. Cargar datos del LocalStorage
+    const storedData = localStorage.getItem("linguistfeed_flashcards");
+    flashcards = JSON.parse(storedData) || [];
+    console.log("Datos cargados:", flashcards.length);
+
+    // 2. Mostrar la primera tarjeta
+    if (typeof loadFlashcards === 'function') loadFlashcards();
+
+    // 3. --- EL "SÚPER" ESCUCHADOR DE CLICS ---
+    // Buscamos el contenedor por ID
+    const card = document.getElementById("flashcard-inner");
+    
+    if (card) {
+        console.log("✅ Elemento 'flashcard-inner' encontrado. Asignando clic...");
+        
+        // Usamos addEventListener que es más robusto que .onclick
+        card.addEventListener('click', function(e) {
+            console.log("🎯 ¡Clic detectado en la tarjeta!");
+            this.classList.toggle("is-flipped");
+        });
+    } else {
+        console.error("❌ ERROR: No se encontró el elemento con ID 'flashcard-inner'. Revisa tu HTML.");
+    }
+
+    // 4. Configurar botones
+    if (typeof setupEventListeners === 'function') setupEventListeners();
 }
 
 function loadFlashcards() {
@@ -28,13 +64,20 @@ function showFlashcard() {
     if (flashcards.length === 0) return;
     const card = flashcards[currentIndex];
 
-    document.getElementById("flashcard-word").textContent = card.word;
-    document.getElementById("flashcard-definition").textContent = card.definition || "No definition yet";
-    document.getElementById("flashcard-example").textContent = card.example || "";
-    document.getElementById("flashcard-translation").textContent = card.translation || "";
+    // Usamos una función auxiliar para evitar el error de "null"
+    const setText = (id, text) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text || "";
+    };
 
-    document.getElementById("card-front").style.display = "block";
-    document.getElementById("card-back").style.display = "none";
+    setText("flashcard-word", card.word);
+    setText("flashcard-definition", card.definition || "No definition");
+    setText("flashcard-translation", card.translation);
+    setText("flashcard-example", card.example);
+
+    // RESET DEL GIRO: Cada vez que cambias de carta, vuelve al frente
+    const inner = document.getElementById("flashcard-inner");
+    if (inner) inner.classList.remove("is-flipped");
 }
 
 function setupEventListeners() {
@@ -59,17 +102,15 @@ function setupEventListeners() {
     }
 
     if (flipBtn) {
-        flipBtn.onclick = () => {
-            const front = document.getElementById("card-front");
-            const back = document.getElementById("card-back");
-            if (front.style.display === "none") {
-                front.style.display = "block";
-                back.style.display = "none";
-            } else {
-                front.style.display = "none";
-                back.style.display = "block";
+        flipBtn.onclick = function() {
+            const inner = document.getElementById("flashcard-inner");
+            if (inner) {
+                console.log("Btn: Girando tarjeta...");
+                inner.classList.toggle("is-flipped");
             }
         };
+    } else {
+        console.error("❌ No se encontró el botón con ID 'flip-button'");
     }
 
     if (deleteBtn) {
