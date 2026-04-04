@@ -14,36 +14,62 @@ let savedWordsSet = new Set(); // Aquí guardaremos tus palabras "tesoro"
 export async function initReader() {
     const container = document.getElementById('articles-container');
     const loadingDiv = document.getElementById('loading');
-    if (!container) return;
-
-    // 1. OBTENER EL NIVEL (Esto evita el error de 'not defined')
+    // Definimos el contenedor del quiz que está en tu HTML
+    const quizContainer = document.getElementById('quiz-container');
+    
+    // 1. Recuperar preferencias
+    const userMode = localStorage.getItem('userMode') || 'read'; 
     const currentLevel = localStorage.getItem('selectedLevel') || 'A2'; 
 
-    // 2. LEER DESDE EL HASH (#)
+    // 2. Analizar la URL (Hash)
     const hash = window.location.hash.substring(1); 
     const params = new URLSearchParams(hash);
-    
     const articleId = params.get('id');
     const topic = params.get('topic');
 
-    console.log("🕵️ Analizando Hash:", hash, "-> ID:", articleId, "Topic:", topic);
+    if (!container) return;
 
     try {
         if (articleId) {
             // Caso A: Mostrar el artículo completo
-            await loadFullArticle(articleId);
-            // Ahora 'currentLevel' ya existe aquí
+            await loadFullArticle(articleId, currentLevel);
             renderLevelSelector(articleId, currentLevel);
+
+            // --- ESTE ES EL CAMBIO QUE ME PREGUNTASTE ---
+            if (userMode === 'listen') {
+                // 1. Escondemos el texto del artículo
+                if (container) container.style.display = 'none';
+
+                // 2. Aseguramos que el Quiz SI esté visible
+                if (quizContainer) {
+                    quizContainer.style.display = 'block';
+                }
+
+                // 3. Mostramos los controles de audio
+                window.renderAudioControls();
+
+                console.log("📢 Iniciando voz...");
+                setTimeout(() => {
+                    window.speakArticle();
+                }, 500);
+            } else {
+                // Si es modo Read, nos aseguramos que el texto se vea
+                if (container) container.style.display = 'block';
+                // Y si el quiz estaba abierto de antes, lo dejamos ahí
+                if (quizContainer) quizContainer.style.display = 'block';
+            }
+            // --------------------------------------------
+
         } else if (topic) {
             // Caso B: Mostrar lista de artículos de un tema
             await loadDailyArticlesList(topic);
         } else {
-            // Caso C: No hay nada, mostrar selección de temas
+            // Caso C: No hay nada, mostrar iconos de temas
             displayTopicSelection();
         }
     } catch (error) {
         console.error("❌ Error en initReader:", error);
-        container.innerHTML = `<p style="color:red; text-align:center;">Error de conexión con el servidor.</p>`;
+        container.innerHTML = `<p style="color:red; text-align:center;">Error de conexión.</p>`;
     } finally {
         if (loadingDiv) loadingDiv.style.display = 'none';
     }
@@ -52,25 +78,26 @@ export async function initReader() {
 /**
  * Muestra la cuadrícula de temas inicial
  */
-export function displayTopicSelection() {
+function displayTopicSelection() {
     const container = document.getElementById('articles-container');
+    const levels = document.getElementById('level-selector-container');
+    if (levels) levels.innerHTML = ''; 
+    
+    // CAMBIO IMPORTANTE: Los IDs ahora coinciden con la consola ['culture', 'world', 'science', 'technology']
     const topics = [
-        { id: 'technology', name: 'Technology', icon: '💻' },
-        { id: 'science', name: 'Science', icon: '🔬' },
-        { id: 'world', name: 'World', icon: '🌍' },
-        { id: 'culture', name: 'Culture', icon: '🎨' }
+        { id: 'science', icon: '🔬', label: 'Science', color: '#e2f2ff' },
+        { id: 'technology', icon: '💻', label: 'Tech', color: '#e6fffa' },
+        { id: 'world', icon: '📜', label: 'History', color: '#fffaf0' }, // 'world' es el ID real
+        { id: 'culture', icon: '🎨', label: 'Culture', color: '#f5f5f5' }
     ];
 
     container.innerHTML = `
-        <div style="text-align:center; margin-bottom:30px;">
-            <h2 style="color: #334e68;">Select a Topic to Start Reading</h2>
-        </div>
-        <div class="topics-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px; margin-top: 30px;">
             ${topics.map(t => `
-                <div onclick="window.location.hash='topic=${t.id}'" 
-                     style="cursor:pointer; padding:30px; border:2px solid #eee; border-radius:15px; text-align:center; transition:0.3s; background: white;">
-                    <div style="font-size:3rem;">${t.icon}</div>
-                    <h3 style="margin-top:15px; color: #2d3748;">${t.name}</h3>
+                <div onclick="window.location.hash = 'topic=${t.id}'" 
+                     style="background:${t.color}; padding: 30px; border-radius: 15px; text-align: center; cursor: pointer; border: 1px solid #ddd; transition: transform 0.2s;">
+                    <div style="font-size: 3rem; margin-bottom: 10px;">${t.icon}</div>
+                    <strong style="font-size: 1.2rem; color: #2d3748;">${t.label}</strong>
                 </div>
             `).join('')}
         </div>
@@ -80,119 +107,164 @@ export function displayTopicSelection() {
 /**
  * Carga la lista de artículos obtenidos por el scraper real
  */
+/**
+ * Carga la lista de artículos obtenidos por el scraper real
+ */
 async function loadDailyArticlesList(filterTopic = null) {
     const container = document.getElementById('articles-container');
-    const data = await fetchDailyArticles(); 
+    const levels = document.getElementById('level-selector-container');
+    if (levels) levels.innerHTML = '';
 
-    if (!data.articles || data.articles.length === 0) {
-        container.innerHTML = "<div style='text-align:center; padding:50px;'>No hay artículos nuevos hoy.</div>";
-        return;
-    }
+    try {
+        const data = await fetchDailyArticles(); 
+        const articlesArray = data.articles || data;
 
-    const filtered = filterTopic 
-        ? data.articles.filter(a => a.topic.toLowerCase() === filterTopic.toLowerCase())
-        : data.articles;
-    
-    if (filtered.length === 0) {
+        // --- DIAGNÓSTICO EN VIVO ---
+        // Vamos a ver qué temas existen realmente en esos 20 artículos
+        const temasExistentes = [...new Set(articlesArray.map(a => a.topic))];
+        console.log("🔍 Temas reales encontrados en el servidor:", temasExistentes);
+        // ---------------------------
+
+        if (articlesArray.length === 0) {
+            container.innerHTML = "<p>No hay artículos hoy.</p>";
+            return;
+        }
+
+        // Filtro ultra-flexible: quitamos espacios y pasamos a minúsculas
+        const filtered = filterTopic 
+            ? articlesArray.filter(a => {
+                const temaArticulo = a.topic.trim().toLowerCase();
+                const temaBuscado = filterTopic.trim().toLowerCase();
+                
+                // 1. Coincidencia exacta o parcial (ej: "tech" en "technology")
+                const isMatch = temaArticulo.includes(temaBuscado) || temaBuscado.includes(temaArticulo);
+                
+                // 2. Regla especial para Culture (por si el scraper devuelve "art")
+                const isArtCulture = (temaBuscado === 'culture' && temaArticulo.includes('art'));
+
+                return isMatch || isArtCulture;
+            })
+            : articlesArray;
+        
+        if (filtered.length === 0) {
+            container.innerHTML = `
+                <div style="text-align:center; padding:50px;">
+                    <p>No articles found for: <b>${filterTopic}</b></p>
+                    <p style="font-size:0.8rem; color:gray;">I found these topics instead: ${temasExistentes.join(', ')}</p>
+                    <a href="#" onclick="window.location.hash=''; return false;" style="color:#007bff; font-weight:bold;">← Back to Topics</a>
+                </div>`;
+            return;
+        }
+
+        // El resto del renderizado (el container.innerHTML con el .map) sigue igual...
         container.innerHTML = `
-            <div style="text-align:center; padding:50px;">
-                <p>No articles found for the topic: <b>${filterTopic}</b></p>
-                <a href="reader.html#" class="btn" style="text-decoration:none; color:#007bff; font-weight:bold;">← Back to topics</a>
-            </div>`;
-        return;
-    }
-
-    container.innerHTML = `
-        <div style="margin-bottom: 20px;">
-            <a href="reader.html#" style="text-decoration:none; color:#007bff; font-weight:bold;">← Back to Topics</a>
-            <h2 style="margin-top:10px; text-transform: capitalize;">${filterTopic} Articles</h2>
-        </div>
-        <div class="articles-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
-            ${filtered.map(article => `
-                <div class="card" style="padding:15px; border:1px solid #eee; border-radius:10px; display: flex; flex-direction: column; justify-content: space-between; background: white;">
-                    <div>
-                        <span class="badge" style="background:#007bff; color:white; padding:2px 8px; border-radius:5px; font-size:0.7rem; text-transform: uppercase;">
-                            ${article.topic}
-                        </span>
-                        <h3 style="margin:10px 0; font-size: 1.1rem; line-height: 1.3;">${article.title}</h3>
-                        <p style="font-size: 0.85rem; color: #555;">${article.content.substring(0, 100)}...</p>
+            <div style="margin-bottom: 20px;">
+                <a href="#" onclick="window.location.hash=''; return false;" style="text-decoration:none; color:#007bff; font-weight:bold;">← Back to Topics</a>
+                <h2 style="margin-top:10px; text-transform: capitalize;">${filterTopic} Articles</h2>
+            </div>
+            <div class="articles-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+                ${filtered.map(article => `
+                    <div class="card" style="padding:15px; border:1px solid #eee; border-radius:10px; display: flex; flex-direction: column; justify-content: space-between; background: white;">
+                        <div>
+                            <span class="badge" style="background:#007bff; color:white; padding:2px 8px; border-radius:5px; font-size:0.7rem; text-transform: uppercase;">${article.topic}</span>
+                            <h3 style="margin:10px 0; font-size: 1.1rem; line-height: 1.3;">${article.title}</h3>
+                            <p style="font-size: 0.85rem; color: #555;">${article.content.substring(0, 100)}...</p>
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-top: 15px;">
+                            <a href="#" onclick="localStorage.setItem('userMode', 'read'); window.location.href='reader.html#id=${article.id}'; return false;"
+                               style="flex: 1; padding: 10px; background: #007bff; color: white; text-align: center; border-radius: 5px; text-decoration: none; font-weight: bold; font-size: 0.9rem;">Read</a>
+                            <a href="#" onclick="localStorage.setItem('userMode', 'listen'); window.location.href='reader.html#id=${article.id}'; return false;"
+                               style="flex: 1; padding: 10px; background: #28a745; color: white; text-align: center; border-radius: 5px; text-decoration: none; font-weight: bold; font-size: 0.9rem;">Listen 🔊</a>
+                        </div>
                     </div>
-                    <a href="reader.html#id=${article.id}" class="btn" style="display:block; margin-top:15px; padding: 10px; background: #007bff; color: white; text-align: center; border-radius: 5px; text-decoration: none; font-weight: bold;">Read More</a>
-                </div>
-            `).join('')}
-        </div>
-    `;
-    const cardTitles = container.querySelectorAll('.card h3');
-    cardTitles.forEach(title => attachTranslationListener(title));
+                `).join('')}
+            </div>
+        `;
+
+    } catch (error) {
+        console.error("Error:", error);
+    }
 }
 
 /**
  * Carga y renderiza un artículo completo con niveles CEFR
  */
+/**
+ * Carga y renderiza un artículo completo con niveles CEFR
+ */
 export async function loadFullArticle(id, level = null) {
-    await refreshSavedWords();
+    if (typeof refreshSavedWords === 'function') await refreshSavedWords();
     const container = document.getElementById('articles-container');
+    const quizContainer = document.getElementById('quiz-container'); // Contenedor exterior
     const loadingDiv = document.getElementById('loading');
+    
     if (!container) return;
 
     const currentLevel = level || localStorage.getItem('user-level') || 'B1';
     if (level) localStorage.setItem('user-level', level); 
 
     if (loadingDiv) loadingDiv.style.display = 'block';
+    
+    // Limpieza total antes de cargar
     container.innerHTML = ""; 
+    if (quizContainer) {
+        quizContainer.innerHTML = ""; 
+        quizContainer.style.display = 'none';
+    }
 
     try {
         const response = await fetch(`${CONFIG.API_BASE_URL}/articles/${id}?level=${currentLevel}`);
-        if (!response.ok) throw new Error(`Artículo no encontrado`);
+        if (!response.ok) throw new Error(`Article not found`);
         const article = await response.json();
 
-        // --- RENDERIZADO DEL ARTÍCULO ---
-        // IMPORTANTE: Usamos id="interactive-text" para que funcionen las flashcards
+        if (loadingDiv) loadingDiv.style.display = 'none';
+
+        // --- 1. RENDERIZADO DEL ARTÍCULO (Solo texto) ---
         container.innerHTML = `
             <div class="article-full animate__animated animate__fadeIn">
                 <button onclick="window.location.hash=''" class="btn btn-outline-secondary mb-4">
                     ← Back to Articles
                 </button>
-                
                 <h1 id="interactive-title" class="mb-3">${article.title}</h1>
-                
                 <div class="article-meta mb-4">
                     <span class="badge bg-primary">${article.level}</span>
                     <span class="text-muted ms-2">Topic: ${article.topic || 'General'}</span>
                 </div>
-
                 <div id="interactive-text" class="article-body-text">
                     ${article.content}
-                </div>
-                
-                <div id="quiz-section" class="text-center mt-5 p-4 border-top">
-                    <h4>Ready to test your knowledge?</h4>
-                    <button id="generate-quiz-btn" class="btn btn-primary btn-lg shadow-sm">
-                        🧠 Generate AI Quiz
-                    </button>
-                    <div id="quiz-container" class="mt-4 text-start" style="display:none;"></div>
                 </div>
             </div>
         `;
 
-        // --- RESALTADO DE PALABRAS GUARDADAS ---
-        const interactiveContainer = document.getElementById('interactive-text');
-        if (interactiveContainer) {
-            applyHighlights(interactiveContainer);
+        // --- 2. RENDERIZADO DEL BOTÓN DEL QUIZ (En el contenedor exterior) ---
+        if (quizContainer) {
+            quizContainer.style.display = 'block'; // Lo hacemos visible
+            quizContainer.innerHTML = `
+                <div id="quiz-section" class="text-center mt-5 p-4 border-top" style="background: white; border-radius: 10px; border: 1px solid #eaeaea;">
+                    <h4>Ready to test your knowledge?</h4>
+                    <p class="text-muted mb-3">Based on what you just read or heard.</p>
+                    <button id="generate-quiz-btn" class="btn btn-primary btn-lg shadow-sm">
+                        🧠 Generate AI Quiz
+                    </button>
+                    <div id="quiz-results-area" class="mt-4 text-start" style="display:none;"></div>
+                </div>
+            `;
         }
 
-        if (loadingDiv) loadingDiv.style.display = 'none';
-
-        // --- 1. ACTIVAR FLASHCARDS (Vital) ---
+        // --- INTERACTIVIDAD (Flashcards, etc.) ---
+        const interactiveContainer = document.getElementById('interactive-text');
+        if (interactiveContainer && typeof applyHighlights === 'function') {
+            applyHighlights(interactiveContainer);
+        }
         if (typeof setupTextInteractivity === 'function') {
             setupTextInteractivity(); 
         }
 
-        // --- 2. LÓGICA DEL BOTÓN DEL QUIZ ---
+        // --- LÓGICA DEL BOTÓN DEL QUIZ ---
         const quizBtn = document.getElementById('generate-quiz-btn');
         if (quizBtn) {
             quizBtn.onclick = async () => {
-                const qContainer = document.getElementById('quiz-container');
+                const resultsArea = document.getElementById('quiz-results-area');
                 quizBtn.disabled = true;
                 quizBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating...';
                 
@@ -205,13 +277,13 @@ export async function loadFullArticle(id, level = null) {
                     const data = await res.json();
                     
                     if (data.quizzes) {
-                        quizBtn.style.display = 'none';
-                        displayQuiz(data.quizzes);
-                    } else {
-                        qContainer.style.display = 'block';
-                        qContainer.innerHTML = '<p class="text-warning">No quizzes returned by server.</p>';
+                        quizBtn.style.display = 'none'; // Escondemos el botón
+                        resultsArea.style.display = 'block'; // Mostramos la zona de resultados
+                        // Dibujamos el quiz en la zona de resultados
+                        displayQuiz(data.quizzes, 'quiz-results-area'); 
                     }
                 } catch (e) {
+                    console.error("Quiz error:", e);
                     quizBtn.disabled = false;
                     quizBtn.innerHTML = '❌ Error';
                 }
@@ -223,6 +295,7 @@ export async function loadFullArticle(id, level = null) {
         container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
     }
 }
+
 function renderLevelSelector(currentArticleId, activeLevel) {
     const levelContainer = document.getElementById('level-selector-container');
     if (!levelContainer) return;
@@ -348,20 +421,6 @@ export async function saveFlashcardToStorage() {
         console.error("❌ Error al guardar flashcard:", error);
     }
 }
-
-/**
- * Cierre de sesión
- */
-export function handleLogout(logoutFn) {
-    const logoutLink = document.getElementById('logout-link');
-    if (logoutLink) {
-        logoutLink.onclick = (e) => {
-            e.preventDefault();
-            logoutFn();
-        };
-    }
-}
-
 /**
  * Muestra el popup con la palabra, traducción y ejemplo
  */
@@ -525,20 +584,22 @@ function toggleArticleAudio(htmlContent, btn) {
 }
 
 // Función para renderizar el quiz de forma segura (usando textContent)
-function displayQuiz(questions) {
-    // Buscamos el contenedor específico dentro de la sección del artículo
-    const container = document.querySelector('#quiz-section #quiz-container') || 
-                      document.getElementById('quiz-container');
-    
+// Añadimos el parámetro targetId para saber dónde dibujar
+function displayQuiz(questions, targetId = 'quiz-container') {
+    // Buscamos el contenedor específico
+    const container = document.getElementById(targetId);
     if (!container) return;
 
-    container.innerHTML = '<h3 class="mt-4 mb-3">Reading Comprehension</h3>';
+    // Limpiamos y ponemos título
+    container.innerHTML = '<h3 class="mt-4 mb-3 text-center">Reading Comprehension</h3>';
     container.style.display = 'block';
 
     questions.forEach((q, index) => {
         const card = document.createElement('div');
         card.className = 'card mb-3 shadow-sm border-0';
         card.style.background = '#f8fafc';
+        card.style.border = '1px solid #ebebeb';
+        card.style.borderRadius = '10px';
 
         const cardBody = document.createElement('div');
         cardBody.className = 'card-body';
@@ -546,6 +607,7 @@ function displayQuiz(questions) {
         // Pregunta segura
         const questionText = document.createElement('p');
         questionText.className = 'fw-bold mb-3';
+        questionText.style.color = '#2d3748';
         questionText.textContent = `${index + 1}. ${q.question}`;
         cardBody.appendChild(questionText);
 
@@ -556,19 +618,20 @@ function displayQuiz(questions) {
         q.options.forEach((opt, optIndex) => {
             const btn = document.createElement('button');
             btn.className = 'btn btn-outline-primary text-start btn-sm py-2 px-3';
+            btn.style.borderRadius = '6px';
             btn.textContent = opt;
             
             btn.onclick = () => {
-                // Deshabilitar todos los botones de esta pregunta
+                // Deshabilitar botones
                 const allBtns = optionsDiv.querySelectorAll('button');
                 allBtns.forEach(b => b.disabled = true);
 
                 if (optIndex === q.correct_index) {
-                    btn.className = 'btn btn-success text-start btn-sm py-2 px-3';
+                    btn.className = 'btn btn-success text-start btn-sm py-2 px-3 text-white';
                     showFeedback(cardBody, '✅ Correct! Well done.', 'text-success');
                 } else {
-                    btn.className = 'btn btn-danger text-start btn-sm py-2 px-3';
-                    showFeedback(cardBody, `❌ Incorrect. The right answer was: ${q.options[q.correct_index]}`, 'text-danger');
+                    btn.className = 'btn btn-danger text-start btn-sm py-2 px-3 text-white';
+                    showFeedback(cardBody, `❌ Incorrect. Right answer: ${q.options[q.correct_index]}`, 'text-danger');
                 }
             };
             optionsDiv.appendChild(btn);
@@ -576,7 +639,8 @@ function displayQuiz(questions) {
 
         cardBody.appendChild(optionsDiv);
         card.appendChild(cardBody);
-        container.appendChild(card);
+        container.appendChild(cardBody); // Corregido: añadir card al container, no cardBody
+        container.appendChild(card); // Añadimos la tarjeta completa
     });
 }
 
@@ -643,6 +707,164 @@ window.changeArticleLevel = async (id, lvl) => {
     // 3. Volvemos a dibujar los botones para que el nuevo nivel salga resaltado
     renderLevelSelector(id, lvl);
 };
+
+window.speakArticle = () => {
+    window.speechSynthesis.cancel(); // Limpia cualquier audio anterior
+
+    const text = document.getElementById('articles-container').innerText;
+    if (!text) return;
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-US';
+    utterance.rate = 0.9;
+
+    // Guardamos referencia para que el navegador no lo interrumpa
+    window.currentUtterance = utterance; 
+    window.speechSynthesis.speak(utterance);
+};
+// 2. Función para mostrar/ocultar el texto
+window.toggleTranscript = () => {
+    const c = document.getElementById('articles-container');
+    c.style.display = (c.style.display === 'none') ? 'block' : 'none';
+};
+
+function renderAudioControls() {
+    const selector = document.getElementById('level-selector-container');
+    if (!selector) return;
+
+    let panel = document.getElementById('audio-controls-panel');
+    if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'audio-controls-panel';
+        panel.style = "background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; gap: 15px; border: 1px solid #e9ecef;";
+        selector.parentNode.insertBefore(panel, selector.nextSibling);
+    }
+
+    panel.innerHTML = `
+        <div style="flex: 1;">
+            <span style="font-weight: bold;">Audio Mode 🎧</span>
+            <div style="display: flex; gap: 10px; margin-top:5px;">
+                <button onclick="window.speechSynthesis.pause()">Pause</button>
+                <button onclick="window.speechSynthesis.resume()">Resume</button>
+                <button onclick="window.speechSynthesis.cancel()">Stop</button>
+            </div>
+        </div>
+        <button onclick="window.toggleTranscript()" style="padding:10px; background:white; border:1px solid #007bff; color:#007bff; border-radius:5px;">Show/Hide Text</button>
+    `;
+}
+
+// También es buena idea detenerlo cuando se hace logout o se cambia de sección
+export function handleLogout(logoutFn) {
+    const link = document.getElementById('logout-link');
+    if (link) {
+        link.onclick = (e) => {
+            window.speechSynthesis.cancel();
+            logoutFn();
+        };
+    }
+}
+
+window.addEventListener('beforeunload', () => {
+    window.speechSynthesis.cancel();
+});
+
+// --- SISTEMA DE AUDIO Y CONTROLES (NUEVO) ---
+
+/**
+ * Función que hace hablar al navegador.
+ */
+window.speakArticle = () => {
+    // 🔇 Detenemos cualquier voz anterior para que no se solapen
+    window.speechSynthesis.cancel(); 
+
+    const container = document.getElementById('articles-container');
+    if (!container) return;
+
+    // Obtenemos el texto limpio de tags HTML
+    const text = container.innerText.trim();
+
+    if (text.length === 0) {
+        console.error("❌ No articles-container not found or empty");
+        return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-US'; // Voz en inglés
+    utterance.rate = 0.9;      // Velocidad un poco más lenta para estudiantes
+
+    // TRUCO: Guardamos la referencia global para que el navegador no corte el audio en textos largos
+    window.currentUtterance = utterance; 
+
+    window.speechSynthesis.speak(utterance);
+    console.log("📢 Lectura iniciada.");
+};
+
+/**
+ * Dibuja el panel gris con Pause/Stop justo debajo de los niveles.
+ */
+window.renderAudioControls = () => {
+    // Buscamos donde ponerlo (debajo de A1-C2)
+    const selectorContainer = document.getElementById('level-selector-container');
+    if (!selectorContainer) return;
+
+    // Si ya existe, no lo dibujamos otra vez
+    if (document.getElementById('audio-controls-panel')) return;
+
+    const audioPanel = document.createElement('div');
+    audioPanel.id = 'audio-controls-panel';
+    // Estilo elegante en gris
+    audioPanel.style = "background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; gap: 15px; border: 1px solid #e9ecef;";
+
+    audioPanel.innerHTML = `
+        <div style="flex: 1;">
+            <span style="font-weight: bold; color: #4a5568; display: block; margin-bottom: 5px;">Audio Mode 🎧</span>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="window.speechSynthesis.pause()" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">⏸ Pause</button>
+                <button onclick="window.speechSynthesis.resume()" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">▶ Resume</button>
+                <button onclick="window.speechSynthesis.cancel()" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">Stop</button>
+            </div>
+        </div>
+        <button onclick="window.toggleTranscript()" style="cursor:pointer; padding: 10px; background: white; border: 1px solid #007bff; color: #007bff; border-radius: 5px; font-weight: bold;">
+            Show/Hide Text
+        </button>
+    `;
+
+    // Lo insertamos justo después de los botones de nivel
+    selectorContainer.parentNode.insertBefore(audioPanel, selectorContainer.nextSibling);
+};
+
+/**
+ * Función para el botón "Show/Hide Text"
+ */
+window.toggleTranscript = () => {
+    const content = document.getElementById('articles-container');
+    const btn = event.target;
+    if (!content) return;
+    
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        btn.innerText = 'Hide Text';
+    } else {
+        content.style.display = 'none';
+        btn.innerText = 'Show Text';
+    }
+};
+
+/**
+ * CRÍTICO: Detener audio al salir de la página
+ */
+window.addEventListener('beforeunload', () => {
+    window.speechSynthesis.cancel();
+});
+// También al cambiar el hash (navegación interna)
+window.addEventListener('hashchange', () => {
+    window.speechSynthesis.cancel();
+    // Limpieza extra del panel de audio si existe
+    const panel = document.getElementById('audio-controls-panel');
+    if (panel) panel.remove();
+});
+
+
 window.saveFlashcardToStorage = saveFlashcardToStorage;
 window.showFlashcardPopup = showFlashcardPopup; // Añade esta línea
 window.closeFlashcardPopup = closeFlashcardPopup; // Añade esta línea

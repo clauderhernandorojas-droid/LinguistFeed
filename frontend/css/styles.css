@@ -441,3 +441,13 @@ h1 {
 .flashcard-back {
     transform: rotateY(180deg); /* Para que al girar el padre, esta quede de frente */
 }
+.btn-audio {
+    background: #4a5568;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+.btn-audio:hover { background: #2d3748; }
