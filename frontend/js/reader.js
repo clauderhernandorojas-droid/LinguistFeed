@@ -5,6 +5,72 @@
 import { CONFIG } from './config.js';
 import { fetchDailyArticles, fetchArticleById } from './api.js';
 
+// --- CAPTURADOR DE TRADUCCIÓN ORIGINAL ---
+// --- FUNCIÓN GLOBAL DE TRADUCCIÓN PARA TÍTULOS ---
+window.handleWordClick = async function(text, event) {
+    if (!text) return;
+    
+    console.log("Traduciendo título con estilo real:", text);
+
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/analyze-text`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text, type: "translate" })
+        });
+
+        const result = await response.json();
+        const translation = result.translation || result.text;
+
+        if (translation) {
+            // 1. Intentamos usar tu popup elegante
+            // En tu proyecto, esta función suele estar en el objeto global 'window'
+            if (typeof window.showTranslationPopup === 'function') {
+                // Pasamos: (texto_original, traduccion, posicion_X, posicion_Y)
+                window.showTranslationPopup(text, translation, event.pageX, event.pageY);
+            } 
+            // 2. Si por alguna razón no la encuentra, creamos uno rápido con tu estilo
+            else {
+                renderMiniPopup(text, translation, event);
+            }
+        }
+    } catch (error) {
+        console.error("Error:", error);
+    }
+};
+
+// Función de respaldo por si 'showTranslationPopup' no está cargada en esta vista
+function renderMiniPopup(original, translated, event) {
+    // Si ya hay uno, lo quitamos
+    const old = document.getElementById('temp-popup');
+    if (old) old.remove();
+
+    const popup = document.createElement('div');
+    popup.id = 'temp-popup';
+    // Estilo similar al de LinguistFeed
+    popup.style = `
+        position: absolute;
+        left: ${event.pageX}px;
+        top: ${event.pageY}px;
+        background: white;
+        border: 1px solid #ccc;
+        padding: 10px;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        z-index: 10000;
+        min-width: 150px;
+        max-width: 250px;
+    `;
+    popup.innerHTML = `
+        <div style="font-size:0.8rem; color:#666; margin-bottom:4px;">${original}</div>
+        <div style="font-weight:bold; color:#007bff;">${translated}</div>
+    `;
+    document.body.appendChild(popup);
+
+    // Se cierra al hacer clic en cualquier otro lado
+    document.addEventListener('click', () => popup.remove(), { once: true });
+}
+
 /**
  * Función principal que arranca el lector.
  * Lee el Hash (#) para decidir qué mostrar sin recargar la página.
@@ -37,26 +103,18 @@ export async function initReader() {
 
             // --- ESTE ES EL CAMBIO QUE ME PREGUNTASTE ---
             if (userMode === 'listen') {
-                // 1. Escondemos el texto del artículo
-                if (container) container.style.display = 'none';
-
-                // 2. Aseguramos que el Quiz SI esté visible
-                if (quizContainer) {
-                    quizContainer.style.display = 'block';
-                }
-
-                // 3. Mostramos los controles de audio
-                window.renderAudioControls();
-
-                console.log("📢 Iniciando voz...");
+                const wrapper = document.getElementById('article-body-wrapper');
+                if (wrapper) wrapper.style.display = 'none'; // Lo escondemos de entrada
+            
+                window.renderAudioControls(); // Esto creará el botón diciendo "Show Text"
+                
                 setTimeout(() => {
                     window.speakArticle();
                 }, 500);
             } else {
-                // Si es modo Read, nos aseguramos que el texto se vea
-                if (container) container.style.display = 'block';
-                // Y si el quiz estaba abierto de antes, lo dejamos ahí
-                if (quizContainer) quizContainer.style.display = 'block';
+                // En modo Read, nos aseguramos que el cuerpo se vea
+                const bodyWrapper = document.getElementById('article-body-wrapper');
+                if (bodyWrapper) bodyWrapper.style.display = 'block';
             }
             // --------------------------------------------
 
@@ -113,99 +171,145 @@ function displayTopicSelection() {
 async function loadDailyArticlesList(filterTopic = null) {
     const container = document.getElementById('articles-container');
     const levels = document.getElementById('level-selector-container');
+    const loadingDiv = document.getElementById('loading');
+
     if (levels) levels.innerHTML = '';
+    if (loadingDiv) loadingDiv.style.display = 'block';
 
     try {
         const data = await fetchDailyArticles(); 
         const articlesArray = data.articles || data;
 
-        // --- DIAGNÓSTICO EN VIVO ---
-        // Vamos a ver qué temas existen realmente en esos 20 artículos
+        // --- DIAGNÓSTICO ---
         const temasExistentes = [...new Set(articlesArray.map(a => a.topic))];
-        console.log("🔍 Temas reales encontrados en el servidor:", temasExistentes);
-        // ---------------------------
+        console.log("🔍 Temas en servidor:", temasExistentes);
 
         if (articlesArray.length === 0) {
-            container.innerHTML = "<p>No hay artículos hoy.</p>";
+            container.innerHTML = "<p style='text-align:center; padding:20px;'>No articles available today.</p>";
             return;
         }
 
-        // Filtro ultra-flexible: quitamos espacios y pasamos a minúsculas
+        // Filtro flexible
         const filtered = filterTopic 
             ? articlesArray.filter(a => {
                 const temaArticulo = a.topic.trim().toLowerCase();
                 const temaBuscado = filterTopic.trim().toLowerCase();
-                
-                // 1. Coincidencia exacta o parcial (ej: "tech" en "technology")
                 const isMatch = temaArticulo.includes(temaBuscado) || temaBuscado.includes(temaArticulo);
-                
-                // 2. Regla especial para Culture (por si el scraper devuelve "art")
                 const isArtCulture = (temaBuscado === 'culture' && temaArticulo.includes('art'));
-
                 return isMatch || isArtCulture;
             })
             : articlesArray;
         
+        if (loadingDiv) loadingDiv.style.display = 'none';
+
         if (filtered.length === 0) {
             container.innerHTML = `
                 <div style="text-align:center; padding:50px;">
                     <p>No articles found for: <b>${filterTopic}</b></p>
-                    <p style="font-size:0.8rem; color:gray;">I found these topics instead: ${temasExistentes.join(', ')}</p>
+                    <p style="font-size:0.8rem; color:gray;">Try: ${temasExistentes.join(', ')}</p>
                     <a href="#" onclick="window.location.hash=''; return false;" style="color:#007bff; font-weight:bold;">← Back to Topics</a>
                 </div>`;
             return;
         }
 
-        // El resto del renderizado (el container.innerHTML con el .map) sigue igual...
+        // Renderizado de la cuadrícula
         container.innerHTML = `
             <div style="margin-bottom: 20px;">
                 <a href="#" onclick="window.location.hash=''; return false;" style="text-decoration:none; color:#007bff; font-weight:bold;">← Back to Topics</a>
-                <h2 style="margin-top:10px; text-transform: capitalize;">${filterTopic} Articles</h2>
+                <h2 style="margin-top:10px; text-transform: capitalize;">${filterTopic || 'Daily'} Articles</h2>
             </div>
             <div class="articles-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
-                ${filtered.map(article => `
-                    <div class="card" style="padding:15px; border:1px solid #eee; border-radius:10px; display: flex; flex-direction: column; justify-content: space-between; background: white;">
+                ${filtered.map(article => {
+                    // Agregamos el tópico a la URL para que el botón "Back" sepa a dónde volver
+                    const targetUrl = `reader.html#id=${article.id}&topic=${filterTopic || article.topic}`;
+                    
+                    return `
+                    <div class="card" style="padding:15px; border:1px solid #eee; border-radius:10px; display: flex; flex-direction: column; justify-content: space-between; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
                         <div>
                             <span class="badge" style="background:#007bff; color:white; padding:2px 8px; border-radius:5px; font-size:0.7rem; text-transform: uppercase;">${article.topic}</span>
-                            <h3 style="margin:10px 0; font-size: 1.1rem; line-height: 1.3;">${article.title}</h3>
+                            <h3 style="margin:10px 0; font-size: 1.1rem; line-height: 1.3; cursor: pointer;">${article.title}</h3>
                             <p style="font-size: 0.85rem; color: #555;">${article.content.substring(0, 100)}...</p>
                         </div>
                         <div style="display: flex; gap: 10px; margin-top: 15px;">
-                            <a href="#" onclick="localStorage.setItem('userMode', 'read'); window.location.href='reader.html#id=${article.id}'; return false;"
+                            <a href="#" onclick="localStorage.setItem('userMode', 'read'); window.location.href='${targetUrl}'; return false;"
                                style="flex: 1; padding: 10px; background: #007bff; color: white; text-align: center; border-radius: 5px; text-decoration: none; font-weight: bold; font-size: 0.9rem;">Read</a>
-                            <a href="#" onclick="localStorage.setItem('userMode', 'listen'); window.location.href='reader.html#id=${article.id}'; return false;"
+                            <a href="#" onclick="localStorage.setItem('userMode', 'listen'); window.location.href='${targetUrl}'; return false;"
                                style="flex: 1; padding: 10px; background: #28a745; color: white; text-align: center; border-radius: 5px; text-decoration: none; font-weight: bold; font-size: 0.9rem;">Listen 🔊</a>
                         </div>
-                    </div>
-                `).join('')}
+                    </div>`;
+                }).join('')}
             </div>
         `;
 
+        // --- ASIGNAR TRADUCCIÓN A TÍTULOS (Solo una vez) ---
+        // --- ASIGNAR TRADUCCIÓN A TÍTULOS ---
+        container.querySelectorAll('.card h3').forEach(title => {
+            title.style.cursor = 'pointer';
+            
+            title.onclick = async function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const textToTranslate = this.innerText.trim();
+                console.log("Intentando traducir:", textToTranslate);
+
+                // Intentamos usar el manejador de clics si existe
+                if (window.handleWordClick) {
+                    window.handleWordClick(textToTranslate, e);
+                } 
+                // Si no existe, vamos a crear un "mini-traductor" rápido aquí mismo
+                // para que no te falle nunca:
+                else {
+                    try {
+                        // Si tienes una API de traducción, la llamamos directamente
+                        // Esto es un ejemplo, usa tu CONFIG.API_BASE_URL
+                        const response = await fetch(`${CONFIG.API_BASE_URL}/translate`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ text: textToTranslate, target: 'es' })
+                        });
+                        const data = await response.json();
+                        
+                        // Aquí llamarías a la función que dibuja el cuadrito gris (popup)
+                        if (window.displayFloatingResult) {
+                            window.displayFloatingResult(textToTranslate, data.translation, e);
+                        } else {
+                            alert(`Translation: ${data.translation}`); // Solución de emergencia
+                        }
+                    } catch (err) {
+                        console.error("Error en traducción rápida:", err);
+                    }
+                }
+            };
+        });
+
     } catch (error) {
-        console.error("Error:", error);
+        console.error("Error cargando lista:", error);
+        if (loadingDiv) loadingDiv.style.display = 'none';
+        container.innerHTML = `<p style="color:red; text-align:center;">Error connecting to server.</p>`;
     }
 }
 
 /**
  * Carga y renderiza un artículo completo con niveles CEFR
  */
-/**
- * Carga y renderiza un artículo completo con niveles CEFR
- */
 export async function loadFullArticle(id, level = null) {
     if (typeof refreshSavedWords === 'function') await refreshSavedWords();
     const container = document.getElementById('articles-container');
-    const quizContainer = document.getElementById('quiz-container'); // Contenedor exterior
+    const quizContainer = document.getElementById('quiz-container');
     const loadingDiv = document.getElementById('loading');
     
     if (!container) return;
+
+    // Detectar el tema desde la URL para el botón de regreso
+    const params = new URLSearchParams(window.location.hash.substring(1));
+    const currentTopic = params.get('topic') || '';
 
     const currentLevel = level || localStorage.getItem('user-level') || 'B1';
     if (level) localStorage.setItem('user-level', level); 
 
     if (loadingDiv) loadingDiv.style.display = 'block';
     
-    // Limpieza total antes de cargar
     container.innerHTML = ""; 
     if (quizContainer) {
         quizContainer.innerHTML = ""; 
@@ -219,26 +323,29 @@ export async function loadFullArticle(id, level = null) {
 
         if (loadingDiv) loadingDiv.style.display = 'none';
 
-        // --- 1. RENDERIZADO DEL ARTÍCULO (Solo texto) ---
         container.innerHTML = `
-            <div class="article-full animate__animated animate__fadeIn">
-                <button onclick="window.location.hash=''" class="btn btn-outline-secondary mb-4">
-                    ← Back to Articles
-                </button>
-                <h1 id="interactive-title" class="mb-3">${article.title}</h1>
-                <div class="article-meta mb-4">
-                    <span class="badge bg-primary">${article.level}</span>
-                    <span class="text-muted ms-2">Topic: ${article.topic || 'General'}</span>
+            <div class="article-full">
+                <div id="nav-and-title-area" style="margin-bottom: 20px;">
+                    <button onclick="window.location.hash='topic=${currentTopic}'; return false;" 
+                            style="background:none; border:none; color:#007bff; font-weight:bold; cursor:pointer; padding:0;">
+                        ← Back to Articles
+                    </button>
+                    <h1 id="interactive-title" style="margin-top:10px;">${article.title}</h1>
                 </div>
-                <div id="interactive-text" class="article-body-text">
-                    ${article.content}
+
+                <div id="article-body-wrapper" style="display: block;">
+                    <div class="article-meta mb-3" style="color: #666; font-size: 0.9rem;">
+                        <span class="badge bg-primary">${article.level}</span> | Topic: ${article.topic}
+                    </div>
+                    <div id="interactive-text" class="article-body-text" style="line-height: 1.6;">
+                        ${article.content}
+                    </div>
                 </div>
             </div>
         `;
 
-        // --- 2. RENDERIZADO DEL BOTÓN DEL QUIZ (En el contenedor exterior) ---
         if (quizContainer) {
-            quizContainer.style.display = 'block'; // Lo hacemos visible
+            quizContainer.style.display = 'block';
             quizContainer.innerHTML = `
                 <div id="quiz-section" class="text-center mt-5 p-4 border-top" style="background: white; border-radius: 10px; border: 1px solid #eaeaea;">
                     <h4>Ready to test your knowledge?</h4>
@@ -251,7 +358,7 @@ export async function loadFullArticle(id, level = null) {
             `;
         }
 
-        // --- INTERACTIVIDAD (Flashcards, etc.) ---
+        // --- INTERACTIVIDAD ---
         const interactiveContainer = document.getElementById('interactive-text');
         if (interactiveContainer && typeof applyHighlights === 'function') {
             applyHighlights(interactiveContainer);
@@ -260,14 +367,13 @@ export async function loadFullArticle(id, level = null) {
             setupTextInteractivity(); 
         }
 
-        // --- LÓGICA DEL BOTÓN DEL QUIZ ---
+        // Lógica del Quiz... (se mantiene igual que tu código)
         const quizBtn = document.getElementById('generate-quiz-btn');
         if (quizBtn) {
             quizBtn.onclick = async () => {
                 const resultsArea = document.getElementById('quiz-results-area');
                 quizBtn.disabled = true;
                 quizBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating...';
-                
                 try {
                     const res = await fetch(`${CONFIG.API_BASE_URL}/generate-quiz-only`, {
                         method: 'POST',
@@ -275,15 +381,12 @@ export async function loadFullArticle(id, level = null) {
                         body: JSON.stringify({ text: article.content, level: article.level })
                     });
                     const data = await res.json();
-                    
                     if (data.quizzes) {
-                        quizBtn.style.display = 'none'; // Escondemos el botón
-                        resultsArea.style.display = 'block'; // Mostramos la zona de resultados
-                        // Dibujamos el quiz en la zona de resultados
+                        quizBtn.style.display = 'none';
+                        resultsArea.style.display = 'block';
                         displayQuiz(data.quizzes, 'quiz-results-area'); 
                     }
                 } catch (e) {
-                    console.error("Quiz error:", e);
                     quizBtn.disabled = false;
                     quizBtn.innerHTML = '❌ Error';
                 }
@@ -709,23 +812,50 @@ window.changeArticleLevel = async (id, lvl) => {
 };
 
 window.speakArticle = () => {
-    window.speechSynthesis.cancel(); // Limpia cualquier audio anterior
+    window.speechSynthesis.cancel();
+    
+    // Buscamos los dos elementos por su ID
+    const titleEl = document.getElementById('interactive-title');
+    const textEl = document.getElementById('interactive-text');
+    
+    const titleText = titleEl ? titleEl.innerText : "";
+    const bodyText = textEl ? textEl.innerText : "";
+    
+    // Concatenamos ambos. IMPORTANTE: Aunque el div esté oculto (display: none), 
+    // .innerText o .textContent siguen funcionando.
+    const fullText = `${titleText}. ${bodyText}`.trim();
+    
+    console.log("Texto detectado para leer:", fullText.substring(0, 50) + "...");
 
-    const text = document.getElementById('articles-container').innerText;
-    if (!text) return;
+    if (fullText.length < 10) {
+        console.warn("⚠️ No se encontró texto suficiente para leer.");
+        return;
+    }
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    const utterance = new SpeechSynthesisUtterance(fullText);
     utterance.lang = 'en-US';
     utterance.rate = 0.9;
-
-    // Guardamos referencia para que el navegador no lo interrumpa
-    window.currentUtterance = utterance; 
     window.speechSynthesis.speak(utterance);
 };
 // 2. Función para mostrar/ocultar el texto
 window.toggleTranscript = () => {
-    const c = document.getElementById('articles-container');
-    c.style.display = (c.style.display === 'none') ? 'block' : 'none';
+    const wrapper = document.getElementById('article-body-wrapper');
+    const btn = document.getElementById('toggle-text-btn'); // Usamos el ID para ir sobre seguro
+    
+    if (!wrapper || !btn) return;
+
+    // Miramos la realidad: ¿Está escondido?
+    const isHidden = wrapper.style.display === 'none';
+
+    if (isHidden) {
+        // Si está escondido, lo mostramos con fuerza
+        wrapper.style.setProperty('display', 'block', 'important');
+        btn.innerText = 'Hide Text';
+    } else {
+        // Si se ve, lo escondemos con fuerza
+        wrapper.style.setProperty('display', 'none', 'important');
+        btn.innerText = 'Show Text';
+    }
 };
 
 function renderAudioControls() {
@@ -736,20 +866,36 @@ function renderAudioControls() {
     if (!panel) {
         panel = document.createElement('div');
         panel.id = 'audio-controls-panel';
-        panel.style = "background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; gap: 15px; border: 1px solid #e9ecef;";
+        panel.style = "background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 12px; border: 1px solid #e9ecef; box-shadow: 0 2px 4px rgba(0,0,0,0.05);";
         selector.parentNode.insertBefore(panel, selector.nextSibling);
     }
 
+    // --- EL FIX PARA EL BOTÓN BACK ---
+    // Buscamos el tema en la URL actual (ej: #id=123&topic=science)
+    const currentHash = window.location.hash.substring(1);
+    const params = new URLSearchParams(currentHash);
+    const topic = params.get('topic') || ''; 
+
     panel.innerHTML = `
-        <div style="flex: 1;">
-            <span style="font-weight: bold;">Audio Mode 🎧</span>
-            <div style="display: flex; gap: 10px; margin-top:5px;">
-                <button onclick="window.speechSynthesis.pause()">Pause</button>
-                <button onclick="window.speechSynthesis.resume()">Resume</button>
-                <button onclick="window.speechSynthesis.cancel()">Stop</button>
-            </div>
+    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 5px;">
+        <a href="#" onclick="window.location.hash='topic=${topic}'; return false;" 
+           style="text-decoration:none; color:#007bff; font-weight:bold; font-size: 0.9rem;">
+           ← Back to Articles
+        </a>
+        <span style="font-weight: bold; color: #4a5568; font-size: 0.9rem;">Audio Mode 🎧</span>
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+        <div style="display: flex; gap: 8px;">
+            <button onclick="window.speechSynthesis.pause()" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">⏸ Pause</button>
+            <button onclick="window.speechSynthesis.resume()" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">▶ Resume</button>
+            <button onclick="window.speechSynthesis.cancel()" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">Stop</button>
         </div>
-        <button onclick="window.toggleTranscript()" style="padding:10px; background:white; border:1px solid #007bff; color:#007bff; border-radius:5px;">Show/Hide Text</button>
+        <button onclick="window.toggleTranscript()" 
+                id="toggle-text-btn" 
+                style="cursor:pointer; padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 5px; font-weight: bold;">
+            Show Text
+        </button>
+    </div>
     `;
 }
 
@@ -774,46 +920,37 @@ window.addEventListener('beforeunload', () => {
  * Función que hace hablar al navegador.
  */
 window.speakArticle = () => {
-    // 🔇 Detenemos cualquier voz anterior para que no se solapen
     window.speechSynthesis.cancel(); 
 
-    const container = document.getElementById('articles-container');
-    if (!container) return;
+    const title = document.getElementById('interactive-title')?.innerText || "";
+    const body = document.getElementById('interactive-text')?.innerText || "";
+    
+    // Al no incluir el 'back-nav-container', el TTS no dirá jamás "Back to articles"
+    const fullText = `${title}. ${body}`.trim();
 
-    // Obtenemos el texto limpio de tags HTML
-    const text = container.innerText.trim();
+    if (fullText.length < 10) return;
 
-    if (text.length === 0) {
-        console.error("❌ No articles-container not found or empty");
-        return;
-    }
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US'; // Voz en inglés
-    utterance.rate = 0.9;      // Velocidad un poco más lenta para estudiantes
-
-    // TRUCO: Guardamos la referencia global para que el navegador no corte el audio en textos largos
+    const utterance = new SpeechSynthesisUtterance(fullText);
+    utterance.lang = 'en-US';
+    utterance.rate = 0.9;
     window.currentUtterance = utterance; 
-
     window.speechSynthesis.speak(utterance);
-    console.log("📢 Lectura iniciada.");
 };
 
 /**
  * Dibuja el panel gris con Pause/Stop justo debajo de los niveles.
  */
 window.renderAudioControls = () => {
-    // Buscamos donde ponerlo (debajo de A1-C2)
     const selectorContainer = document.getElementById('level-selector-container');
     if (!selectorContainer) return;
 
-    // Si ya existe, no lo dibujamos otra vez
-    if (document.getElementById('audio-controls-panel')) return;
+    // Si ya existe el panel, lo borramos para recrearlo limpio
+    const existingPanel = document.getElementById('audio-controls-panel');
+    if (existingPanel) existingPanel.remove();
 
     const audioPanel = document.createElement('div');
     audioPanel.id = 'audio-controls-panel';
-    // Estilo elegante en gris
-    audioPanel.style = "background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; gap: 15px; border: 1px solid #e9ecef;";
+    audioPanel.style = "background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 15px; border: 1px solid #e9ecef;";
 
     audioPanel.innerHTML = `
         <div style="flex: 1;">
@@ -824,12 +961,11 @@ window.renderAudioControls = () => {
                 <button onclick="window.speechSynthesis.cancel()" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">Stop</button>
             </div>
         </div>
-        <button onclick="window.toggleTranscript()" style="cursor:pointer; padding: 10px; background: white; border: 1px solid #007bff; color: #007bff; border-radius: 5px; font-weight: bold;">
-            Show/Hide Text
+        <button onclick="window.toggleTranscript()" id="toggle-text-btn" style="cursor:pointer; padding: 10px; background: white; border: 1px solid #007bff; color: #007bff; border-radius: 5px; font-weight: bold;">
+            Show Text
         </button>
     `;
 
-    // Lo insertamos justo después de los botones de nivel
     selectorContainer.parentNode.insertBefore(audioPanel, selectorContainer.nextSibling);
 };
 
@@ -837,15 +973,19 @@ window.renderAudioControls = () => {
  * Función para el botón "Show/Hide Text"
  */
 window.toggleTranscript = () => {
-    const content = document.getElementById('articles-container');
-    const btn = event.target;
-    if (!content) return;
+    const wrapper = document.getElementById('article-body-wrapper');
+    const btn = document.getElementById('toggle-text-btn');
     
-    if (content.style.display === 'none') {
-        content.style.display = 'block';
+    if (!wrapper || !btn) return;
+
+    // Comprobamos la realidad del elemento
+    const isHidden = wrapper.style.display === 'none' || window.getComputedStyle(wrapper).display === 'none';
+
+    if (isHidden) {
+        wrapper.style.setProperty('display', 'block', 'important');
         btn.innerText = 'Hide Text';
     } else {
-        content.style.display = 'none';
+        wrapper.style.setProperty('display', 'none', 'important');
         btn.innerText = 'Show Text';
     }
 };
