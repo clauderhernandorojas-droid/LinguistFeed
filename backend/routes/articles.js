@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
 const { authenticate } = require('../middleware/auth');
-const aiService = require('../services/aiService'); // Asegúrate de que la ruta sea correcta
+const aiService = require('../services/aiService'); // Importación única y correcta
 
 /**
  * @route GET /articles
@@ -73,20 +73,25 @@ router.get('/daily-reading', async (req, res) => {
 
 /**
  * @route GET /articles/:id
- * @desc Get a specific article (REVISADA)
+ * @desc Get a specific article with ON-DEMAND leveling
  */
 router.get('/articles/:id', async (req, res) => {
+  console.log("-----------------------------------------");
+  console.log(`🚀 PETICIÓN RECIBIDA: Artículo ${req.params.id} en nivel ${req.query.level}`);
+  console.log("-----------------------------------------");
+  
   try {
     const articleId = req.params.id;
     const { level } = req.query;
 
-    // CORRECCIÓN: Si no hay usuario autenticado o nivel, por defecto es B1
+    // 1. Determinar el nivel
     let articleLevel = level;
     if (!articleLevel) {
       articleLevel = (req.user && req.user.level) ? req.user.level : 'B1';
     }
 
-    const article = await db.get(
+    // 2. Buscar el artículo y versión simplificada
+    let article = await db.get(
       `SELECT a.id, a.title, a.url, a.topic, a.created_at, a.content,
               sa.text as simplified_text, sa.level
        FROM articles a
@@ -99,7 +104,28 @@ router.get('/articles/:id', async (req, res) => {
       return res.status(404).json({ error: 'Article not found' });
     }
 
-    // Traer quizzes con el índice de respuesta correcta
+    // --- 🛠 GENERACIÓN ON-DEMAND ---
+    let finalContent = article.simplified_text;
+
+    if (!finalContent) {
+      console.log(`✨ El nivel ${articleLevel} no existe para el artículo ${articleId}. Generando...`);
+      
+      try {
+        // Usamos aiService ya importado arriba
+        finalContent = await aiService.generateLeveledArticle(article.content, articleLevel);
+
+        await db.run(
+          `INSERT INTO simplified_articles (article_id, level, text) VALUES (?, ?, ?)`,
+          [articleId, articleLevel, finalContent]
+        );
+        console.log(`✅ Versión ${articleLevel} generada y guardada exitosamente.`);
+      } catch (aiError) {
+        console.error('❌ Error llamando a la IA:', aiError.message);
+        finalContent = article.content;
+      }
+    }
+
+    // 3. Traer quizzes
     const quizzes = await db.all(
       `SELECT id, question, option_a, option_b, option_c, correct_option, hint
        FROM quizzes
@@ -111,10 +137,11 @@ router.get('/articles/:id', async (req, res) => {
       id: quiz.id,
       question: quiz.question,
       options: [quiz.option_a, quiz.option_b, quiz.option_c],
-      correct_index: quiz.correct_option, // Importante para el frontend
+      correct_index: quiz.correct_option,
       hint: quiz.hint
     }));
 
+    // 4. Traer vocabulario
     const vocabulary = await db.all(
       `SELECT id, word, definition, example
        FROM vocabulary
@@ -127,15 +154,15 @@ router.get('/articles/:id', async (req, res) => {
       title: article.title,
       url: article.url,
       topic: article.topic,
-      level: article.level || articleLevel,
-      content: article.simplified_text || article.content, 
+      level: articleLevel,
+      content: finalContent,
       created_at: article.created_at,
       vocabulary: vocabulary || [],
       quizzes: formattedQuizzes || []
     });
 
   } catch (error) {
-    console.error('🔥 Error en GET /articles/:id:', error.message);
+    console.error('🔥 Error crítico en GET /articles/:id:', error.message);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
@@ -164,7 +191,6 @@ router.post('/simplify', async (req, res) => {
     const { text, level = 'B1' } = req.body;
     if (!text) return res.status(400).json({ error: 'Text is required' });
 
-    const aiService = require('../services/aiService');
     const result = await aiService.generateSimplifiedArticle(text, level);
 
     res.json({
@@ -182,6 +208,7 @@ router.post('/simplify', async (req, res) => {
     res.status(400).json({ error: error.message });
   }
 });
+
 // NUEVA RUTA: Generación de Quiz sin simplificación
 router.post('/generate-quiz-only', async (req, res) => {
   const { text, level } = req.body;

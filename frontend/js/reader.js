@@ -80,56 +80,44 @@ let savedWordsSet = new Set(); // Aquí guardaremos tus palabras "tesoro"
 export async function initReader() {
     const container = document.getElementById('articles-container');
     const loadingDiv = document.getElementById('loading');
-    // Definimos el contenedor del quiz que está en tu HTML
-    const quizContainer = document.getElementById('quiz-container');
     
-    // 1. Recuperar preferencias
-    const userMode = localStorage.getItem('userMode') || 'read'; 
-    const currentLevel = localStorage.getItem('selectedLevel') || 'A2'; 
-
-    // 2. Analizar la URL (Hash)
+    // 1. Analizar la URL (Hash) - ESTO ES LO MÁS IMPORTANTE
     const hash = window.location.hash.substring(1); 
     const params = new URLSearchParams(hash);
     const articleId = params.get('id');
     const topic = params.get('topic');
+    
+    // Prioridad de nivel: 
+    // 1. El que venga en la URL (?level=A1)
+    // 2. El que tengamos guardado de antes
+    // 3. B1 por defecto
+    const levelFromUrl = params.get('level');
+    const currentLevel = levelFromUrl || localStorage.getItem('user-level') || 'B1';
 
     if (!container) return;
 
     try {
         if (articleId) {
             // Caso A: Mostrar el artículo completo
+            // Le pasamos el nivel que detectamos arriba
             await loadFullArticle(articleId, currentLevel);
-            renderLevelSelector(articleId, currentLevel);
-
-            // --- ESTE ES EL CAMBIO QUE ME PREGUNTASTE ---
+            
+            // Caso modo escucha/lectura
+            const userMode = localStorage.getItem('userMode') || 'read';
             if (userMode === 'listen') {
                 const wrapper = document.getElementById('article-body-wrapper');
-                if (wrapper) wrapper.style.display = 'none'; // Lo escondemos de entrada
-            
-                window.renderAudioControls(); // Esto creará el botón diciendo "Show Text"
-                
-                setTimeout(() => {
-                    window.speakArticle();
-                }, 500);
-            } else {
-                // En modo Read, nos aseguramos que el cuerpo se vea
-                const bodyWrapper = document.getElementById('article-body-wrapper');
-                if (bodyWrapper) bodyWrapper.style.display = 'block';
+                if (wrapper) wrapper.style.display = 'none';
+                if (window.renderAudioControls) window.renderAudioControls();
+                setTimeout(() => { if (window.speakArticle) window.speakArticle(); }, 500);
             }
-            // --------------------------------------------
-
         } else if (topic) {
-            // Caso B: Mostrar lista de artículos de un tema
             await loadDailyArticlesList(topic);
         } else {
-            // Caso C: No hay nada, mostrar iconos de temas
             displayTopicSelection();
         }
     } catch (error) {
         console.error("❌ Error en initReader:", error);
         container.innerHTML = `<p style="color:red; text-align:center;">Error de conexión.</p>`;
-    } finally {
-        if (loadingDiv) loadingDiv.style.display = 'none';
     }
 }
 
@@ -224,17 +212,27 @@ async function loadDailyArticlesList(filterTopic = null) {
                     const targetUrl = `reader.html#id=${article.id}&topic=${filterTopic || article.topic}`;
                     
                     return `
-                    <div class="card" style="padding:15px; border:1px solid #eee; border-radius:10px; display: flex; flex-direction: column; justify-content: space-between; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                    <div class="card" style="...">
                         <div>
-                            <span class="badge" style="background:#007bff; color:white; padding:2px 8px; border-radius:5px; font-size:0.7rem; text-transform: uppercase;">${article.topic}</span>
-                            <h3 style="margin:10px 0; font-size: 1.1rem; line-height: 1.3; cursor: pointer;">${article.title}</h3>
-                            <p style="font-size: 0.85rem; color: #555;">${article.content.substring(0, 100)}...</p>
+                            <span class="badge" style="...">Subtopic: ${article.topic}</span>
+                            <h3 style="cursor:pointer;">${article.title}</h3>
+                            <p style="font-size: 0.85rem;">${article.content.substring(0, 80)}...</p>
                         </div>
-                        <div style="display: flex; gap: 10px; margin-top: 15px;">
-                            <a href="#" onclick="localStorage.setItem('userMode', 'read'); window.location.href='${targetUrl}'; return false;"
-                               style="flex: 1; padding: 10px; background: #007bff; color: white; text-align: center; border-radius: 5px; text-decoration: none; font-weight: bold; font-size: 0.9rem;">Read</a>
-                            <a href="#" onclick="localStorage.setItem('userMode', 'listen'); window.location.href='${targetUrl}'; return false;"
-                               style="flex: 1; padding: 10px; background: #28a745; color: white; text-align: center; border-radius: 5px; text-decoration: none; font-weight: bold; font-size: 0.9rem;">Listen 🔊</a>
+
+                        <div class="level-selector-inline" style="display: flex; gap: 4px; margin: 10px 0; justify-content: center;">
+                            ${['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(lvl => `
+                                <button onclick="setArticleLevel('${article.id}', '${lvl}')" 
+                                        id="btn-${article.id}-${lvl}"
+                                        class="level-btn ${lvl === (localStorage.getItem('user-level') || 'B1') ? 'active' : ''}"
+                                        style="font-size: 0.7rem; padding: 2px 6px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; background: white;">
+                                    ${lvl}
+                                </button>
+                            `).join('')}
+                        </div>
+
+                        <div style="display: flex; gap: 10px;">
+                            <a href="#" onclick="goToArticle('${article.id}', 'read')" style="...">Read</a>
+                            <a href="#" onclick="goToArticle('${article.id}', 'listen')" style="...">Listen 🔊</a>
                         </div>
                     </div>`;
                 }).join('')}
@@ -294,50 +292,56 @@ async function loadDailyArticlesList(filterTopic = null) {
  * Carga y renderiza un artículo completo con niveles CEFR
  */
 export async function loadFullArticle(id, level = null) {
-    if (typeof refreshSavedWords === 'function') await refreshSavedWords();
     const container = document.getElementById('articles-container');
-    const quizContainer = document.getElementById('quiz-container');
     const loadingDiv = document.getElementById('loading');
+    const quizContainer = document.getElementById('quiz-container');
     
     if (!container) return;
 
-    // Detectar el tema desde la URL para el botón de regreso
-    const params = new URLSearchParams(window.location.hash.substring(1));
-    const currentTopic = params.get('topic') || '';
-
-    const currentLevel = level || localStorage.getItem('user-level') || 'B1';
-    if (level) localStorage.setItem('user-level', level); 
-
-    if (loadingDiv) loadingDiv.style.display = 'block';
-    
+    // --- PASO 1: LIMPIEZA INMEDIATA ---
+    // Esto hace que el artículo viejo desaparezca al instante
     container.innerHTML = ""; 
     if (quizContainer) {
-        quizContainer.innerHTML = ""; 
+        quizContainer.innerHTML = "";
         quizContainer.style.display = 'none';
     }
+    if (loadingDiv) loadingDiv.style.display = 'block';
+
+    // --- PASO 2: DETERMINAR NIVEL ---
+    const params = new URLSearchParams(window.location.hash.substring(1));
+    const activeLevel = level || params.get('level') || localStorage.getItem('user-level') || 'B1';
+    
+    // Guardamos la preferencia
+    localStorage.setItem('user-level', activeLevel);
 
     try {
-        const response = await fetch(`${CONFIG.API_BASE_URL}/articles/${id}?level=${currentLevel}`);
+        // --- PASO 3: PETICIÓN AL SERVIDOR ---
+        const response = await fetch(`${CONFIG.API_BASE_URL}/articles/${id}?level=${activeLevel}`);
         if (!response.ok) throw new Error(`Article not found`);
         const article = await response.json();
 
+        // Ocultamos el cargando
         if (loadingDiv) loadingDiv.style.display = 'none';
+
+        // --- PASO 4: PINTAR BOTONES Y CONTENIDO ---
+        // Llamamos al selector para que el botón correcto se ponga azul
+        renderLevelSelector(id, activeLevel);
 
         container.innerHTML = `
             <div class="article-full">
                 <div id="nav-and-title-area" style="margin-bottom: 20px;">
-                    <button onclick="window.location.hash='topic=${currentTopic}'; return false;" 
+                    <button onclick="window.location.hash='topic=${article.topic}'; return false;" 
                             style="background:none; border:none; color:#007bff; font-weight:bold; cursor:pointer; padding:0;">
                         ← Back to Articles
                     </button>
                     <h1 id="interactive-title" style="margin-top:10px;">${article.title}</h1>
                 </div>
 
-                <div id="article-body-wrapper" style="display: block;">
+                <div id="article-body-wrapper">
                     <div class="article-meta mb-3" style="color: #666; font-size: 0.9rem;">
-                        <span class="badge bg-primary">${article.level}</span> | Topic: ${article.topic}
+                        <span class="badge bg-primary" style="padding: 5px 10px;">Level: ${activeLevel}</span>
                     </div>
-                    <div id="interactive-text" class="article-body-text" style="line-height: 1.6;">
+                    <div id="interactive-text" class="article-body-text">
                         ${article.content}
                     </div>
                 </div>
@@ -404,18 +408,24 @@ function renderLevelSelector(currentArticleId, activeLevel) {
     if (!levelContainer) return;
 
     const levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+    levelContainer.innerHTML = ''; // Limpiamos antes de pintar
     
-    levelContainer.innerHTML = levels.map(level => `
+    levelContainer.innerHTML = levels.map(level => {
+        // Comparación robusta: A1 === A1 o a1 === A1
+        const isThisActive = (level.toUpperCase() === activeLevel.toUpperCase());
+        
+        return `
         <button 
-            class="level-btn ${level === activeLevel ? 'active' : ''}" 
+            class="level-btn ${isThisActive ? 'active' : ''}" 
             onclick="changeArticleLevel('${currentArticleId}', '${level}')"
-            style="margin-right: 8px; padding: 5px 15px; cursor: pointer; border-radius: 15px; border: 1px solid #007bff; 
-                   background: ${level === activeLevel ? '#007bff' : 'white'}; 
-                   color: ${level === activeLevel ? 'white' : '#007bff'};"
+            style="margin-right: 8px; padding: 5px 15px; cursor: pointer; border-radius: 15px; 
+                   border: 1px solid #007bff; 
+                   background: ${isThisActive ? '#007bff' : 'white'}; 
+                   color: ${isThisActive ? 'white' : '#007bff'};"
         >
             ${level}
         </button>
-    `).join('');
+    `}).join('');
 }
 /**
  * Configura la interactividad de las palabras
@@ -798,17 +808,28 @@ function applyHighlights(container) {
     });
 }
 // FUNCIONES GLOBALES PARA EL HTML
-window.changeArticleLevel = async (id, lvl) => {
-    console.log(`Cambiando artículo ${id} al nivel ${lvl}...`);
+// Esta función debe existir en tu reader.js para manejar los clics dentro del artículo
+window.changeArticleLevel = async function(id, newLevel) {
+    console.log(`🎯 Nivel ${newLevel} solicitado para el artículo ${id}`);
+
+    // 1. UI: Poner el botón azul inmediatamente (Feedback visual instantáneo)
+    renderLevelSelector(id, newLevel); 
+
+    // 2. UI: Hacer desaparecer el artículo actual y mostrar el Loading
+    const container = document.getElementById('articles-container');
+    const loadingDiv = document.getElementById('loading');
     
-    // 1. Guardamos la preferencia en el navegador
-    localStorage.setItem('selectedLevel', lvl);
-    
-    // 2. Recargamos el contenido con el nuevo nivel
-    await loadFullArticle(id, lvl);
-    
-    // 3. Volvemos a dibujar los botones para que el nuevo nivel salga resaltado
-    renderLevelSelector(id, lvl);
+    if (container) container.innerHTML = ""; // Borramos el texto viejo para no confundir
+    if (loadingDiv) loadingDiv.style.display = 'block'; // Mostramos el cargando
+
+    // 3. Actualizar la URL (Hash) para que si el usuario refresca, se quede en este nivel
+    const params = new URLSearchParams(window.location.hash.substring(1));
+    params.set('level', newLevel);
+    window.location.hash = params.toString();
+
+    // 4. Ahora sí, llamar al servidor para traer el nuevo texto
+    // (Como ya limpiamos arriba, loadFullArticle se encargará de pintar lo nuevo cuando llegue)
+    await loadFullArticle(id, newLevel);
 };
 
 window.speakArticle = () => {
@@ -1003,6 +1024,52 @@ window.addEventListener('hashchange', () => {
     const panel = document.getElementById('audio-controls-panel');
     if (panel) panel.remove();
 });
+window.setArticleLevel = function(articleId, level) {
+    console.log(`🎯 Nivel ${level} pre-seleccionado para la tarjeta ${articleId}`);
+    
+    // 1. Guardamos para que el sistema lo recuerde
+    localStorage.setItem(`temp-level-${articleId}`, level);
+    
+    // 2. Buscamos la tarjeta en el DOM
+    const card = document.querySelector(`.card h3[onclick*="'${articleId}'"]`)?.closest('.card') 
+                 || document.querySelector(`button[id*="${articleId}"]`)?.closest('.card');
+
+    if (card) {
+        // Marcamos visualmente los botones de la tarjeta
+        card.querySelectorAll('.level-btn').forEach(btn => {
+            btn.style.background = 'white';
+            btn.style.color = 'black';
+        });
+        const activeBtn = card.querySelector(`[id$="-${level}"]`);
+        if (activeBtn) {
+            activeBtn.style.background = '#007bff';
+            activeBtn.style.color = 'white';
+        }
+
+        // ¡ESTO ES LO MÁS IMPORTANTE!: Actualizamos el botón "Read"
+        const readBtn = card.querySelector('a[onclick*="userMode\', \'read\'"]');
+        if (readBtn) {
+            const topic = new URLSearchParams(window.location.hash.substring(1)).get('topic') || '';
+            // Creamos la URL exacta con el nivel elegido
+            const newUrl = `reader.html#id=${articleId}&level=${level}&topic=${topic}`;
+            readBtn.setAttribute('onclick', `localStorage.setItem('userMode', 'read'); window.location.href='${newUrl}'; return false;`);
+        }
+    }
+};
+
+window.goToArticle = function(id, mode) {
+    // Buscamos si eligió un nivel, si no, usamos el de su perfil o B1 por defecto
+    const selectedLevel = localStorage.getItem(`temp-level-${id}`) || localStorage.getItem('user-level') || 'B1';
+    
+    localStorage.setItem('userMode', mode);
+    
+    // Obtenemos el tópico actual del hash para no perder la navegación
+    const params = new URLSearchParams(window.location.hash.substring(1));
+    const topic = params.get('topic') || '';
+
+    // Redirigimos con el ID y el NIVEL elegido
+    window.location.href = `reader.html#id=${id}&level=${selectedLevel}&topic=${topic}`;
+};
 
 
 window.saveFlashcardToStorage = saveFlashcardToStorage;
