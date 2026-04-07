@@ -7,7 +7,7 @@ import { MOCK_ARTICLES } from './mockData.js';
 // Variable global temporal para la simulación
 window.currentSimulationArticle = null;
 
-export const API_BASE_URL = 'http://localhost:3001';
+export const API_BASE_URL = 'http://localhost:3001/api';
 
 /** Obtener los artículos diarios */
 export async function fetchDailyArticles(level = 'B1') {

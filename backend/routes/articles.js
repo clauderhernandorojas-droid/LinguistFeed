@@ -37,7 +37,7 @@ router.get('/articles', async (req, res) => {
 /**
  * @route GET /daily-reading
  */
-router.get('/daily-reading', async (req, res) => {
+router.get('/daily-articles', async (req, res) => {
   try {
     const date = new Date().toISOString().split('T')[0];
 
