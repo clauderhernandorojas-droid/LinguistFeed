@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const db = require('../database/db');
 
 // Secret key for JWT
-const JWT_SECRET = process.env.JWT_SECRET || 'linguistfeed-secret-key';
+const JWT_SECRET = 'LinguistFeed_Master_Key_2026'; // <--- ¡DEBE SER IGUAL!
 // Token expiration time
 const TOKEN_EXPIRATION = '7d'; // 7 days
 

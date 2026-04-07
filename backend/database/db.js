@@ -85,6 +85,17 @@ async function initializeDatabase() {
       topic TEXT,
       FOREIGN KEY (article_id) REFERENCES articles (id) ON DELETE CASCADE
     )`);
+    // 0. Users table (Para guardar perfil y nivel)
+    await run(`CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,  -- ⬅️ Cambiado de 'password' a 'password_hash'
+      email TEXT UNIQUE,
+      level TEXT DEFAULT 'B1',
+      age INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+    console.log("✅ Tabla 'users' verificada/creada");
 
     console.log('✨ Database schema initialized successfully. All tables verified.');
   } catch (err) {

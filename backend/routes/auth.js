@@ -2,6 +2,11 @@ const express = require('express');
 const router = express.Router();
 const authService = require('../services/authService');
 const { authenticate } = require('../middleware/auth');
+const db = require('../database/db');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs'); // Necesitarás instalarlo: npm install bcryptjs
+
+const JWT_SECRET = 'LinguistFeed_Master_Key_2026'; // <--- Usa esta frase exacta
 
 /**
  * @route POST /register
@@ -9,19 +14,20 @@ const { authenticate } = require('../middleware/auth');
  * @access Public
  */
 router.post('/register', async (req, res) => {
+  const { username, email, password } = req.body;
   try {
-    const { email, password, level } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const result = await db.run(
+      `INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)`,
+      [username, email, hashedPassword]
+    );
     
-    if (!email || !password || !level) {
-      return res.status(400).json({ error: 'Email, password, and level are required' });
-    }
+    const user = { id: result.id, username, email };
+    const token = jwt.sign(user, JWT_SECRET, { expiresIn: '24h' });
     
-    const user = await authService.registerUser(email, password, level);
-    
-    res.status(201).json({ user });
+    res.status(201).json({ token, user });
   } catch (error) {
-    console.error('Registration error:', error.message);
-    res.status(400).json({ error: error.message });
+    res.status(400).json({ error: "El usuario o email ya existe" });
   }
 });
 
@@ -31,19 +37,21 @@ router.post('/register', async (req, res) => {
  * @access Public
  */
 router.post('/login', async (req, res) => {
+  const { email, password } = req.body;
   try {
-    const { email, password } = req.body;
+    const user = await db.get(`SELECT * FROM users WHERE email = ?`, [email]);
     
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+    if (user && await bcrypt.compare(password, user.password_hash)) {
+      const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
+      res.json({ 
+        token, 
+        user: { id: user.id, username: user.username, email: user.email, level: user.level } 
+      });
+    } else {
+      res.status(401).json({ error: "Credenciales inválidas" });
     }
-    
-    const { user, token } = await authService.loginUser(email, password);
-    
-    res.json({ user, token });
   } catch (error) {
-    console.error('Login error:', error.message);
-    res.status(401).json({ error: error.message });
+    res.status(500).json({ error: "Error en el servidor" });
   }
 });
 
@@ -133,5 +141,28 @@ router.delete('/profile/interests/:interest', authenticate, async (req, res) => 
     res.status(400).json({ error: error.message });
   }
 });
+
+/**
+ * @route PUT /api/auth/update-profile
+ * @desc Actualiza la edad y el nivel del usuario
+ */
+router.put('/update-profile', authenticate, async (req, res) => {
+  const { age, level } = req.body;
+  const userId = req.user.id; // Obtenido por el middleware 'authenticate'
+
+  try {
+    await db.run(
+      `UPDATE users SET age = ?, level = ? WHERE id = ?`,
+      [age, level, userId]
+    );
+    
+    console.log(`👤 Perfil actualizado: Usuario ${userId} -> Edad: ${age}, Nivel: ${level}`);
+    res.json({ message: "Perfil actualizado con éxito" });
+  } catch (error) {
+    console.error('❌ Error al actualizar perfil:', error.message);
+    res.status(500).json({ error: "Error al guardar los datos" });
+  }
+});
+
 
 module.exports = router;
