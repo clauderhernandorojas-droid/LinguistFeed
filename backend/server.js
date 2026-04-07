@@ -30,13 +30,13 @@ const flashcardsRoutes = require('./routes/flashcards');
 const analyzeRoutes = require('./routes/analyze');
 
 // 5. Registro de Rutas
-app.use('/', authRoutes);
-app.use('/', articlesRoutes);
+app.use('/api', authRoutes);
+app.use('/api', articlesRoutes);
 app.use('/daily-articles', dailyArticlesRoutes);
 app.use('/', quizRoutes);
 app.use('/', progressRoutes);
 app.use('/api', flashcardsRoutes); // Esto hace que sea /api/flashcards
-app.use('/', analyzeRoutes);
+app.use('/api', analyzeRoutes);
 
 // 6. Manejo de Errores Global
 app.use((err, req, res, next) => {
