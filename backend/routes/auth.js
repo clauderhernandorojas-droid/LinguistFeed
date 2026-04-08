@@ -147,13 +147,13 @@ router.delete('/profile/interests/:interest', authenticate, async (req, res) => 
  * @desc Actualiza la edad y el nivel del usuario
  */
 router.put('/update-profile', authenticate, async (req, res) => {
-  const { age, level } = req.body;
+  const { age, level, interests } = req.body;
   const userId = req.user.id; // Obtenido por el middleware 'authenticate'
 
   try {
     await db.run(
-      `UPDATE users SET age = ?, level = ? WHERE id = ?`,
-      [age, level, userId]
+      `UPDATE users SET age = ?, level = ?, interests = ? WHERE id = ?`,
+      [age, level, interests, userId]
     );
     
     console.log(`👤 Perfil actualizado: Usuario ${userId} -> Edad: ${age}, Nivel: ${level}`);

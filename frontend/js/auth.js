@@ -132,24 +132,26 @@ async function handleOnboarding(event) {
     const age = document.getElementById('user-age').value;
     const level = document.getElementById('user-level').value;
     
-    // 🔍 RASTREADOR: Vamos a ver qué hay en el token antes de enviarlo
-    const token = localStorage.getItem('token'); 
-    console.log("🎫 Enviando token:", token);
+    // Capturar los intereses seleccionados
+    const selectedInterests = Array.from(document.querySelectorAll('input[name="interest"]:checked'))
+                                   .map(cb => cb.value);
   
-    if (!token) {
-      alert("Sesión expirada. Por favor, vuelve a iniciar sesión.");
-      window.location.href = 'index.html';
+    if (selectedInterests.length < 2) {
+      alert("Por favor, elige al menos 2 temas de tu interés.");
       return;
     }
+  
+    const token = localStorage.getItem('token');
   
     try {
       const response = await fetch(`${CONFIG.API_BASE_URL}/auth/update-profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` // Asegúrate de que el espacio entre Bearer y ${token} sea correcto
+          'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ age, level })
+        // Enviamos también los intereses como un string (separados por comas)
+        body: JSON.stringify({ age, level, interests: selectedInterests.join(',') })
       });
   
       if (response.ok) {
@@ -170,10 +172,55 @@ async function handleOnboarding(event) {
   document.addEventListener('DOMContentLoaded', () => {
     const modal = document.getElementById('onboarding-modal');
     const form = document.getElementById('onboarding-form');
+    const ageInput = document.getElementById('user-age');
+    const interestsSection = document.getElementById('interests-section');
+    const interestsGrid = document.getElementById('interests-grid');
     
     if (form) form.addEventListener('submit', handleOnboarding);
     
     if (!localStorage.getItem('userLevel')) {
       if (modal) modal.style.display = 'flex';
     }
+    const themes = {
+        young: [
+          { id: 'gaming', name: 'Video Juegos & Deportes' },
+          { id: 'tech', name: 'Tecnología' },
+          { id: 'trends', name: 'Cultura Pop' },
+          { id: 'edu', name: 'Estudios/Carrera' },
+          { id: 'travel', name: 'Aventura' },
+          { id: 'movies', name: 'Cine y Series' }
+        ],
+        adult: [
+          { id: 'business', name: 'Negocios y Economía' },
+          { id: 'news', name: 'Noticias Globales' },
+          { id: 'health', name: 'Salud y Bienestar' },
+          { id: 'science', name: 'Ciencia' },
+          { id: 'history', name: 'Historia y Filo' },
+          { id: 'lifestyle', name: 'Estilo de Vida' }
+        ]
+      };
+      
+      function updateInterests(age) {
+        interestsGrid.innerHTML = ''; // Limpiamos lo anterior
+        
+        if (age >= 15 && age <= 60) {
+          const group = age <= 25 ? themes.young : themes.adult;
+          
+          group.forEach(theme => {
+            const label = document.createElement('label');
+            label.innerHTML = `<input type="checkbox" name="interest" value="${theme.id}"> ${theme.name}`;
+            interestsGrid.appendChild(label);
+          });
+          
+          interestsSection.style.display = 'block'; // Mostramos la sección
+        } else {
+          interestsSection.style.display = 'none'; // Ocultamos si la edad no es válida
+        }
+      }
+      
+      // Escuchamos cada vez que el usuario escribe en el campo edad
+      ageInput?.addEventListener('input', (e) => {
+        const age = parseInt(e.target.value);
+        updateInterests(age);
+      });
   });
