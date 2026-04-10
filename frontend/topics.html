@@ -51,29 +51,11 @@
     </nav>
 
     <div class="container">
-        <h1>Browse Topics</h1>
-        <p>Select a category to find articles tailored to your level.</p>
-        
-        <div class="row-topics">
-            <div class="topic-card" data-topic="technology">
-                <h2>Technology</h2>
-                <p>Latest trends, AI, and digital innovations.</p>
-            </div>
-            
-            <div class="topic-card" data-topic="science">
-                <h2>Science</h2>
-                <p>Discoveries in space, biology, and physics.</p>
-            </div>
-            
-            <div class="topic-card" data-topic="world">
-                <h2>World</h2>
-                <p>Global news and international current events.</p>
-            </div>
-            
-            <div class="topic-card" data-topic="culture">
-                <h2>Culture</h2>
-                <p>Arts, lifestyle, and social phenomena.</p>
-            </div>
+        <h1>Explore Topics</h1>
+        <p>Select a category to start reading:</p>
+    
+        <div id="topics-grid" class="topics-grid">
+            <p>Cargando temas...</p>
         </div>
     </div>
 
@@ -84,25 +66,14 @@
     <script type="module">
         import { requireAuth, logout } from './js/auth.js';
         import { handleLogout } from './js/reader.js';
-
+        import { renderTopics } from './js/topics.js'; // Importamos la función
+    
         document.addEventListener('DOMContentLoaded', function() {
-            // Verificamos sesión
             requireAuth();
-            
-            // Logout unificado
             handleLogout(logout);
-
-            // Redirección a la lista de artículos
-            // Busca esto en topics.html y corrígelo:
-            // Busca esto en topics.html y corrígelo:
-            document.querySelectorAll('.topic-card').forEach(card => {
-                card.addEventListener('click', function() {
-                    const topic = this.getAttribute('data-topic');
-                    // CAMBIO: Redirigir a reader.html en lugar de articles.html
-                    window.location.href = `reader.html?topic=${topic}`;
-                });
-            });
+            renderTopics(); // Dibujamos los 10 temas
         });
     </script>
+    <script type="module" src="js/topics.js"></script>
 </body>
 </html>

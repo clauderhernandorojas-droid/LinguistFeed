@@ -201,21 +201,32 @@ async function handleOnboarding(event) {
       };
       
       function updateInterests(age) {
-        interestsGrid.innerHTML = ''; // Limpiamos lo anterior
-        
-        if (age >= 15 && age <= 60) {
-          const group = age <= 25 ? themes.young : themes.adult;
+          interestsGrid.innerHTML = ''; 
           
-          group.forEach(theme => {
-            const label = document.createElement('label');
-            label.innerHTML = `<input type="checkbox" name="interest" value="${theme.id}"> ${theme.name}`;
-            interestsGrid.appendChild(label);
-          });
-          
-          interestsSection.style.display = 'block'; // Mostramos la sección
-        } else {
-          interestsSection.style.display = 'none'; // Ocultamos si la edad no es válida
-        }
+          if (age >= 15 && age <= 60) {
+              const group = age <= 25 ? themes.young : themes.adult;
+              
+              group.forEach(theme => {
+                  const card = document.createElement('label');
+                  card.className = 'interest-card-item'; // Usaremos esta clase para el CSS
+                  card.innerHTML = `
+                      <input type="checkbox" name="interest" value="${theme.id}" style="display:none">
+                      <div class="card-content">
+                          <span class="icon">${theme.icon}</span>
+                          <span class="name">${theme.name}</span>
+                      </div>
+                  `;
+                  
+                  // Efecto visual al hacer clic
+                  card.addEventListener('change', (e) => {
+                      card.classList.toggle('selected', e.target.checked);
+                  });
+      
+                  interestsGrid.appendChild(card);
+              });
+              
+              interestsSection.style.display = 'block';
+          }
       }
       
       // Escuchamos cada vez que el usuario escribe en el campo edad

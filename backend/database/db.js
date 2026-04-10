@@ -86,8 +86,8 @@ async function initializeDatabase() {
       topic TEXT,
       FOREIGN KEY (article_id) REFERENCES articles (id) ON DELETE CASCADE
     )`);
-
-    // 0. Users table (Para guardar perfil y nivel)
+    
+    // 0. Users table (Estructura definitiva)
     await run(`CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT UNIQUE NOT NULL,
@@ -95,17 +95,11 @@ async function initializeDatabase() {
       email TEXT UNIQUE,
       level TEXT DEFAULT 'B1',
       age INTEGER,
+      interests TEXT,  -- ⬅️ Agrégala aquí directamente
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
     console.log("✅ Tabla 'users' verificada/creada");
-
-    // --- AQUÍ ESTA EL CAMBIO QUE NECESITAMOS ---
-    try {
-      await run(`ALTER TABLE users ADD COLUMN interests TEXT`);
-      console.log("✅ Columna 'interests' añadida correctamente.");
-    } catch (e) {
-      // Si la columna ya existe, SQLite dará un error que simplemente ignoramos
-    }
+    
     // -------------------------------------------
 
     console.log('✨ Database schema initialized successfully. All tables verified.');
@@ -117,60 +111,46 @@ async function initializeDatabase() {
 
 // --- HELPER FUNCTIONS (Promisified for async/await) ---
 
-function run(sql, params = []) {
+// En backend/database/db.js
+
+// Funciones de ayuda con Promesas para usar async/await
+// --- Asegúrate de que estas funciones estén definidas antes del export ---
+const run = (sql, params = []) => {
   return new Promise((resolve, reject) => {
     db.run(sql, params, function(err) {
       if (err) {
         console.error('❌ SQL Run Error:', err.message);
-        console.error('SQL Query:', sql);
-        return reject(err);
+        reject(err);
+      } else {
+        resolve({ lastID: this.lastID, changes: this.changes });
       }
-      resolve({ id: this.lastID, changes: this.changes });
     });
   });
-}
+};
 
-function get(sql, params = []) {
+const get = (sql, params = []) => {
   return new Promise((resolve, reject) => {
     db.get(sql, params, (err, row) => {
-      if (err) {
-        console.error('❌ SQL Get Error:', err.message);
-        return reject(err);
-      }
-      resolve(row);
+      if (err) reject(err);
+      else resolve(row);
     });
   });
-}
+};
 
-function all(sql, params = []) {
+const all = (sql, params = []) => {
   return new Promise((resolve, reject) => {
     db.all(sql, params, (err, rows) => {
-      if (err) {
-        console.error('❌ SQL All Error:', err.message);
-        return reject(err);
-      }
-      resolve(rows);
+      if (err) reject(err);
+      else resolve(rows);
     });
   });
-}
+};
 
-function close() {
-  return new Promise((resolve, reject) => {
-    db.close((err) => {
-      if (err) {
-        console.error('❌ Error closing database:', err.message);
-        return reject(err);
-      }
-      console.log('🔌 Database connection closed.');
-      resolve();
-    });
-  });
-}
-
+// --- AQUÍ ESTÁ EL TRUCO: EXPORTAR TODO, INCLUYENDO EL INICIALIZADOR ---
 module.exports = {
-  initializeDatabase,
+  initializeDatabase, // <--- ESTA ES LA QUE FALTABA
   run,
   get,
   all,
-  close
+  db
 };
