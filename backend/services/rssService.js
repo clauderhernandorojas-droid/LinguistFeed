@@ -6,33 +6,28 @@ const parser = new Parser();
  */
 class RssService {
   constructor() {
-    // Default RSS feeds
     this.feeds = [
-      {
-        url: 'https://feeds.bbci.co.uk/news/rss.xml',
-        name: 'BBC News',
-        category: 'News'
-      },
-      {
-        url: 'https://rss.nytimes.com/services/xml/rss/nyt/Science.xml',
-        name: 'New York Times - Science',
-        category: 'Science'
-      },
-      {
-        url: 'https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml',
-        name: 'New York Times - Technology',
-        category: 'Technology'
-      },
-      {
-        url: 'https://feeds.bbci.co.uk/news/health/rss.xml',
-        name: 'BBC Health',
-        category: 'Health'
-      },
-      {
-        url: 'https://feeds.bbci.co.uk/news/business/rss.xml',
-        name: 'BBC Business',
-        category: 'Business'
-      }
+      // --- NOTICIAS Y NEGOCIOS ---
+      { url: 'https://feeds.bbci.co.uk/news/rss.xml', name: 'BBC News', category: 'news' },
+      { url: 'https://feeds.bbci.co.uk/news/business/rss.xml', name: 'BBC Business', category: 'business' },
+      
+      // --- TECNOLOGÍA Y CIENCIA ---
+      { url: 'https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml', name: 'NYT Tech', category: 'tech' },
+      { url: 'https://rss.nytimes.com/services/xml/rss/nyt/Science.xml', name: 'NYT Science', category: 'science' },
+      { url: 'https://www.wired.com/feed/rss', name: 'Wired', category: 'tech' },
+  
+      // --- CULTURA, HISTORIA Y FILO (Para el grupo de Adultos) ---
+      { url: 'https://www.smithsonianmag.com/rss/history/', name: 'Smithsonian History', category: 'history' },
+      { url: 'https://www.newyorker.com/feed/culture', name: 'The New Yorker', category: 'culture' },
+      { url: 'https://philosophyforlife.org/blog?format=rss', name: 'Philosophy for Life', category: 'history' }, // Lo mapeamos a historia/filo
+  
+      // --- GAMING Y CULTURA POP (Para el grupo de Jóvenes) ---
+      { url: 'https://www.gamespot.com/feeds/reviews/', name: 'GameSpot', category: 'gaming' },
+      { url: 'https://www.rollingstone.com/results.rss', name: 'Rolling Stone', category: 'trends' },
+  
+      // --- ESTILO DE VIDA Y SALUD ---
+      { url: 'https://feeds.bbci.co.uk/news/health/rss.xml', name: 'BBC Health', category: 'health' },
+      { url: 'https://www.lifehacker.com/rss', name: 'Lifehacker', category: 'lifestyle' }
     ];
   }
 

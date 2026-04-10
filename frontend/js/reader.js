@@ -129,12 +129,18 @@ function displayTopicSelection() {
     const levels = document.getElementById('level-selector-container');
     if (levels) levels.innerHTML = ''; 
     
-    // CAMBIO IMPORTANTE: Los IDs ahora coinciden con la consola ['culture', 'world', 'science', 'technology']
+    // Lista completa de 10 temas para que no se vea vacía
     const topics = [
-        { id: 'science', icon: '🔬', label: 'Science', color: '#e2f2ff' },
-        { id: 'technology', icon: '💻', label: 'Tech', color: '#e6fffa' },
-        { id: 'world', icon: '📜', label: 'History', color: '#fffaf0' }, // 'world' es el ID real
-        { id: 'culture', icon: '🎨', label: 'Culture', color: '#f5f5f5' }
+        { id: 'news', icon: '🌎', label: 'News', color: '#e3f2fd' },
+        { id: 'business', icon: '💼', label: 'Business', color: '#f3e5f5' },
+        { id: 'tech', icon: '💻', label: 'Tech', color: '#e8f5e9' },
+        { id: 'science', icon: '🔬', label: 'Science', color: '#e0f2f1' },
+        { id: 'history', icon: '📜', label: 'History', color: '#fff8e1' },
+        { id: 'culture', icon: '🎨', label: 'Culture', color: '#fce4ec' },
+        { id: 'gaming', icon: '🎮', label: 'Gaming', color: '#ede7f6' },
+        { id: 'trends', icon: '✨', label: 'Trends', color: '#fff3e0' },
+        { id: 'health', icon: '🏥', label: 'Health', color: '#f1f8e9' },
+        { id: 'lifestyle', icon: '🏠', label: 'Lifestyle', color: '#efebe9' }
     ];
 
     container.innerHTML = `

@@ -95,17 +95,27 @@ class SchedulerService {
    * Fetch and process articles from RSS feeds
    * @param {string} level - CEFR level
    */
+  /**
+   * Fetch and process articles from RSS feeds
+   * @param {string} level - CEFR level
+   */
   async fetchAndProcessArticlesFromRSS(level) {
     try {
-      console.log(`Fetching and processing RSS articles for level ${level}`);
+      console.log(`🚀 Fetching and processing RSS articles for level ${level}`);
       
-      // Get articles from RSS feeds
+      // Obtenemos los artículos de los feeds
       const articlesData = await articleService.fetchAndProcessArticlesFromRSS();
       
-      // Process each article
       for (const articleData of articlesData) {
         try {
-          // Check if the article already exists in the database
+          // --- 🛠️ NORMALIZACIÓN DEL TOPIC ---
+          // Mapeamos los nombres del RSS a los IDs que usa tu Frontend
+          let cleanTopic = articleData.category.toLowerCase().trim();
+          if (cleanTopic === 'technology') cleanTopic = 'tech';
+          if (cleanTopic === 'world') cleanTopic = 'news';
+          // ----------------------------------
+
+          // Verificamos si ya existe el artículo
           const existingArticle = await db.get(
             'SELECT id, content FROM articles WHERE url = ?',
             [articleData.url]
@@ -115,77 +125,62 @@ class SchedulerService {
           let articleContent;
           
           if (!existingArticle) {
-            console.log(`Article with URL ${articleData.url} not found in database, scraping and inserting`);
-            
-            // Scrape the article content
+            console.log(`📦 Scraping nuevo artículo: ${articleData.title}`);
             const scrapedArticle = await scraperService.scrapeArticle(articleData.url);
             
-            // Insert the article into the database
+            // Insertamos usando cleanTopic
             const result = await db.run(
               'INSERT INTO articles (url, title, topic, content, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)',
-              [
-                articleData.url,
-                scrapedArticle.title || articleData.title,
-                articleData.category,
-                scrapedArticle.text
-              ]
+              [articleData.url, scrapedArticle.title || articleData.title, cleanTopic, scrapedArticle.text]
             );
             
-            articleId = result.id;
+            articleId = result.lastID; // Importante: usar lastID
             articleContent = scrapedArticle.text;
-            console.log(`Inserted article with ID ${articleId}`);
+            console.log(`✅ Articulo insertado con ID: ${articleId}`);
           } else {
             articleId = existingArticle.id;
             articleContent = existingArticle.content;
-            console.log(`Article with URL ${articleData.url} already exists with ID ${articleId}`);
           }
 
-          // --- 🤖 INICIO DE GENERACIÓN DE QUIZ AUTOMÁTICO ---
-          // Verificamos si ya existe un quiz para este artículo y nivel
+          // --- 🤖 GENERACIÓN DE QUIZ AUTOMÁTICO ---
           const existingQuiz = await db.get(
             'SELECT id FROM quizzes WHERE article_id = ? AND level = ?',
             [articleId, level]
           );
 
           if (!existingQuiz && articleContent) {
-            console.log(`🤖 Generating AI quiz for article ${articleId} at level ${level}...`);
+            console.log(`🧠 Generando Quiz IA para artículo ${articleId} (Nivel ${level})...`);
             try {
-              // Llamamos al servicio de IA para generar y GUARDAR el quiz
-              const aiService = require('./aiService'); // Lo cargamos aquí para evitar problemas de carga circular
+              // Asegúrate de que aiService tenga el método 'generateQuiz' que creamos antes
               await aiService.generateQuiz(articleId, articleContent, level);
-              console.log(`✅ Quiz generated and saved for article ${articleId}`);
+              console.log(`✨ Quiz guardado con éxito.`);
             } catch (aiError) {
-              console.error(`❌ Error generating quiz for article ${articleId}:`, aiError.message);
+              console.error(`❌ Error en IA (Quiz):`, aiError.message);
             }
           }
-          // --- 🤖 FIN DE GENERACIÓN DE QUIZ ---
           
-          // Check if this article is already in daily_articles for today
-          const date = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+          // --- 🗓️ REGISTRO EN ARTÍCULOS DIARIOS ---
+          const date = new Date().toISOString().split('T')[0];
           const existingDailyArticle = await db.get(
             'SELECT id FROM daily_articles WHERE date = ? AND article_id = ?',
             [date, articleId]
           );
           
           if (!existingDailyArticle) {
-            // Store the article in daily_articles
             await db.run(
               'INSERT INTO daily_articles (date, topic, article_id) VALUES (?, ?, ?)',
-              [date, articleData.category, articleId]
+              [date, cleanTopic, articleId] // <--- Usamos cleanTopic aquí también
             );
-            
-            console.log(`Stored daily article for topic "${articleData.category}" with article ID ${articleId}`);
-          } else {
-            console.log(`Article with ID ${articleId} already exists in daily_articles for today`);
+            console.log(`📌 Guardado en feed diario bajo el tema: "${cleanTopic}"`);
           }
-        } catch (error) {
-          console.error(`Error processing article ${articleData.url}:`, error.message);
+        } catch (innerError) {
+          console.error(`⚠️ Error procesando artículo individual:`, innerError.message);
         }
       }
       
-      console.log(`Finished processing RSS articles for level ${level}`);
+      console.log(`🏁 Proceso completado para nivel ${level}`);
     } catch (error) {
-      console.error(`Error fetching and processing RSS articles for level ${level}:`, error.message);
+      console.error(`🔥 Error crítico en Scheduler:`, error.message);
       throw error;
     }
   }

@@ -1,3 +1,4 @@
+const db = require('../database/db'); // Añade esta línea al principio
 const axios = require('axios');
 require('dotenv').config();
 
@@ -120,6 +121,25 @@ class AiService {
         } catch (error) {
             console.error("❌ Error generating quiz:", error);
             return [];
+        }
+    }
+    async generateQuiz(articleId, text, level) {
+        try {
+            // 1. Generamos las preguntas usando la IA
+            const questions = await this.generateQuizFromText(text, level);
+            
+            // 2. Las guardamos en la base de datos
+            for (const q of questions) {
+                await db.run(
+                    `INSERT INTO quizzes (article_id, level, question, option_a, option_b, option_c, correct_option, hint) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [articleId, level, q.question, q.options[0], q.options[1], q.options[2], q.correct_index, q.hint]
+                );
+            }
+            return true;
+        } catch (error) {
+            console.error("Error en generateQuiz:", error);
+            throw error;
         }
     }
 }

@@ -55,22 +55,18 @@ function displayUserInfo() {
  * Fetches user progress and displays dashboard information
  */
 async function initDashboard() {
-    // Require authentication for the dashboard page
     requireAuth();
-    
-    // Display user information
     displayUserInfo();
     
     try {
-        // Get current user
         const user = getUser();
-        
         if (user) {
-            // Fetch user progress data
+            // 1. Cargamos las estadísticas (lo que ya tenías)
             const progressData = await fetchUserProgress(user.id);
-            
-            // Display user progress
             displayUserProgress(progressData);
+
+            // 2. 🚀 NUEVO: Cargamos el Feed Personalizado
+            await loadPersonalizedFeed(); 
         }
     } catch (error) {
         console.error('Error initializing dashboard:', error);
@@ -83,3 +79,61 @@ export {
     displayUserInfo,
     initDashboard
 };
+/**
+ * Busca y muestra artículos basados en los intereses del usuario
+ */
+async function loadPersonalizedFeed() {
+    const token = localStorage.getItem('token');
+    const articlesContainer = document.getElementById('articles-grid'); // Asegúrate de que este ID exista en tu HTML
+
+    if (!articlesContainer) return;
+
+    try {
+        // Mostramos un mensaje de "Cargando..."
+        articlesContainer.innerHTML = '<p>Buscando las mejores lecturas para ti...</p>';
+
+        const response = await fetch('/api/articles/personalized-feed', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.articles && data.articles.length > 0) {
+            renderArticles(data.articles);
+        } else {
+            articlesContainer.innerHTML = '<p>No encontramos artículos de tus temas favoritos hoy. ¡Explora otros temas!</p>';
+        }
+    } catch (error) {
+        console.error("Error cargando el feed:", error);
+        articlesContainer.innerHTML = '<p>Hubo un error al cargar tus artículos.</p>';
+    }
+}
+
+/**
+ * Dibuja los artículos en el contenedor de forma bonita
+ */
+function renderArticles(articles) {
+    const articlesContainer = document.getElementById('articles-grid');
+    if (!articlesContainer) return;
+
+    articlesContainer.innerHTML = ''; // Borramos el "Buscando..."
+
+    articles.forEach(article => {
+        // Creamos un resumen corto del contenido
+        const preview = article.content ? article.content.substring(0, 100) + '...' : 'No content available';
+
+        const articleCard = `
+            <div class="article-card">
+                <span class="topic-tag">${article.topic || 'General'}</span>
+                <h3 style="font-size: 16px; margin: 0 0 10px 0;">${article.title}</h3>
+                <p style="font-size: 14px; color: #666; font-weight: normal; margin-bottom: 15px;">
+                    ${preview}
+                </p>
+                <a href="reader.html?id=${article.id}" class="btn-read">Read Article</a>
+            </div>
+        `;
+        articlesContainer.innerHTML += articleCard;
+    });
+}

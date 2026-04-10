@@ -225,5 +225,41 @@ router.post('/generate-quiz-only', async (req, res) => {
       res.status(500).json({ error: "Failed to generate quiz" });
   }
 });
+/**
+ * @route GET /api/articles/personalized-feed
+ * @desc Trae artículos basados en los intereses y edad del usuario
+ */
+router.get('/personalized-feed', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await db.get('SELECT age, interests FROM users WHERE id = ?', [userId]);
+
+    // Si no tiene intereses, le damos unos por defecto para que no explote
+    let interestList = user.interests ? user.interests.split(',') : ['news', 'tech'];
+    
+    // Limpiamos espacios en blanco por si acaso
+    interestList = interestList.map(i => i.trim()).filter(i => i !== "");
+
+    // 🚨 FIX CRÍTICO: Si la lista sigue vacía, ponemos temas genéricos
+    if (interestList.length === 0) interestList = ['news', 'tech'];
+
+    const placeholders = interestList.map(() => '?').join(',');
+    
+    const query = `
+      SELECT id, title, content, topic 
+      FROM articles 
+      WHERE topic IN (${placeholders}) 
+      ORDER BY created_at DESC 
+      LIMIT 15
+    `;
+
+    const articles = await db.all(query, interestList);
+    res.json({ articles });
+
+  } catch (error) {
+    console.error('🔥 Error en el Feed:', error);
+    res.status(500).json({ error: "Error al generar el feed" });
+  }
+});
 
 module.exports = router;
