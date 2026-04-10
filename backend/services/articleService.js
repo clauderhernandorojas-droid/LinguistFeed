@@ -18,10 +18,16 @@ class ArticleService {
     const parser = new Parser();
 
     const feeds = {
-      technology: 'https://techcrunch.com/feed/',
+      tech: 'https://techcrunch.com/feed/',
       science: 'https://www.sciencedaily.com/rss/all.xml',
-      world: 'http://feeds.bbci.co.uk/news/world/rss.xml',
-      culture: 'https://www.theguardian.com/culture/rss'
+      news: 'http://feeds.bbci.co.uk/news/world/rss.xml',
+      culture: 'https://www.theguardian.com/culture/rss',
+      business: 'https://feeds.bbci.co.uk/news/business/rss.xml',
+      history: 'https://www.smithsonianmag.com/rss/history/',
+      gaming: 'https://feeds.feedburner.com/ign/all',
+      trends: 'https://www.wired.com/feed/rss',
+      health: 'https://feeds.bbci.co.uk/news/health/rss.xml',
+      lifestyle: 'https://www.lifehacker.com/rss'
     };
 
     const articlesToProcess = [];
