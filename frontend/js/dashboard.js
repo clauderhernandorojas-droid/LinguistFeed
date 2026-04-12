@@ -92,9 +92,9 @@ async function loadPersonalizedFeed() {
         // Mostramos un mensaje de "Cargando..."
         articlesContainer.innerHTML = '<p>Buscando las mejores lecturas para ti...</p>';
 
-        const response = await fetch('/api/articles/personalized-feed', {
+        const response = await fetch('http://localhost:3001/api/articles/personalized-feed', {
             headers: {
-                'Authorization': `Bearer ${token}`
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
             }
         });
 

@@ -29,12 +29,16 @@ export async function fetchDailyArticles(level = 'B1') {
  */
 export async function fetchArticleById(id, level = 'B1') {
     try {
-        // Usamos la constante API_BASE_URL que ya tienes definida arriba en api.js
-        const response = await fetch(`${API_BASE_URL}/articles/${id}?level=${level}`);
+        const response = await fetch(`${API_BASE_URL}/articles/${id}?level=${level}`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
         
+        // 💡 Si el servidor responde con error (404, 500, etc), lanzamos una alerta
         if (!response.ok) {
-            console.warn(`⚠️ Artículo ${id} no encontrado en nivel ${level}`);
-            return null;
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Error: ${response.status}`);
         }
         
         return await response.json();
@@ -43,7 +47,6 @@ export async function fetchArticleById(id, level = 'B1') {
         return null;
     }
 }
-
 
 /** Generar flashcard de vocabulario usando IA */
 export async function generateFlashcard(word, context) {

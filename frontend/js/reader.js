@@ -2,8 +2,19 @@
  * reader.js - Lógica principal del lector de artículos de LinguistFeed
  * Versión Unificada y Corregida (Navegación por Hash)
  */
+
 import { CONFIG } from './config.js';
 import { fetchDailyArticles, fetchArticleById } from './api.js';
+
+// "Guardaespaldas" de navegación: 
+// Si por alguna razón algo intenta recargar reader.html sin parámetros,
+// o si detectamos que el usuario quiere volver, aseguramos que vaya a topics.html
+document.addEventListener('click', (e) => {
+    if (e.target.tagName === 'A' && e.target.innerText.includes('Back to Topics')) {
+        e.preventDefault();
+        window.location.href = 'topics.html';
+    }
+});
 
 // --- CAPTURADOR DE TRADUCCIÓN ORIGINAL ---
 // --- FUNCIÓN GLOBAL DE TRADUCCIÓN PARA TÍTULOS ---
@@ -13,10 +24,16 @@ window.handleWordClick = async function(text, event) {
     console.log("Traduciendo título con estilo real:", text);
 
     try {
-        const response = await fetch(`${CONFIG.API_BASE_URL}/analyze-text`, {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/articles/analyze-text`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: text, type: "translate" })
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({ 
+                text: text, 
+                type: "translate"  // 🎯 Sello de TÍTULO (Correcto aquí)
+            })
         });
 
         const result = await response.json();
@@ -159,31 +176,42 @@ function displayTopicSelection() {
 /**
  * Carga la lista de artículos obtenidos por el scraper real
  */
-/**
- * Carga la lista de artículos obtenidos por el scraper real
- */
 async function loadDailyArticlesList(filterTopic = null) {
     const container = document.getElementById('articles-container');
     const levels = document.getElementById('level-selector-container');
     const loadingDiv = document.getElementById('loading');
+
+    // 1. Normalizamos el tópico para que no importe si es 'Science' o 'science'
+    const urlParams = new URLSearchParams(window.location.hash.replace('#', '?'));
+    const topic = (filterTopic || urlParams.get('topic') || 'news').toLowerCase().trim(); 
+
+    console.log("🚀 Lector cargando para el tema:", topic);
 
     if (levels) levels.innerHTML = '';
     if (loadingDiv) loadingDiv.style.display = 'block';
 
     try {
         const data = await fetchDailyArticles(); 
-        const articlesArray = data.articles || data;
+        const allData = data.articles || data;
 
-        // --- DIAGNÓSTICO ---
-        const temasExistentes = [...new Set(articlesArray.map(a => a.topic))];
-        console.log("🔍 Temas en servidor:", temasExistentes);
+        // --- DIAGNÓSTICO MEJORADO ---
+        // Miramos todos los temas que llegaron del servidor para ver si hay errores de escritura
+        const todosLosTemas = [...new Set(allData.map(a => a.topic))];
+        console.log("🔍 Temas disponibles en el servidor:", todosLosTemas);
+
+        // 2. Filtramos ignorando mayúsculas/minúsculas
+        const articlesArray = allData.filter(a => 
+            a.topic && a.topic.toLowerCase().trim() === topic
+        );
+
+        if (loadingDiv) loadingDiv.style.display = 'none';
 
         if (articlesArray.length === 0) {
-            container.innerHTML = "<p style='text-align:center; padding:20px;'>No articles available today.</p>";
+            container.innerHTML = `<p style="text-align:center; padding:20px;">No articles available for: <b>${topic}</b></p>`;
             return;
         }
 
-        // Filtro flexible
+        // 3. Filtro flexible (Mantenemos tu lógica para Culture/Art)
         const filtered = filterTopic 
             ? articlesArray.filter(a => {
                 const temaArticulo = a.topic.trim().toLowerCase();
@@ -194,37 +222,22 @@ async function loadDailyArticlesList(filterTopic = null) {
             })
             : articlesArray;
         
-        if (loadingDiv) loadingDiv.style.display = 'none';
-
-        if (filtered.length === 0) {
-            container.innerHTML = `
-                <div style="text-align:center; padding:50px;">
-                    <p>No articles found for: <b>${filterTopic}</b></p>
-                    <p style="font-size:0.8rem; color:gray;">Try: ${temasExistentes.join(', ')}</p>
-                    <a href="#" onclick="window.location.hash=''; return false;" style="color:#007bff; font-weight:bold;">← Back to Topics</a>
-                </div>`;
-            return;
-        }
-
-        // Renderizado de la cuadrícula
+        // Renderizado de la cuadrícula (Tu estructura original)
         container.innerHTML = `
             <div style="margin-bottom: 20px;">
                 <a href="#" onclick="window.location.hash=''; return false;" style="text-decoration:none; color:#007bff; font-weight:bold;">← Back to Topics</a>
-                <h2 style="margin-top:10px; text-transform: capitalize;">${filterTopic || 'Daily'} Articles</h2>
+                <h2 style="margin-top:10px; text-transform: capitalize;">${topic} Articles</h2>
             </div>
             <div class="articles-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
                 ${filtered.map(article => {
-                    // Agregamos el tópico a la URL para que el botón "Back" sepa a dónde volver
-                    const targetUrl = `reader.html#id=${article.id}&topic=${filterTopic || article.topic}`;
-                    
+                    const identifier = article.id || encodeURIComponent(article.url);
                     return `
-                    <div class="card" style="...">
+                    <div class="card" style="border: 1px solid #ddd; padding: 15px; border-radius: 10px;">
                         <div>
-                            <span class="badge" style="...">Subtopic: ${article.topic}</span>
+                            <span class="badge" style="background:#eee; padding:2px 5px; font-size:0.7rem;">Subtopic: ${article.topic}</span>
                             <h3 style="cursor:pointer;">${article.title}</h3>
                             <p style="font-size: 0.85rem;">${article.content.substring(0, 80)}...</p>
                         </div>
-
                         <div class="level-selector-inline" style="display: flex; gap: 4px; margin: 10px 0; justify-content: center;">
                             ${['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(lvl => `
                                 <button onclick="setArticleLevel('${article.id}', '${lvl}')" 
@@ -235,60 +248,32 @@ async function loadDailyArticlesList(filterTopic = null) {
                                 </button>
                             `).join('')}
                         </div>
-
                         <div style="display: flex; gap: 10px;">
-                            <a href="#" onclick="goToArticle('${article.id}', 'read')" style="...">Read</a>
-                            <a href="#" onclick="goToArticle('${article.id}', 'listen')" style="...">Listen 🔊</a>
+                            <a href="#" onclick="goToArticle('${identifier}', 'read'); return false;" style="text-decoration:none; color:#007bff; font-weight:bold;">Read</a>
+                            <a href="#" onclick="goToArticle('${identifier}', 'listen'); return false;" style="text-decoration:none; color:#007bff; font-weight:bold;">Listen 🔊</a>
                         </div>
                     </div>`;
                 }).join('')}
             </div>
         `;
 
-        // --- ASIGNAR TRADUCCIÓN A TÍTULOS (Solo una vez) ---
         // --- ASIGNAR TRADUCCIÓN A TÍTULOS ---
         container.querySelectorAll('.card h3').forEach(title => {
             title.style.cursor = 'pointer';
-            
             title.onclick = async function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-
-                const textToTranslate = this.innerText.trim();
-                console.log("Intentando traducir:", textToTranslate);
-
-                // Intentamos usar el manejador de clics si existe
+                const fullTitle = this.innerText.trim();
                 if (window.handleWordClick) {
-                    window.handleWordClick(textToTranslate, e);
-                } 
-                // Si no existe, vamos a crear un "mini-traductor" rápido aquí mismo
-                // para que no te falle nunca:
-                else {
-                    try {
-                        // Si tienes una API de traducción, la llamamos directamente
-                        // Esto es un ejemplo, usa tu CONFIG.API_BASE_URL
-                        const response = await fetch(`${CONFIG.API_BASE_URL}/translate`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ text: textToTranslate, target: 'es' })
-                        });
-                        const data = await response.json();
-                        
-                        // Aquí llamarías a la función que dibuja el cuadrito gris (popup)
-                        if (window.displayFloatingResult) {
-                            window.displayFloatingResult(textToTranslate, data.translation, e);
-                        } else {
-                            alert(`Translation: ${data.translation}`); // Solución de emergencia
-                        }
-                    } catch (err) {
-                        console.error("Error en traducción rápida:", err);
-                    }
+                    window.handleWordClick(fullTitle, e);
+                } else {
+                    showFlashcardPopup(fullTitle, e.clientX, e.clientY);
                 }
             };
         });
 
     } catch (error) {
-        console.error("Error cargando lista:", error);
+        console.error("❌ Error cargando lista:", error);
         if (loadingDiv) loadingDiv.style.display = 'none';
         container.innerHTML = `<p style="color:red; text-align:center;">Error connecting to server.</p>`;
     }
@@ -322,7 +307,11 @@ export async function loadFullArticle(id, level = null) {
 
     try {
         // --- PASO 3: PETICIÓN AL SERVIDOR ---
-        const response = await fetch(`${CONFIG.API_BASE_URL}/articles/${id}?level=${activeLevel}`);
+        const response = await fetch(`${CONFIG.API_BASE_URL}/articles/${id}?level=${activeLevel}`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
         if (!response.ok) throw new Error(`Article not found`);
         const article = await response.json();
 
@@ -333,6 +322,7 @@ export async function loadFullArticle(id, level = null) {
         // Llamamos al selector para que el botón correcto se ponga azul
         renderLevelSelector(id, activeLevel);
 
+        // --- PASO 4: PINTAR TODO EL CONTENIDO ---
         container.innerHTML = `
             <div class="article-full">
                 <div id="nav-and-title-area" style="margin-bottom: 20px;">
@@ -343,17 +333,57 @@ export async function loadFullArticle(id, level = null) {
                     <h1 id="interactive-title" style="margin-top:10px;">${article.title}</h1>
                 </div>
 
+                <div id="audio-controls-panel" style="background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 15px; border: 1px solid #e9ecef;">
+                    <div style="flex: 1;">
+                        <span style="font-weight: bold; color: #4a5568; display: block; margin-bottom: 5px;">Audio Mode 🎧</span>
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                            <div style="display: flex; gap: 10px;">
+                                <button id="btn-pause" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">⏸ Pause</button>
+                                <button id="btn-resume" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">▶ Resume</button>
+                                <button id="btn-stop" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">Stop</button>
+                            </div>
+                            
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <input type="range" id="audio-progress" oninput="console.log('¡SOY LA BARRA 1!')" value="0" min="0" max="100" style="flex: 1; cursor: pointer;">
+                                <span id="audio-percentage" style="font-size: 12px; color: #718096; min-width: 35px;">0%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="window.toggleTranscript()" id="toggle-text-btn" style="cursor:pointer; padding: 10px; background: white; border: 1px solid #007bff; color: #007bff; border-radius: 5px; font-weight: bold;">
+                        Show Text
+                    </button>
+                </div>
+
+                <div id="level-selector-container" style="margin-bottom: 25px; padding: 10px; background: #f8fafc; border-radius: 10px;">
+                    </div>
+
                 <div id="article-body-wrapper">
                     <div class="article-meta mb-3" style="color: #666; font-size: 0.9rem;">
-                        <span class="badge bg-primary" style="padding: 5px 10px;">Level: ${activeLevel}</span>
+                        <span class="badge bg-primary" style="padding: 5px 10px;">Current Level: ${activeLevel}</span>
                     </div>
-                    <div id="interactive-text" class="article-body-text">
+                    <div id="interactive-text" class="article-body-text" style="line-height: 1.8; font-size: 1.1rem;">
                         ${article.content}
                     </div>
                 </div>
             </div>
         `;
+        
+        setTimeout(() => {
+            setupAudioLogic(article.content);
+        }, 100);
 
+        // 🦾 PASO 5: Ahora que el contenedor existe arriba, llamamos a la función para llenarlo
+        renderLevelSelector(id, activeLevel);
+        const titleEl = document.getElementById('interactive-title');
+        if (titleEl) {
+            titleEl.style.cursor = 'pointer';
+            titleEl.onclick = (e) => {
+                // Usamos tu función global que ya definiste arriba en reader.js
+                if (window.handleWordClick) {
+                    window.handleWordClick(article.title, e);
+                }
+            };
+        }
         if (quizContainer) {
             quizContainer.style.display = 'block';
             quizContainer.innerHTML = `
@@ -599,18 +629,69 @@ export async function showFlashcardPopup(text, mouseX, mouseY) {
     if (ttsBtn) {
         ttsBtn.onclick = (e) => {
             e.stopPropagation();
+            
+            // 1. Cancelamos cualquier lectura previa para que no se crucen las voces
+            window.speechSynthesis.cancel();
+
+            // 2. Creamos el "guion" (utterance)
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = 'en-US';
+            utterance.rate = 0.9; // Un poquito más lento para B1
+
+            // 🎯 Buscamos la barra y el texto del porcentaje que pusimos en el panel
+            const progressBar = document.getElementById('audio-progress');
+            const progressLabel = document.getElementById('audio-percentage');
+
+            // 3. 🧠 EL TRUCO: Mientras la IA habla, mueve la barra
+            utterance.onboundary = (event) => {
+                if (event.name === 'word' && progressBar) {
+                    const charIndex = event.charIndex;
+                    const totalChars = text.length;
+                    const percentage = Math.floor((charIndex / totalChars) * 100);
+                    
+                    progressBar.value = percentage;
+                    if (progressLabel) progressLabel.innerText = percentage + "%";
+                }
+            };
+
+            // 4. 🚀 EL "SEEK": Si el estudiante mueve la barra, saltamos en el texto
+            if (progressBar) {
+                progressBar.oninput = () => {
+                    window.speechSynthesis.cancel(); // Detenemos la lectura actual
+                    
+                    const percentage = progressBar.value;
+                    const startIndex = Math.floor((text.length * percentage) / 100);
+                    
+                    // Creamos una nueva locución desde el punto elegido
+                    const newStart = new SpeechSynthesisUtterance(text.substring(startIndex));
+                    newStart.lang = 'en-US';
+                    newStart.rate = 0.9;
+                    
+                    // Le pasamos el mismo truco de la barra a la nueva lectura
+                    newStart.onboundary = utterance.onboundary; 
+                    
+                    window.speechSynthesis.speak(newStart);
+                };
+            }
+
             window.speechSynthesis.speak(utterance);
         };
     }
 
     // --- 6. LLAMADA A LA IA ---
     try {
-        const response = await fetch(`${CONFIG.API_BASE_URL}/analyze-text`, {
+        // Dentro de handleWordClick Y dentro de showFlashcardPopup:
+        // En reader.js -> showFlashcardPopup
+        const response = await fetch(`${CONFIG.API_BASE_URL}/articles/analyze-text`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: text })
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({ 
+                text: text, 
+                type: "word"  // 🎯 Sello de PALABRA (Esto arregla el error)
+            })
         });
         const data = await response.json();
         
@@ -982,10 +1063,17 @@ window.renderAudioControls = () => {
     audioPanel.innerHTML = `
         <div style="flex: 1;">
             <span style="font-weight: bold; color: #4a5568; display: block; margin-bottom: 5px;">Audio Mode 🎧</span>
-            <div style="display: flex; gap: 10px;">
-                <button onclick="window.speechSynthesis.pause()" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">⏸ Pause</button>
-                <button onclick="window.speechSynthesis.resume()" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">▶ Resume</button>
-                <button onclick="window.speechSynthesis.cancel()" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">Stop</button>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="window.speechSynthesis.pause()" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">⏸ Pause</button>
+                    <button onclick="window.speechSynthesis.resume()" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">▶ Resume</button>
+                    <button onclick="window.speechSynthesis.cancel()" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">Stop</button>
+                </div>
+                
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <input type="range" id="audio-progress-active" value="0" min="0" max="100" style="flex: 1; cursor: pointer;">
+                    <span id="audio-percentage" style="font-size: 12px; color: #718096; min-width: 35px;">0%</span>
+                </div>
             </div>
         </div>
         <button onclick="window.toggleTranscript()" id="toggle-text-btn" style="cursor:pointer; padding: 10px; background: white; border: 1px solid #007bff; color: #007bff; border-radius: 5px; font-weight: bold;">
@@ -1077,6 +1165,45 @@ window.goToArticle = function(id, mode) {
     window.location.href = `reader.html#id=${id}&level=${selectedLevel}&topic=${topic}`;
 };
 
+function setupAudioLogic(text) {
+    // 1. Intentamos buscar la barra
+    const progressBar = document.getElementById('audio-progress-active');
+    
+    // 2. Si no la encuentra a la primera, esperamos un poco y reintentamos
+    if (!progressBar) {
+        console.log("⏳ La barra aún no aparece, reintentando en breve...");
+        setTimeout(() => setupAudioLogic(text), 100);
+        return;
+    }
+
+    // 3. Si la encuentra, procedemos con éxito
+    console.log("🚀 ¡La función setupAudioLogic ha despertado y encontró la barra!");
+    const progressLabel = document.getElementById('audio-percentage');
+
+    progressBar.oninput = () => {
+        const percentage = progressBar.value;
+        console.log("🎯 Saltando al: " + percentage + "%");
+        
+        if (progressLabel) progressLabel.innerText = percentage + "%";
+
+        window.speechSynthesis.cancel();
+        const startIndex = Math.floor((text.length * percentage) / 100);
+        const utterance = new SpeechSynthesisUtterance(text.substring(startIndex));
+        utterance.lang = 'en-US';
+        utterance.rate = 0.9;
+
+        utterance.onboundary = (event) => {
+            if (event.name === 'word') {
+                const charIndex = event.charIndex + startIndex;
+                const currentPct = Math.floor((charIndex / text.length) * 100);
+                progressBar.value = currentPct;
+                if (progressLabel) progressLabel.innerText = currentPct + "%";
+            }
+        };
+
+        window.speechSynthesis.speak(utterance);
+    };
+}
 
 window.saveFlashcardToStorage = saveFlashcardToStorage;
 window.showFlashcardPopup = showFlashcardPopup; // Añade esta línea

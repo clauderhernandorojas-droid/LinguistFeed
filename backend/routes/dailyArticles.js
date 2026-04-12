@@ -10,7 +10,7 @@ router.get('/', async (req, res) => {
   try {
     // 1. Buscamos los últimos 20 artículos directamente en la tabla principal
     // Ordenamos por ID descendente para ver lo más nuevo primero
-    const articles = await db.all('SELECT * FROM articles ORDER BY id DESC LIMIT 20');
+    const articles = await db.all('SELECT * FROM articles ORDER BY id DESC LIMIT 100');
 
     console.log(`[Backend] Enviando ${articles.length} artículos al frontend`);
 

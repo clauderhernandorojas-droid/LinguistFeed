@@ -1,0 +1,40 @@
+<div class="container">
+    <h2>Teacher's Portal 👨‍🏫</h2>
+    <p>Upload your own material for your students.</p>
+    
+    <form id="uploadForm">
+        <input type="text" id="m-title" placeholder="Article Title" class="form-control mb-2">
+        
+        <select id="m-topic" class="form-control mb-2">
+            <option value="classroom">Classroom / Homework</option>
+            <option value="tech">Technology</option>
+            <option value="business">Business</option>
+        </select>
+        
+        <textarea id="m-content" placeholder="Paste the text here..." class="form-control mb-2" rows="10"></textarea>
+        
+        <button type="submit" class="btn btn-primary">Publish to Students</button>
+    </form>
+</div>
+
+<script>
+    document.getElementById('uploadForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const data = {
+            title: document.getElementById('m-title').value,
+            topic: document.getElementById('m-topic').value,
+            content: document.getElementById('m-content').value
+        };
+
+        const res = await fetch('/api/articles/manual-upload', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}` 
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (res.ok) alert("¡Artículo subido con éxito!");
+    };
+</script>

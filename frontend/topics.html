@@ -3,39 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Topics - LinguistFeed</title>
+    <title>LinguistFeed - Topics</title>
     <link rel="stylesheet" href="css/styles.css">
     <style>
-        .row-topics {
+        /* Estilos rápidos para asegurar la división */
+        .section-title {
+            font-size: 1.8rem;
+            color: #2d3748;
+            margin: 40px 0 20px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #edf2f7;
+        }
+        .topics-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 20px;
-            margin-top: 20px;
+            margin-bottom: 30px;
         }
         .topic-card {
-            padding: 25px;
-            background-color: white;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
             cursor: pointer;
-            transition: all 0.3s ease;
-            border: 1px solid #eee;
+            transition: transform 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         }
-        .topic-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 15px rgba(0,0,0,0.1);
-            border-color: #0066cc;
-        }
-        .topic-card h2 {
-            color: #0066cc;
-            margin-top: 0;
-            font-size: 1.5rem;
-        }
-        .topic-card p {
-            color: #555;
-            margin-bottom: 0;
-            line-height: 1.4;
-        }
+        .topic-card:hover { transform: translateY(-5px); }
+        hr { border: 0; height: 1px; background: #e2e8f0; margin: 50px 0; }
     </style>
 </head>
 <body>
@@ -43,37 +37,76 @@
         <div class="container">
             <a href="dashboard.html" class="navbar-brand">LinguistFeed</a>
             <ul class="navbar-nav">
-                <li class="nav-item"><a href="reader.html" class="nav-link active">Topics</a></li>
-                <li class="nav-item"><a href="my-flashcards.html" class="nav-link">My Flashcards</a></li>
+                <li class="nav-item"><a href="dashboard.html" class="nav-link">Dashboard</a></li>
+                <li class="nav-item"><a href="topics.html" class="nav-link">Topics</a></li> <li class="nav-item"><a href="upload.html" class="nav-link">Teacher Portal</a></li>
                 <li class="nav-item"><a href="#" id="logout-link" class="nav-link">Logout</a></li>
             </ul>
         </div>
     </nav>
 
     <div class="container">
-        <h1>Explore Topics</h1>
-        <p>Select a category to start reading:</p>
-    
-        <div id="topics-grid" class="topics-grid">
-            <p>Cargando temas...</p>
-        </div>
+        <h1 style="margin-top: 30px;">Explore Topics</h1>
+        <p>Your personalized reading library.</p>
+
+        <h2 class="section-title">Your Favorite Topics 🌟</h2>
+        <div id="favorites-grid" class="topics-grid"></div>
+
+        <hr>
+
+        <h2 class="section-title">Want to explore something else? 🔍</h2>
+        <div id="others-grid" class="topics-grid"></div>
     </div>
 
-    <footer class="container text-center mt-3">
-        <p>&copy; 2026 LinguistFeed. All rights reserved.</p>
-    </footer>
-
     <script type="module">
-        import { requireAuth, logout } from './js/auth.js';
-        import { handleLogout } from './js/reader.js';
-        import { renderTopics } from './js/topics.js'; // Importamos la función
-    
-        document.addEventListener('DOMContentLoaded', function() {
-            requireAuth();
-            handleLogout(logout);
-            renderTopics(); // Dibujamos los 10 temas
-        });
+        // Lógica integrada para evitar problemas de caché
+        const allTopics = [
+            { id: 'classroom', name: 'Classroom', icon: '👨‍🏫', color: '#fff9c4', special: true },
+            { id: 'news', name: 'Global News', icon: '🌎', color: '#e3f2fd' },
+            { id: 'business', name: 'Business', icon: '💼', color: '#f3e5f5' },
+            { id: 'tech', name: 'Technology', icon: '💻', color: '#e8f5e9' },
+            { id: 'science', name: 'Science', icon: '🔬', color: '#e0f2f1' },
+            { id: 'history', name: 'History', icon: '📜', color: '#fff8e1' },
+            { id: 'culture', name: 'Culture', icon: '🎨', color: '#fce4ec' },
+            { id: 'gaming', name: 'Gaming', icon: '🎮', color: '#ede7f6' },
+            { id: 'trends', name: 'Pop Culture', icon: '✨', color: '#fff3e0' },
+            { id: 'health', name: 'Health', icon: '🏥', color: '#f1f8e9' },
+            { id: 'lifestyle', name: 'Lifestyle', icon: '🏠', color: '#efebe9' }
+        ];
+
+        function render() {
+            const favGrid = document.getElementById('favorites-grid');
+            const otherGrid = document.getElementById('others-grid');
+            
+            // Simulamos intereses si no hay (para que veas el efecto ahora mismo)
+            let interests = localStorage.getItem('user-interests');
+            if (!interests) {
+                interests = "tech,science"; // Por defecto para la prueba
+            }
+            const myInterests = interests.split(',').map(i => i.trim());
+
+            favGrid.innerHTML = '';
+            otherGrid.innerHTML = '';
+
+            allTopics.forEach(topic => {
+                const card = document.createElement('div');
+                card.className = 'topic-card';
+                card.style.backgroundColor = topic.color;
+                card.innerHTML = `
+                    <div style="font-size: 3rem; margin-bottom: 10px;">${topic.icon}</div>
+                    <strong>${topic.name}</strong>
+                `;
+                card.onclick = () => window.location.href = `reader.html#topic=${topic.id}`;
+
+                // REGLA DE ORO: Si es Classroom o está en mis intereses, va arriba
+                if (topic.special || myInterests.includes(topic.id)) {
+                    favGrid.appendChild(card);
+                } else {
+                    otherGrid.appendChild(card);
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', render);
     </script>
-    <script type="module" src="js/topics.js"></script>
 </body>
 </html>
