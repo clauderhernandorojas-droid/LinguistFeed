@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>LinguistFeed - Teacher Portal</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .form-container { max-width: 600px; margin: 50px auto; padding: 30px; background: #f8f9fa; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 15px; }
+        label { font-weight: bold; display: block; margin-bottom: 5px; }
+        input, textarea, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        textarea { height: 200px; }
+        .btn-submit { background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; width: 100%; font-size: 1.1rem; }
+        .btn-submit:hover { background-color: #0056b3; }
+        #status-msg { margin-top: 15px; text-align: center; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="dashboard.html" class="navbar-brand">LinguistFeed</a>
+            <ul class="navbar-nav">
+                <li class="nav-item"><a href="dashboard.html" class="nav-link">Dashboard</a></li>
+                <li class="nav-item"><a href="topics.html" class="nav-link">Topics</a></li> <li class="nav-item"><a href="upload.html" class="nav-link">Teacher Portal</a></li>
+                <li class="nav-item"><a href="#" id="logout-link" class="nav-link">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="form-container">
+            <h2>👨‍🏫 Teacher's Portal</h2>
+            <p>Paste an article or text for your students.</p>
+            <form id="uploadForm">
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" id="title" placeholder="e.g., Business English Basics" required>
+                </div>
+                <div class="form-group">
+                    <label>Topic</label>
+                    <select id="topic">
+                        <option value="classroom">Classroom (Direct to students)</option>
+                        <option value="tech">Technology</option>
+                        <option value="business">Business</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Content</label>
+                    <textarea id="content" placeholder="Paste your text here..." required></textarea>
+                </div>
+                <button type="submit" class="btn-submit">Publish Article</button>
+            </form>
+            <div id="status-msg"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { requireAuth } from './js/auth.js';
+        document.addEventListener('DOMContentLoaded', () => {
+            requireAuth();
+            const form = document.getElementById('uploadForm');
+            const msg = document.getElementById('status-msg');
+
+            form.onsubmit = async (e) => {
+                e.preventDefault();
+                const data = {
+                    title: document.getElementById('title').value,
+                    topic: document.getElementById('topic').value,
+                    content: document.getElementById('content').value
+                };
+
+                const res = await fetch('http://localhost:3001/api/articles/manual-upload', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}` 
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                if (res.ok) {
+                    msg.style.color = "green";
+                    msg.innerText = "✅ Article published successfully!";
+                    form.reset();
+                } else {
+                    msg.style.color = "red";
+                    msg.innerText = "❌ Error publishing article.";
+                }
+            };
+        });
+    </script>
+</body>
+</html>

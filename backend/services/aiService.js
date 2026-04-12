@@ -142,6 +142,55 @@ class AiService {
             throw error;
         }
     }
+    /**
+     * Analiza o traduce un texto/palabra (Esta es la que buscaba articles.js)
+     */
+    async analyzeText(text, type = 'general') {
+        // 1. EL FILTRO: ¿Es un título o una palabra?
+        if (type === 'translate') {
+            try {
+                console.log("🎯 Procesando como TÍTULO (Traducción simple):", text.substring(0, 20));
+                const translation = await this.ask(text, "Translate this English title to natural Spanish. Return ONLY the translation.");
+                return {
+                    translation: translation.trim(),
+                    definition: "Article Title", // Evita el "No definition found"
+                    example: "Context: News Headline"
+                };
+            } catch (error) {
+                console.error("❌ Error en traducción de título:", error);
+                throw error;
+            }
+        }
+    
+        // 2. EL RESTO: Si no es 'translate', es una PALABRA (Flashcard completa)
+        const systemRole = `You are an expert English teacher. 
+        Analyze the provided word or phrase for a Spanish-speaking student.
+        Return ONLY a valid JSON object:
+        {
+          "definition": "Simple English definition",
+          "translation": "Spanish translation",
+          "example": "Example sentence using the word"
+        }`;
+    
+        try {
+            const response = await this.ask(text, systemRole);
+            const cleanJSON = response.replace(/```json/g, "").replace(/```/g, "").trim();
+            const data = JSON.parse(cleanJSON);
+    
+            return {
+                definition: data.definition,
+                translation: data.translation,
+                example: data.example
+            };
+        } catch (error) {
+            console.error("❌ Error en flashcard:", error.message);
+            return {
+                definition: "Check context",
+                translation: "Error",
+                example: text
+            };
+        }
+    }
 }
 
 // Exportamos una INSTANCIA de la clase para que articles.js pueda usarla
