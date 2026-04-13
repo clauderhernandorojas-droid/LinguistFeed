@@ -3,6 +3,8 @@ const router = express.Router();
 const db = require('../database/db');
 const { authenticate } = require('../middleware/auth');
 const aiService = require('../services/aiService');
+const fs = require('fs');
+const path = require('path');
 
 // --- 1. RUTA: FEED PERSONALIZADO (La que ya tenías bien) ---
 router.get('/personalized-feed', authenticate, async (req, res) => {
@@ -37,109 +39,215 @@ router.get('/', async (req, res) => {
         const { topic } = req.query;
         if (!topic) return res.json({ articles: [] });
 
-        const articles = await db.all(
+        // --- PARTE A: Tu código original (Base de Datos) ---
+        // Seguimos usando tu variable 'db' y tu consulta SQL exacta
+        const dbArticles = await db.all(
             "SELECT * FROM articles WHERE topic = ? ORDER BY created_at DESC LIMIT 60",
             [topic]
         );
+
+        // --- PARTE B: El nuevo almacén (JSON) ---
+        let manualArticles = [];
+        const filePath = path.join(__dirname, '..', 'data', 'simplified_articles.json');
+        
+        // Solo intentamos leer si el archivo existe físicamente
+        if (fs.existsSync(filePath)) {
+            const rawData = fs.readFileSync(filePath, 'utf8');
+            const allManual = JSON.parse(rawData || "[]");
+            // Filtramos para que solo veas lo de 'classroom' (o el tema que elijas)
+            manualArticles = allManual.filter(a => 
+                a.topic && a.topic.toLowerCase() === topic.toLowerCase()
+            );
+        }
+
+        // --- PARTE C: La Fusión ---
+        // 'articles' será la mezcla de ambos. ¡Tus manuales salen primero!
+        const articles = [...manualArticles, ...dbArticles];
+
+        // Entregamos la respuesta con el mismo formato que espera tu frontend
         res.json({ articles });
+
     } catch (error) {
+        console.error("❌ Error en la fusión:", error.message);
         res.status(500).json({ error: error.message });
     }
 });
-
 // --- 3. RUTA: DAILY ARTICLES (Independiente) ---
+// Esta es la ruta que llena la lista de Classroom/News/Tech
 router.get('/daily-articles', async (req, res) => {
     try {
-        const articles = await db.all(
+        // 1. 🗄️ Obtener artículos de la Base de Datos (SQLite)
+        // Mantenemos tu lógica original para no romper las noticias normales
+        const dbArticles = await db.all(
             "SELECT * FROM articles ORDER BY created_at DESC LIMIT 100"
         );
-        console.log(`✅ [Backend] Enviando ${articles.length} artículos`);
-        res.json(articles);
+
+        // 2. 📂 Obtener artículos del Portal de Docente (JSON)
+        let manualArticles = [];
+        const filePath = path.join(__dirname, '..', 'data', 'simplified_articles.json');
+
+        if (fs.existsSync(filePath)) {
+            const rawData = fs.readFileSync(filePath, 'utf8');
+            manualArticles = JSON.parse(rawData || "[]");
+            console.log(`📋 Se cargaron ${manualArticles.length} artículos manuales del JSON.`);
+        }
+
+        // 3. 🤝 Fusión total
+        // Ponemos los manuales arriba para que tus alumnos vean primero lo que tú publicas
+        const allArticles = [...manualArticles, ...dbArticles];
+
+        console.log(`🚀 Enviando ${allArticles.length} artículos en total al frontend.`);
+        res.json({ articles: allArticles });
+
     } catch (error) {
-        console.error("🔥 Error en daily-articles:", error);
-        res.status(500).json({ error: error.message });
+        console.error("❌ Error en daily-articles:", error);
+        res.status(500).json({ error: "Error al cargar la lista de artículos" });
     }
 });
 // --- RUTA: OBTENER UN ARTÍCULO ESPECÍFICO POR ID ---
+// 🔍 RUTA PARA OBTENER UN ARTÍCULO POR SU ID (Híbrida: JSON + DB)
 router.get('/:id', async (req, res) => {
-  try {
-      const { id } = req.params;
-      const { level } = req.query; 
+    const articleId = req.params.id.replace(/['"]+/g, '').trim();
+    const filePath = path.join(__dirname, '..', 'data', 'simplified_articles.json');
 
-      console.log("-----------------------------------------");
-      console.log(`📥 PETICIÓN RECIBIDA - ID: ${id}, NIVEL: ${level || 'original'}`);
+    try {
+        // 1. Intentar buscar en el archivo JSON (Manuales)
+        if (fs.existsSync(filePath)) {
+            const rawData = fs.readFileSync(filePath, 'utf8');
+            const articles = JSON.parse(rawData || "[]");
+            const article = articles.find(a => a.id === articleId);
+            if (article) return res.json(article);
+        }
 
-      // 1. Buscamos el artículo original siempre (para tener el título, url, etc.)
-      const article = await db.get("SELECT * FROM articles WHERE id = ?", [id]);
+        // 2. Si no está en el JSON, buscar en la Base de Datos (Originales)
+        const dbArt = await db.get("SELECT * FROM articles WHERE id = ?", [articleId]);
+        if (dbArt) return res.json(dbArt);
 
-      if (!article) {
-          console.log(`❌ Artículo ${id} no encontrado`);
-          return res.status(404).json({ error: "Article not found" });
-      }
-
-      // 2. 🧠 LÓGICA DE ADAPTACIÓN Y CACHÉ
-      if (level && level !== 'original') {
-          
-          // A. Primero revisamos si ya lo hemos simplificado antes
-          console.log(`🔍 Buscando versión ${level} en la base de datos...`);
-          const cachedArticle = await db.get(
-              "SELECT text FROM simplified_articles WHERE article_id = ? AND level = ?", 
-              [id, level]
-          );
-
-          // B. ¡Bingo! Lo encontramos en caché. Lo enviamos de inmediato.
-          if (cachedArticle) {
-              console.log(`⚡ ¡Caché encontrado! Entregando versión ${level} guardada.`);
-              return res.json({
-                  ...article,
-                  content: cachedArticle.text, // Usamos el texto guardado
-                  displayLevel: level
-              });
-          }
-
-          // C. Si no estaba en caché, llamamos a la IA
-          console.log(`🤖 No hay caché. Generando nueva versión ${level} con IA...`);
-          try {
-              const adaptedContent = await aiService.generateLeveledArticle(article.content, level);
-              
-              // D. Guardamos la nueva creación en la base de datos para la próxima vez
-              await db.run(
-                  "INSERT INTO simplified_articles (article_id, text, level) VALUES (?, ?, ?)",
-                  [id, adaptedContent, level]
-              );
-              console.log(`💾 ¡Nueva versión ${level} guardada exitosamente en simplified_articles!`);
-
-              // E. Entregamos el artículo al usuario
-              return res.json({
-                  ...article,
-                  content: adaptedContent,
-                  displayLevel: level
-              });
-
-          } catch (aiError) {
-              console.error("⚠️ La IA falló al simplificar:", aiError.message);
-              // Si la IA falla, sigue bajando y entrega el original por seguridad
-          }
-      }
-
-      // 3. Si piden el 'original' (o la IA falló), enviamos el texto tal cual
-      console.log(`📖 Entregando artículo original.`);
-      res.json(article);
-
-  } catch (error) {
-      console.error("🔥 Error crítico al obtener artículo:", error);
-      res.status(500).json({ error: error.message });
-  }
+        res.status(404).json({ error: "Artículo no encontrado" });
+    } catch (error) {
+        console.error("❌ Error al buscar artículo:", error);
+        res.status(500).json({ error: "Error interno del servidor" });
+    }
 });
 
 // --- 4. RUTA: IA (ANÁLISIS DE TEXTO) ---
-router.post('/analyze-text', authenticate, async (req, res) => {
+router.post('/analyze-text', async (req, res) => {
     const { text, type } = req.body;
     try {
         const result = await aiService.analyzeText(text, type);
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: "Error en IA" });
+    }
+});
+// Ruta para recibir los artículos del Teacher's Portal
+
+// Esta es la ruta que tu Teacher's Portal está llamando
+router.post('/manual-upload', async (req, res) => {
+    const { title, topic, content } = req.body;
+    
+    // 🎯 LOCALIZACIÓN EXACTA
+    // Esta línea construye la ruta hacia backend/data/simplified_articles.json
+    const dataDir = path.join(__dirname, '..', 'data'); 
+    const filePath = path.join(dataDir, 'simplified_articles.json');
+
+    try {
+        // 1. 📂 ¿No existe la carpeta 'data'? ¡La creamos!
+        if (!fs.existsSync(dataDir)) {
+            console.log("📁 Creando carpeta de datos en:", dataDir);
+            fs.mkdirSync(dataDir, { recursive: true });
+        }
+
+        // 2. 📝 Leemos el archivo (o empezamos con una lista vacía si no existe)
+        let articles = [];
+        if (fs.existsSync(filePath)) {
+            const rawData = fs.readFileSync(filePath, 'utf8');
+            articles = rawData ? JSON.parse(rawData) : [];
+        }
+
+        // 3. ✨ Creamos el nuevo artículo
+        const newArticle = {
+            id: `manual-${Date.now()}`,
+            title: title || "Sin título",
+            topic: (topic || "classroom").toLowerCase(),
+            content: content || "",
+            date: new Date().toISOString()
+        };
+
+        // 4. 🚀 Guardamos
+        articles.unshift(newArticle);
+        fs.writeFileSync(filePath, JSON.stringify(articles, null, 2), 'utf8');
+
+        console.log("✅ ¡Logrado! Artículo guardado en:", filePath);
+        res.status(200).json({ message: "Article published and saved!" });
+
+    } catch (error) {
+        console.error("❌ ERROR REAL:", error);
+        res.status(500).json({ error: "Fallo total al escribir el archivo" });
+    }
+});
+
+// Ruta para obtener UN artículo específico por su ID
+router.get('/:id', async (req, res) => {
+    const articleId = req.params.id.replace(/['"]+/g, ''); // Limpiamos comillas por si acaso
+    const filePath = path.join(__dirname, '..', 'data', 'simplified_articles.json');
+
+    try {
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: "Archivo de artículos no encontrado" });
+        }
+
+        const data = fs.readFileSync(filePath, 'utf8');
+        const articles = JSON.parse(data);
+
+        // Buscamos el artículo que coincida con el ID de la URL
+        const article = articles.find(a => a.id === articleId);
+
+        if (article) {
+            console.log(`✅ Artículo encontrado: ${article.title}`);
+            res.json(article);
+        } else {
+            console.log(`❌ No encontré el ID: ${articleId}`);
+            res.status(404).json({ error: "Artículo no encontrado" });
+        }
+    } catch (error) {
+        console.error("❌ Error al leer el artículo:", error);
+        res.status(500).json({ error: "Error interno del servidor" });
+    }
+});
+
+// 🔍 RUTA PARA OBTENER UN ARTÍCULO POR SU ID
+router.get('/:id', async (req, res) => {
+    // 1. Limpiamos el ID que viene de la URL (por si acaso)
+    const articleId = req.params.id.replace(/['"]+/g, '').trim();
+    
+    // 2. Definimos la ruta al archivo (la misma que usamos para guardar)
+    const filePath = path.join(__dirname, '..', 'data', 'simplified_articles.json');
+
+    try {
+        console.log(`🔎 Buscando artículo con ID: ${articleId}`);
+
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: "No hay base de datos de artículos" });
+        }
+
+        // 3. Leemos el archivo JSON
+        const rawData = fs.readFileSync(filePath, 'utf8');
+        const articles = JSON.parse(rawData);
+
+        // 4. Buscamos el artículo que coincida con el ID
+        const article = articles.find(a => a.id === articleId);
+
+        if (article) {
+            console.log(`✅ ¡Artículo encontrado!: ${article.title}`);
+            res.json(article); // Se lo enviamos al lector
+        } else {
+            console.log(`❌ No se encontró el ID en el JSON: ${articleId}`);
+            res.status(404).json({ error: "Artículo no encontrado en la lista" });
+        }
+    } catch (error) {
+        console.error("❌ Error en el servidor al buscar:", error);
+        res.status(500).json({ error: "Error interno del servidor" });
     }
 });
 
