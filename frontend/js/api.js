@@ -9,14 +9,14 @@ window.currentSimulationArticle = null;
 
 export const API_BASE_URL = 'http://localhost:3001/api';
 
-/** Obtener los artículos diarios */
-export async function fetchDailyArticles(level = 'B1') {
+/** Obtener los artículos diarios (Conectado a la ruta de fusión) */
+export async function fetchDailyArticles(topic = 'news') {
     try {
-        const response = await fetch(`${API_BASE_URL}/daily-articles`); 
+        // Llamamos a la ruta que fusiona DB + JSON pasando el tópico
+        const response = await fetch(`${API_BASE_URL}/articles?topic=${topic}`); 
         if (!response.ok) throw new Error(`Error en API: ${response.status}`);
         
         const data = await response.json();
-        // data.articles ya viene filtrado del backend
         return data; 
     } catch (error) {
         console.error("❌ Error al obtener artículos reales:", error);

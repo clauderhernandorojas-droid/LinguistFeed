@@ -101,7 +101,12 @@ export async function initReader() {
     // 1. Analizar la URL (Hash) - ESTO ES LO MÁS IMPORTANTE
     const hash = window.location.hash.substring(1); 
     const params = new URLSearchParams(hash);
-    const articleId = params.get('id');
+    let articleId = params.get('id');
+    if (articleId) {
+        // Esto borra comillas, la palabra "id:", espacios y llaves si se colaron
+        articleId = articleId.replace(/id|[:"{}\s]/g, '');
+        console.log("🆔 ID Limpio y listo:", articleId);
+    }
     const topic = params.get('topic');
     
     // Prioridad de nivel: 
@@ -191,7 +196,7 @@ async function loadDailyArticlesList(filterTopic = null) {
     if (loadingDiv) loadingDiv.style.display = 'block';
 
     try {
-        const data = await fetchDailyArticles(); 
+        const data = await fetchDailyArticles(topic); 
         const allData = data.articles || data;
 
         // --- DIAGNÓSTICO MEJORADO ---
@@ -240,7 +245,7 @@ async function loadDailyArticlesList(filterTopic = null) {
                         </div>
                         <div class="level-selector-inline" style="display: flex; gap: 4px; margin: 10px 0; justify-content: center;">
                             ${['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(lvl => `
-                                <button onclick="setArticleLevel('${article.id}', '${lvl}')" 
+                                <button onclick="setArticleLevel('${identifier}', '${lvl}')" 
                                         id="btn-${article.id}-${lvl}"
                                         class="level-btn ${lvl === (localStorage.getItem('user-level') || 'B1') ? 'active' : ''}"
                                         style="font-size: 0.7rem; padding: 2px 6px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; background: white;">
@@ -1165,16 +1170,24 @@ window.goToArticle = function(id, mode) {
     window.location.href = `reader.html#id=${id}&level=${selectedLevel}&topic=${topic}`;
 };
 
+let attempts = 0;
+
 function setupAudioLogic(text) {
-    // 1. Intentamos buscar la barra
     const progressBar = document.getElementById('audio-progress-active');
     
-    // 2. Si no la encuentra a la primera, esperamos un poco y reintentamos
     if (!progressBar) {
-        console.log("⏳ La barra aún no aparece, reintentando en breve...");
+        attempts++;
+        if (attempts > 50) { // Si después de 5 segundos no sale, paramos.
+            console.log("⚠️ Desisto: La barra no apareció. ¿Cargó el artículo?");
+            attempts = 0;
+            return;
+        }
         setTimeout(() => setupAudioLogic(text), 100);
         return;
     }
+
+    attempts = 0; //
+    console.log("🚀 ¡Barra encontrada!");
 
     // 3. Si la encuentra, procedemos con éxito
     console.log("🚀 ¡La función setupAudioLogic ha despertado y encontró la barra!");
