@@ -34,7 +34,7 @@ router.post('/generate-flashcard', async (req, res) => {
  * 2. RUTA PARA GUARDAR (SQLite)
  * POST /api/flashcards
  */
-router.post('/flashcards', async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { word, context, level } = req.body;
 
@@ -56,7 +56,7 @@ router.post('/flashcards', async (req, res) => {
  * 3. RUTA PARA RECUPERAR TODAS
  * GET /api/flashcards
  */
-router.get('/flashcards', async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const sql = `SELECT * FROM flashcards ORDER BY created_at DESC`;
 

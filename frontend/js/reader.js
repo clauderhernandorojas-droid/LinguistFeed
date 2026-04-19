@@ -525,7 +525,8 @@ export async function saveFlashcardToStorage() {
     const currentLevel = localStorage.getItem('user-level') || 'B1';
 
     try {
-        const response = await fetch(`${CONFIG.API_BASE_URL}/api/flashcards`, {
+        console.log("Final URL:", `${CONFIG.API_BASE_URL}/flashcards`);
+        const response = await fetch(`${CONFIG.API_BASE_URL}/flashcards`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             // MODIFICACIÓN: Guardamos la traducción dentro del campo 'context' 
@@ -536,6 +537,12 @@ export async function saveFlashcardToStorage() {
                 level: currentLevel 
             })
         });
+
+        if (!response.ok) {
+            const text = await response.text();
+            console.error("HTTP Error:", response.status, text);
+            return;
+        }
 
         if (response.ok) {
             console.log("✅ Flashcard guardada!");
@@ -579,7 +586,12 @@ export async function saveFlashcardToStorage() {
  * Muestra el popup con la palabra, traducción y ejemplo
  */
 export async function showFlashcardPopup(text, mouseX, mouseY) {
-    const popup = document.getElementById('flashcard-popup');
+
+const popup = document.getElementById('flashcard-popup');
+const saveBtn = document.getElementById('save-flashcard-btn');
+if (saveBtn) {
+    saveBtn.onclick = () => window.saveFlashcardToStorage();
+}
     if (!popup) return;
 
     // --- 1. RESETEO TOTAL DE POSICIÓN ---
@@ -858,7 +870,7 @@ function showFeedback(parent, message, textClass) {
 async function refreshSavedWords() {
     try {
         // Añadimos el /api/ que faltaba y corregimos la sintaxis
-        const response = await fetch(`${CONFIG.API_BASE_URL}/api/flashcards`);
+        const response = await fetch(`${CONFIG.API_BASE_URL}/flashcards`)
         const flashcards = await response.json();
         
         if (Array.isArray(flashcards)) {
