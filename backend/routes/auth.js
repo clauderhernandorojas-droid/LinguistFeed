@@ -42,10 +42,10 @@ router.post('/login', async (req, res) => {
     const user = await db.get(`SELECT * FROM users WHERE email = ?`, [email]);
     
     if (user && await bcrypt.compare(password, user.password_hash)) {
-      const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
+      const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
       res.json({ 
         token, 
-        user: { id: user.id, username: user.username, email: user.email, level: user.level } 
+        user: { id: user.id, username: user.username, email: user.email, level: user.level, role: user.role } 
       });
     } else {
       res.status(401).json({ error: "Credenciales inválidas" });

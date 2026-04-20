@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control Profesor</title>
+    <link rel="stylesheet" href="css/teacher.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Panel de Control Profesor</h1>
+        
+        <section id="student-search">
+            <h2>Búsqueda de Estudiantes</h2>
+            <input type="text" id="searchInput" placeholder="Buscar estudiante por nombre..." />
+            <button id="searchButton" class="btn-search">Buscar</button>
+            <div id="results"></div>
+        </section>
+
+        <section id="article-upload">
+            <h2>Subida de Artículos</h2>
+            <input type="text" id="title" placeholder="e.g., Business English Basics" required>
+            <input type="text" id="topic" placeholder="Selecciona un tema" required>
+            <textarea id="content" placeholder="Pega tu texto aquí..." required></textarea>
+            <button id="submitTaskButton" class="btn-submit">Enviar Tarea</button>
+            <div id="status-msg"></div>
+        </section>
+
+        <div id="student-stats"></div> <!-- Contenedor para mostrar estadísticas del estudiante -->
+    </div>
+    <script src="js/teacher.js"></script>
+</body>
+</html>

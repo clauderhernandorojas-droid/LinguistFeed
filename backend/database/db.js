@@ -96,6 +96,7 @@ async function initializeDatabase() {
       level TEXT DEFAULT 'B1',
       age INTEGER,
       interests TEXT,  -- ⬅️ Agrégala aquí directamente
+      role TEXT DEFAULT 'student',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
     console.log("✅ Tabla 'users' verificada/creada");

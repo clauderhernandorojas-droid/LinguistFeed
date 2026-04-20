@@ -1,0 +1,1 @@
+// Espacio reservado para lógica de administración
