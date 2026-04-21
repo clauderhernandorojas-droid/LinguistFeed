@@ -18,6 +18,9 @@
     "test": "test"
   },
   "scripts": {
+    "backend": "node backend/server.js",
+    "frontend": "npx serve frontend",
+    "dev": "npx concurrently \"npm run backend\" \"npm run frontend\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

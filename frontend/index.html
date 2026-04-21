@@ -50,9 +50,9 @@
     <script type="module">
         import { getUser } from './js/auth.js';
 
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
             // Usamos la función centralizada para ver si hay un usuario
-            const user = getUser();
+            const user = await getUser();
             
             if (user && user.id) {
                 // Si el usuario ya está logueado, lo mandamos al Dashboard directamente

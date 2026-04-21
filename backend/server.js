@@ -28,6 +28,7 @@ const quizRoutes = require('./routes/quiz');
 const progressRoutes = require('./routes/progress');
 const flashcardsRoutes = require('./routes/flashcards');
 const analyzeRoutes = require('./routes/analyze');
+const usersRoutes = require('./routes/users');
 
 // 5. Registro de Rutas
 app.use('/api/auth', authRoutes);
@@ -37,6 +38,7 @@ app.use('/api/quizzes', quizRoutes);      // <-- Mejor ponerles /api/
 app.use('/api/progress', progressRoutes); // <-- Mejor ponerles /api/
 app.use('/api/flashcards', flashcardsRoutes);
 app.use('/api/analyze', analyzeRoutes);
+app.use('/api/users', usersRoutes);
 
 // 6. Manejo de Errores Global
 app.use((err, req, res, next) => {

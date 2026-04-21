@@ -69,7 +69,7 @@ router.get('/progress/history', authenticate, async (req, res) => {
     const db = require('../database/db');
     const articles = await db.all(
       `SELECT DISTINCT a.id, a.title, a.source, a.topic, a.created_at,
-              sa.level, MAX(att.completed_at) as read_at
+              sa.level, MAX(att.submitted_at) as read_at
        FROM articles a
        JOIN quizzes q ON a.id = q.article_id
        JOIN attempts att ON q.id = att.quiz_id

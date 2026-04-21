@@ -4,8 +4,9 @@
  * This module provides functions for displaying user progress and dashboard information.
  */
 
-import { fetchUserProgress } from './api.js';
-import { getUser, requireAuth } from './auth.js';
+import { getUser, requireAuth, logout } from './auth.js';
+import { API_BASE_URL } from './config.js';
+import { handleLogout } from './reader.js';
 
 /**
  * Displays user progress on the dashboard
@@ -24,10 +25,11 @@ function displayUserProgress(progressData) {
         quizzesTakenElement.textContent = progressData.quizzesTaken;
     }
     
-    // Update vocabulary learned count
+    // Update vocabulary learned count (valor real desde GET /api/users/:id)
     const vocabularyLearnedElement = document.getElementById('vocabulary-learned');
     if (vocabularyLearnedElement) {
-        vocabularyLearnedElement.textContent = progressData.vocabularyLearned;
+        const n = progressData.vocabularyLearned;
+        vocabularyLearnedElement.textContent = n != null ? String(n) : '0';
     }
     
     // Update streak count
@@ -40,13 +42,10 @@ function displayUserProgress(progressData) {
 /**
  * Displays user information on the dashboard
  */
-function displayUserInfo() {
-    const user = getUser();
-    
-    // Update user name
+function displayUserInfo(user) {
     const userNameElement = document.getElementById('user-name');
     if (userNameElement && user) {
-        userNameElement.textContent = user.name;
+        userNameElement.textContent = user.username || user.name || '';
     }
 }
 
@@ -56,22 +55,34 @@ function displayUserInfo() {
  */
 async function initDashboard() {
     requireAuth();
-    displayUserInfo();
-    
-    try {
-        const user = getUser();
-        if (user) {
-            // 1. Cargamos las estadísticas (lo que ya tenías)
-            const progressData = await fetchUserProgress(user.id);
-            displayUserProgress(progressData);
+    const sessionUser = await getUser();
+    displayUserInfo(sessionUser);
 
-            // 2. 🚀 NUEVO: Cargamos el Feed Personalizado
-            await loadPersonalizedFeed(); 
+    try {
+        if (!sessionUser?.id) return;
+
+        const res = await fetch(`${API_BASE_URL}/users/${sessionUser.id}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const user = await res.json();
+
+        displayUserInfo(user);
+        displayUserProgress(user);
+
+        const vocabEl = document.getElementById('vocabulary-learned');
+        if (vocabEl) {
+            vocabEl.textContent = user.vocabularyLearned != null ? String(user.vocabularyLearned) : '0';
         }
+
+        await loadPersonalizedFeed();
     } catch (error) {
         console.error('Error initializing dashboard:', error);
     }
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    handleLogout(logout);
+    initDashboard();
+});
 
 // Export the functions so they can be imported in other files
 export {

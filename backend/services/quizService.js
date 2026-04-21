@@ -17,7 +17,7 @@ class QuizService {
       const quiz = await db.get(
         `SELECT q.id, q.article_id, q.level, q.question, 
                 q.option_a, q.option_b, q.option_c, 
-                q.correct_index, q.hint,
+                q.correct_option, q.hint,
                 a.title as article_title
          FROM quizzes q
          JOIN articles a ON q.article_id = a.id
@@ -68,7 +68,7 @@ class QuizService {
       
       // Get the quiz to check the correct answer
       const quiz = await db.get(
-        'SELECT correct_index FROM quizzes WHERE id = ?',
+        'SELECT correct_option FROM quizzes WHERE id = ?',
         [quizId]
       );
       
@@ -76,18 +76,17 @@ class QuizService {
         throw new Error(`Quiz with ID ${quizId} not found`);
       }
       
-      // Check if the answer is correct
-      const correct = selectedOption === quiz.correct_index;
+      const correctIndex = parseInt(quiz.correct_option, 10);
+      const isCorrect = selectedOption === correctIndex;
       
-      // Store the attempt
       await db.run(
-        'INSERT INTO attempts (user_id, quiz_id, selected_option, correct) VALUES (?, ?, ?, ?)',
-        [userId, quizId, selectedOption, correct ? 1 : 0]
+        'INSERT INTO attempts (user_id, quiz_id, selected_option, is_correct) VALUES (?, ?, ?, ?)',
+        [userId, quizId, selectedOption, isCorrect ? 1 : 0]
       );
       
-      console.log(`Answer recorded. Correct: ${correct}`);
+      console.log(`Answer recorded. Correct: ${isCorrect}`);
       
-      return { correct };
+      return { success: true, quizId: Number(quizId), isCorrect };
     } catch (error) {
       console.error('Error submitting answer:', error.message);
       throw error;
@@ -166,19 +165,21 @@ class QuizService {
       console.log(`Getting quiz attempts for user ${userId}`);
       
       const attempts = await db.all(
-        `SELECT att.id, att.quiz_id, att.selected_option, att.correct, att.completed_at,
-                q.question, q.option_a, q.option_b, q.option_c, q.correct_index,
+        `SELECT att.id, att.quiz_id, att.selected_option, att.is_correct, att.submitted_at,
+                q.question, q.option_a, q.option_b, q.option_c, q.correct_option,
                 a.title as article_title, a.id as article_id
          FROM attempts att
          JOIN quizzes q ON att.quiz_id = q.id
          JOIN articles a ON q.article_id = a.id
          WHERE att.user_id = ?
-         ORDER BY att.completed_at DESC
+         ORDER BY att.submitted_at DESC
          LIMIT ?`,
         [userId, limit]
       );
       
-      return attempts.map(attempt => ({
+      return attempts.map((attempt) => {
+        const correctIdx = parseInt(attempt.correct_option, 10);
+        return {
         id: attempt.id,
         quiz_id: attempt.quiz_id,
         article_id: attempt.article_id,
@@ -186,11 +187,12 @@ class QuizService {
         question: attempt.question,
         selected_option: attempt.selected_option,
         selected_answer: attempt[`option_${['a', 'b', 'c'][attempt.selected_option]}`],
-        correct_option: attempt.correct_index,
-        correct_answer: attempt[`option_${['a', 'b', 'c'][attempt.correct_index]}`],
-        correct: !!attempt.correct,
-        completed_at: attempt.completed_at
-      }));
+        correct_option: correctIdx,
+        correct_answer: attempt[`option_${['a', 'b', 'c'][correctIdx]}`],
+        correct: !!attempt.is_correct,
+        completed_at: attempt.submitted_at
+      };
+      });
     } catch (error) {
       console.error('Error getting user attempts:', error.message);
       throw error;
@@ -215,7 +217,7 @@ class QuizService {
       
       // Get correct attempts
       const correctAttempts = await db.get(
-        'SELECT COUNT(*) as count FROM attempts WHERE user_id = ? AND correct = 1',
+        'SELECT COUNT(*) as count FROM attempts WHERE user_id = ? AND is_correct = 1',
         [userId]
       );
       
