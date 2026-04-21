@@ -61,12 +61,12 @@
         // Importamos la función que unifica el Logout
         import { handleLogout } from './js/reader.js';
         
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
             // 1. Verificamos autenticación
             requireAuth();
             
             // 2. Verificamos si es admin/teacher
-            const user = getUser();
+            const user = await getUser();
             if (user && user.role !== 'admin' && user.role !== 'teacher') {
                 window.location.href = 'dashboard.html';
             }

@@ -1,5 +1,19 @@
 [
   {
+    "id": "manual-1776777591266",
+    "title": "Prueba 21/04/2026",
+    "topic": "artículo de prueba",
+    "content": "[0] Error scraping article: Request failed with status code 403\n[0] ⚠️ Error procesando artículo individual: Server responded with status code 403 when scraping article\n[0] 📦 Scraping nuevo artículo: This Punjabi Princess Fought for Women's Suffrage and Sheltered Refugees During World War II. A Goddaughter of Queen Victoria, She Rejected British Imperialism\n[0] Scraping article from URL: https://www.smithsonianmag.com/history/this-punjabi-princess-fought-for-womens-suffrage-and-sheltered-refugees-during-world-war-ii-a-goddaughter-of-queen-victoria-she-rejected-british-imperialism-180988491/\n[0] Error scraping article: Request failed with status code 403\n[0] ⚠️ Error procesando artículo individual: Server responded with status code 403 when scraping article\n[0] 📦 Scraping nuevo artículo: Customer Loyalty Was Once Measured in Green Stamps. And the More You Shopped, the Bigger the Rewards\n[0] Scraping article from URL: https://www.smithsonianmag.com/history/customer-loyalty-once-measured-green-stamps-more-shopped-bigger-rewards-180988413/\n[0] Error scraping article: Request failed with status code 403\n[0] ⚠️ Error procesando artículo individual: Server responded with status code 403 when scraping article\n[0] 🏁 Proceso completado para nivel B1\n[0] Initial article fetching job completed",
+    "date": "2026-04-21T13:19:51.266Z"
+  },
+  {
+    "id": "manual-1776777066499",
+    "title": "Sin título",
+    "topic": "classroom",
+    "content": "",
+    "date": "2026-04-21T13:11:06.499Z"
+  },
+  {
     "id": "manual-1776704245862",
     "title": "General English",
     "topic": "coding",

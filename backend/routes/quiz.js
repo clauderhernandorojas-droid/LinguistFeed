@@ -65,7 +65,7 @@ router.get('/quizzes/level/:level', authenticate, async (req, res) => {
  */
 router.post('/submit-answer', authenticate, async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.user.userId ?? req.user.id;
     const { quiz_id, selected_option } = req.body;
     
     if (quiz_id === undefined || selected_option === undefined) {
@@ -93,7 +93,7 @@ router.post('/submit-answer', authenticate, async (req, res) => {
  */
 router.get('/attempts', authenticate, async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.user.userId ?? req.user.id;
     const { limit = 20 } = req.query;
     
     const attempts = await quizService.getUserAttempts(userId, parseInt(limit));

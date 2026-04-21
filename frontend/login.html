@@ -47,11 +47,15 @@
     <script type="module">
         import { login, getUser } from './js/auth.js';
         
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
             // 1. Redirección automática si ya está logueado
-            const user = getUser();
+            const user = await getUser();
             if (user && user.id) {
-                window.location.href = 'dashboard.html';
+                if (user.role === 'teacher') {
+                    window.location.href = 'features/teacher/teacher.html';
+                } else {
+                    window.location.href = 'dashboard.html';
+                }
             }
 
             // 2. Manejo del formulario
@@ -71,10 +75,17 @@
                         // Intentamos login
                         await login(email, password);
                         
-                        // Redirección exitosa
+                        // Redirección exitosa (respeta ?redirect=; si no, según rol)
                         const urlParams = new URLSearchParams(window.location.search);
                         const redirectUrl = urlParams.get('redirect');
-                        window.location.href = redirectUrl || 'dashboard.html';
+                        const user = await getUser();
+                        if (redirectUrl) {
+                            window.location.href = redirectUrl;
+                        } else if (user.role === 'teacher') {
+                            window.location.href = 'features/teacher/teacher.html';
+                        } else {
+                            window.location.href = 'dashboard.html';
+                        }
                         
                     } catch (error) {
                         // Mostramos el error específico del backend o uno genérico

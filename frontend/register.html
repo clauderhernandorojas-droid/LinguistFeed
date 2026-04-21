@@ -57,9 +57,9 @@
     <script type="module">
         import { register, getUser } from './js/auth.js';
         
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
             // 1. Redirección si ya está logueado
-            const user = getUser();
+            const user = await getUser();
             if (user && user.id) {
                 window.location.href = 'dashboard.html';
             }

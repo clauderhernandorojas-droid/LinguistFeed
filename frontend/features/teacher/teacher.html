@@ -7,27 +7,45 @@
     <link rel="stylesheet" href="css/teacher.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Panel de Control Profesor</h1>
-        
-        <section id="student-search">
-            <h2>Búsqueda de Estudiantes</h2>
-            <input type="text" id="searchInput" placeholder="Buscar estudiante por nombre..." />
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="container">
+            <a class="navbar-brand" href="#">Profesor</a>
+            <ul class="navbar-nav">
+                <li class="nav-item"><a class="nav-link" href="#student-search">Buscar Estudiantes</a></li>
+                <li class="nav-item"><a class="nav-link" id="logout-link" href="#">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Contenido principal -->
+    <main class="container">
+        <!-- Barra de búsqueda -->
+        <section id="student-search" class="card">
+            <h2>Buscar Estudiante</h2>
+            <input type="text" id="searchInput" placeholder="Nombre del estudiante">
             <button id="searchButton" class="btn-search">Buscar</button>
             <div id="results"></div>
         </section>
 
-        <section id="article-upload">
-            <h2>Subida de Artículos</h2>
-            <input type="text" id="title" placeholder="e.g., Business English Basics" required>
-            <input type="text" id="topic" placeholder="Selecciona un tema" required>
-            <textarea id="content" placeholder="Pega tu texto aquí..." required></textarea>
-            <button id="submitTaskButton" class="btn-submit">Enviar Tarea</button>
-            <div id="status-msg"></div>
+        <!-- Dashboard del estudiante -->
+        <section class="card">
+            <h2>Dashboard del Estudiante</h2>
+            <div id="student-stats"></div>
+            <div id="vocabulary-section"></div>
         </section>
 
-        <div id="student-stats"></div> <!-- Contenedor para mostrar estadísticas del estudiante -->
-    </div>
-    <script src="js/teacher.js"></script>
+        <!-- Asignar artículo -->
+        <section id="article-upload" class="card">
+            <h2>Asignar Artículo</h2>
+            <input type="text" id="title" placeholder="Título del artículo">
+            <input type="text" id="topic" placeholder="Tema">
+            <textarea id="content" placeholder="Texto del artículo"></textarea>
+            <button id="submitTaskButton" class="btn-submit">Asignar</button>
+            <p id="status-msg"></p>
+        </section>
+    </main>
+
+    <script type="module" src="../../js/teacher.js"></script>
 </body>
 </html>

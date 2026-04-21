@@ -72,22 +72,16 @@
 
     <script type="module">
         import { requireAuth, logout } from '/js/auth.js';
-        // Importante: initReader y handleLogout vienen del módulo
-        import { initReader, handleLogout } from '/js/reader.js?v=6'; 
-    
-        document.addEventListener('DOMContentLoaded', async function() {
-            console.log("🚀 Lector iniciado en:", window.location.href);
+        import { initReader, handleLogout } from '/js/reader.js?v=7';
+
+        document.addEventListener('DOMContentLoaded', async () => {
             requireAuth();
-    
             try {
-                await initReader(); 
+                await initReader();
             } catch (error) {
-                console.error("❌ Error cargando el lector:", error);
+                console.error('❌ Error cargando el lector:', error);
             }
-    
             handleLogout(logout);
-    
-            // Los botones se vinculan a las funciones globales que pusimos en window
             const saveBtn = document.getElementById('save-flashcard-btn');
             if (saveBtn) {
                 saveBtn.onclick = () => window.saveFlashcardToStorage();

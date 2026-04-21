@@ -53,6 +53,17 @@ async function initializeDatabase() {
     )`);
     console.log("✅ Tabla 'flashcards' verificada/creada");
 
+    await run(`CREATE TABLE IF NOT EXISTS user_flashcards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      word TEXT NOT NULL,
+      context TEXT,
+      level TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    )`);
+    console.log("✅ Tabla 'user_flashcards' verificada/creada");
+
     // 3. Quizzes table
     await run(`CREATE TABLE IF NOT EXISTS quizzes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,6 +77,18 @@ async function initializeDatabase() {
       level TEXT,
       FOREIGN KEY (article_id) REFERENCES articles (id) ON DELETE CASCADE
     )`);
+
+    await run(`CREATE TABLE IF NOT EXISTS attempts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      quiz_id INTEGER NOT NULL,
+      selected_option INTEGER NOT NULL,
+      is_correct INTEGER NOT NULL,
+      submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (quiz_id) REFERENCES quizzes (id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    )`);
+    console.log("✅ Tabla 'attempts' verificada/creada");
 
     // 4. Vocabulary table
     await run(`CREATE TABLE IF NOT EXISTS vocabulary (

@@ -3,8 +3,19 @@
  * Versión Unificada y Corregida (Navegación por Hash)
  */
 
-import { CONFIG } from './config.js';
 import { fetchDailyArticles, fetchArticleById } from './api.js';
+import { API_BASE_URL } from './config.js';
+
+function getStoredUserId() {
+    try {
+        const raw = localStorage.getItem('linguistfeed_user');
+        if (!raw) return null;
+        const u = JSON.parse(raw);
+        return u.id != null ? Number(u.id) : null;
+    } catch {
+        return null;
+    }
+}
 
 // "Guardaespaldas" de navegación: 
 // Si por alguna razón algo intenta recargar reader.html sin parámetros,
@@ -24,7 +35,7 @@ window.handleWordClick = async function(text, event) {
     console.log("Traduciendo título con estilo real:", text);
 
     try {
-        const response = await fetch(`${CONFIG.API_BASE_URL}/articles/analyze-text`, {
+        const response = await fetch(`${API_BASE_URL}/articles/analyze-text`, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
@@ -94,7 +105,7 @@ function renderMiniPopup(original, translated, event) {
  */
 let savedWordsSet = new Set(); // Aquí guardaremos tus palabras "tesoro"
 
-export async function initReader() {
+async function initReader() {
     const container = document.getElementById('articles-container');
     const loadingDiv = document.getElementById('loading');
     
@@ -287,7 +298,7 @@ async function loadDailyArticlesList(filterTopic = null) {
 /**
  * Carga y renderiza un artículo completo con niveles CEFR
  */
-export async function loadFullArticle(id, level = null) {
+async function loadFullArticle(id, level = null) {
     const container = document.getElementById('articles-container');
     const loadingDiv = document.getElementById('loading');
     const quizContainer = document.getElementById('quiz-container');
@@ -312,13 +323,8 @@ export async function loadFullArticle(id, level = null) {
 
     try {
         // --- PASO 3: PETICIÓN AL SERVIDOR ---
-        const response = await fetch(`${CONFIG.API_BASE_URL}/articles/${id}?level=${activeLevel}`, {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
-        });
-        if (!response.ok) throw new Error(`Article not found`);
-        const article = await response.json();
+        const article = await fetchArticleById(id, activeLevel);
+        if (!article) throw new Error('Article not found');
 
         // Ocultamos el cargando
         if (loadingDiv) loadingDiv.style.display = 'none';
@@ -420,7 +426,7 @@ export async function loadFullArticle(id, level = null) {
                 quizBtn.disabled = true;
                 quizBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating...';
                 try {
-                    const res = await fetch(`${CONFIG.API_BASE_URL}/generate-quiz-only`, {
+                    const res = await fetch(`${API_BASE_URL}/generate-quiz-only`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ text: article.content, level: article.level })
@@ -511,7 +517,7 @@ function setupTextInteractivity() {
 /**
  * Guarda una flashcard en la base de datos real
  */
-export async function saveFlashcardToStorage() {
+async function saveFlashcardToStorage() {
     const wordElement = document.getElementById('flashcard-word');
     const exampleElement = document.getElementById('flashcard-example');
     // --- NUEVO: Capturamos la traducción para no perderla ---
@@ -525,17 +531,23 @@ export async function saveFlashcardToStorage() {
     const currentLevel = localStorage.getItem('user-level') || 'B1';
 
     try {
-        console.log("Final URL:", `${CONFIG.API_BASE_URL}/flashcards`);
-        const response = await fetch(`${CONFIG.API_BASE_URL}/flashcards`, {
+        const token = localStorage.getItem('token');
+        const userId = getStoredUserId();
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const payload = {
+            word,
+            context: `[${translation}] - ${example}`,
+            level: currentLevel
+        };
+        if (userId != null && !Number.isNaN(userId)) payload.user_id = userId;
+
+        console.log('Final URL:', `${API_BASE_URL}/flashcards`);
+        const response = await fetch(`${API_BASE_URL}/flashcards`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            // MODIFICACIÓN: Guardamos la traducción dentro del campo 'context' 
-            // para que quepa en tu base de datos actual sin errores.
-            body: JSON.stringify({ 
-                word, 
-                context: `[${translation}] - ${example}`, 
-                level: currentLevel 
-            })
+            headers,
+            body: JSON.stringify(payload)
         });
 
         if (!response.ok) {
@@ -585,7 +597,7 @@ export async function saveFlashcardToStorage() {
 /**
  * Muestra el popup con la palabra, traducción y ejemplo
  */
-export async function showFlashcardPopup(text, mouseX, mouseY) {
+async function showFlashcardPopup(text, mouseX, mouseY) {
 
 const popup = document.getElementById('flashcard-popup');
 const saveBtn = document.getElementById('save-flashcard-btn');
@@ -699,7 +711,7 @@ if (saveBtn) {
     try {
         // Dentro de handleWordClick Y dentro de showFlashcardPopup:
         // En reader.js -> showFlashcardPopup
-        const response = await fetch(`${CONFIG.API_BASE_URL}/articles/analyze-text`, {
+        const response = await fetch(`${API_BASE_URL}/articles/analyze-text`, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
@@ -730,7 +742,7 @@ if (saveBtn) {
 /**
  * Cierra el popup
  */
-export function closeFlashcardPopup() {
+function closeFlashcardPopup() {
     const popup = document.getElementById('flashcard-popup');
     if (popup) popup.style.display = 'none';
 }
@@ -869,8 +881,14 @@ function showFeedback(parent, message, textClass) {
 }
 async function refreshSavedWords() {
     try {
-        // Añadimos el /api/ que faltaba y corregimos la sintaxis
-        const response = await fetch(`${CONFIG.API_BASE_URL}/flashcards`)
+        const userId = getStoredUserId();
+        if (userId == null || Number.isNaN(userId)) return;
+
+        const token = localStorage.getItem('token');
+        const headers = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const response = await fetch(`${API_BASE_URL}/flashcards?user_id=${userId}`, { headers });
         const flashcards = await response.json();
         
         if (Array.isArray(flashcards)) {
@@ -1025,7 +1043,7 @@ function renderAudioControls() {
 }
 
 // También es buena idea detenerlo cuando se hace logout o se cambia de sección
-export function handleLogout(logoutFn) {
+function handleLogout(logoutFn) {
     const link = document.getElementById('logout-link');
     if (link) {
         link.onclick = (e) => {
@@ -1233,6 +1251,11 @@ function setupAudioLogic(text) {
 window.saveFlashcardToStorage = saveFlashcardToStorage;
 window.showFlashcardPopup = showFlashcardPopup; // Añade esta línea
 window.closeFlashcardPopup = closeFlashcardPopup; // Añade esta línea
+window.initReader = initReader;
+window.loadFullArticle = loadFullArticle;
+window.handleLogout = handleLogout;
+
+export { initReader, loadFullArticle, saveFlashcardToStorage, showFlashcardPopup, closeFlashcardPopup, handleLogout };
 
 // ESCUCHAR CAMBIOS DE NAVEGACIÓN
 window.addEventListener('hashchange', initReader);
