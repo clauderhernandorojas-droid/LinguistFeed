@@ -7,18 +7,7 @@
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-    <nav class="navbar">
-        <div class="container">
-            <a href="dashboard.html" class="navbar-brand">LinguistFeed</a>
-            <ul class="navbar-nav">
-                <li class="nav-item"><a href="dashboard.html" class="nav-link">Dashboard</a></li>
-                <li class="nav-item"><a href="reader.html" class="nav-link">Topics</a></li>
-                <li class="nav-item"><a href="my-flashcards.html" class="nav-link">My Flashcards</a></li>
-                <li class="nav-item"><a href="upload.html" class="nav-link">Teacher Portal</a></li>
-                <li class="nav-item"><a href="#" id="logout-link" class="nav-link">Logout</a></li>
-            </ul>
-        </div>
-    </nav>
+    <nav class="navbar"></nav>
 
     <div class="container">
         <h1>Admin Panel</h1>
@@ -60,10 +49,12 @@
         import { requireAuth, logout, getUser } from './js/auth.js';
         // Importamos la función que unifica el Logout
         import { handleLogout } from './js/reader.js';
+        import { mountNavbar } from './js/navbar.js';
         
         document.addEventListener('DOMContentLoaded', async function() {
             // 1. Verificamos autenticación
             requireAuth();
+            mountNavbar('student', '');
             
             // 2. Verificamos si es admin/teacher
             const user = await getUser();
