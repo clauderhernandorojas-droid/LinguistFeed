@@ -1,5 +1,12 @@
 [
   {
+    "id": "manual-1776815543419",
+    "title": "Ninguno",
+    "topic": "ninguno",
+    "content": "Nota: El envío del formulario no es solo { studentId, articleUrl } porque manual-upload necesita título/tema/contenido para el JSON actual; se envían esos dos campos más title / topic / content opcionales para no romper la publicación. Si solo rellenas URL y ID, el cuerpo del artículo guardado usará la URL como texto de contenido cuando no haya textarea.",
+    "date": "2026-04-21T23:52:23.419Z"
+  },
+  {
     "id": "manual-1776777591266",
     "title": "Prueba 21/04/2026",
     "topic": "artículo de prueba",

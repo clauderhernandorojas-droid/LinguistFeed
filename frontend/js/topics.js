@@ -87,6 +87,5 @@ export function renderTopics() {
         grid.appendChild(card);
     });
 }
-
 // Ejecutar al cargar
 document.addEventListener('DOMContentLoaded', renderTopics);
