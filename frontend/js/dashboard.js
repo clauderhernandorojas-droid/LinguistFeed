@@ -79,6 +79,32 @@ async function initDashboard() {
     }
 }
 
+export function bindEditProfileButton() {
+    const btn = document.getElementById('edit-profile-btn');
+    if (!btn) return;
+
+    btn.addEventListener('click', () => {
+        // Abrir el modal de onboarding ya existente
+        const modal = document.getElementById('onboarding-modal');
+        if (modal) {
+            modal.style.display = 'block';
+            // Precargar valores actuales desde localStorage
+            const age = localStorage.getItem('userAge') || '';
+            const level = localStorage.getItem('userLevel') || '';
+            const interests = (localStorage.getItem('user-interests') || '').split(',');
+
+            const ageInput = document.getElementById('user-age');
+            const levelSelect = document.getElementById('user-level');
+            if (ageInput) ageInput.value = age;
+            if (levelSelect) levelSelect.value = level;
+
+            document.querySelectorAll('input[name="interest"]').forEach(cb => {
+                cb.checked = interests.includes(cb.value);
+            });
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     handleLogout(logout);
     initDashboard();
