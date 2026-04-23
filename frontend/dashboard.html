@@ -137,14 +137,13 @@
 
     <script type="module">
         import { requireAuth, logout } from './js/auth.js';
-        import { initDashboard, bindEditProfileButton } from './js/dashboard.js';
+        import { bindEditProfileButton } from './js/dashboard.js';
         import { handleLogout } from './js/reader.js';
         import { mountNavbar } from './js/navbar.js';
         
         document.addEventListener('DOMContentLoaded', function() {
             requireAuth();
             mountNavbar('student', '');
-            initDashboard();
             bindEditProfileButton();
             handleLogout(logout);
         });
@@ -180,5 +179,6 @@
           </form>
         </div>
     </div>
+    <script type="module" src="./js/dashboard.js"></script>
 </body>
 </html>
