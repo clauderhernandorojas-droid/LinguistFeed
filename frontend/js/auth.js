@@ -139,20 +139,20 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   const themes = {
     young: [
-      { id: 'gaming', name: 'Video Juegos & Deportes' },
-      { id: 'tech', name: 'Tecnología' },
-      { id: 'trends', name: 'Cultura Pop' },
-      { id: 'edu', name: 'Estudios/Carrera' },
-      { id: 'travel', name: 'Aventura' },
-      { id: 'movies', name: 'Cine y Series' }
+      { id: 'gaming', name: 'Video Juegos & Deportes', icon: '🎮' },
+      { id: 'tech', name: 'Tecnología', icon: '💻' },
+      { id: 'trends', name: 'Cultura Pop', icon: '✨' },
+      { id: 'edu', name: 'Estudios/Carrera', icon: '📚' },
+      { id: 'travel', name: 'Aventura', icon: '✈️' },
+      { id: 'movies', name: 'Cine y Series', icon: '🎬' }
     ],
     adult: [
-      { id: 'business', name: 'Negocios y Economía' },
-      { id: 'news', name: 'Noticias Globales' },
-      { id: 'health', name: 'Salud y Bienestar' },
-      { id: 'science', name: 'Ciencia' },
-      { id: 'history', name: 'Historia y Filo' },
-      { id: 'lifestyle', name: 'Estilo de Vida' }
+      { id: 'business', name: 'Negocios y Economía', icon: '💼' },
+      { id: 'news', name: 'Noticias Globales', icon: '🌎' },
+      { id: 'health', name: 'Salud y Bienestar', icon: '🏥' },
+      { id: 'science', name: 'Ciencia', icon: '🔬' },
+      { id: 'history', name: 'Historia y Filo', icon: '📜' },
+      { id: 'lifestyle', name: 'Estilo de Vida', icon: '🏠' }
     ]
   };
 
