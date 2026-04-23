@@ -22,8 +22,8 @@ export function renderTopics() {
     
     if (!favoritesGrid || !othersGrid) return;
 
-    // 1. Obtener intereses (ej: "tech,gaming")
-    const userInterestsRaw = localStorage.getItem('user-interests') || "";
+    // 1. Obtener intereses (ej: "tech,gaming"); mismo fallback que topics.html anterior
+    const userInterestsRaw = localStorage.getItem('user-interests') || "tech,science";
     const userInterests = userInterestsRaw.split(',').map(i => i.trim().toLowerCase());
 
     favoritesGrid.innerHTML = '';
@@ -61,5 +61,3 @@ export function renderTopics() {
     favorites.forEach(t => favoritesGrid.appendChild(createCard(t)));
     others.forEach(t => othersGrid.appendChild(createCard(t)));
 }
-
-document.addEventListener('DOMContentLoaded', renderTopics);
