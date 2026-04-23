@@ -4,9 +4,8 @@
  * This module provides functions for displaying user progress and dashboard information.
  */
 
-import { getUser, requireAuth, logout } from './auth.js';
+import { getUser, requireAuth } from './auth.js';
 import { API_BASE_URL } from './config.js';
-import { handleLogout } from './reader.js';
 
 /**
  * Displays user progress on the dashboard
@@ -66,6 +65,7 @@ async function initDashboard() {
         const user = await res.json();
 
         displayUserInfo(user);
+        console.log('User data for progress:', user);
         displayUserProgress(user);
 
         const vocabEl = document.getElementById('vocabulary-learned');
@@ -105,10 +105,7 @@ export function bindEditProfileButton() {
     });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    handleLogout(logout);
-    initDashboard();
-});
+document.addEventListener('DOMContentLoaded', initDashboard);
 
 // Export the functions so they can be imported in other files
 export {
