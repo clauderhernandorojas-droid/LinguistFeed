@@ -44,3 +44,9 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 node_modules
+
+# Secrets / environment (never commit)
+.env
+backend/.env
+backend/*.env.bak
+backend/.env.pre_clean.bak
