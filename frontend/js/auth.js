@@ -114,6 +114,7 @@ async function handleOnboarding(event) {
     if (response.ok) {
       localStorage.setItem('userLevel', level);
       localStorage.setItem('userAge', age);
+      localStorage.setItem('user-interests', selectedInterests.join(','));
       document.getElementById('onboarding-modal').style.display = 'none';
       alert('¡Perfil actualizado!');
     } else {
