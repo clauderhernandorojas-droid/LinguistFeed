@@ -699,3 +699,15 @@ hr {
     background: #2980b9;
   }
   
+
+/* TEMP: asegurar visibilidad de level buttons */
+.level-btn {
+  background: white !important;
+  color: #007bff !important;
+  border: 1px solid #007bff !important;
+  cursor: pointer !important;
+}
+.level-btn.active {
+  background: #007bff !important;
+  color: #fff !important;
+}

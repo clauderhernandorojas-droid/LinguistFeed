@@ -257,7 +257,7 @@ async function loadDailyArticlesList(filterTopic = null) {
                         <div class="level-selector-inline" style="display: flex; gap: 4px; margin: 10px 0; justify-content: center;">
                             ${['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(lvl => `
                                 <button onclick="setArticleLevel('${identifier}', '${lvl}')" 
-                                        id="btn-${article.id}-${lvl}"
+                                        id="btn-${identifier}-${lvl}"
                                         class="level-btn ${lvl === (localStorage.getItem('user-level') || 'B1') ? 'active' : ''}"
                                         style="font-size: 0.7rem; padding: 2px 6px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; background: white;">
                                     ${lvl}
@@ -1155,31 +1155,37 @@ window.addEventListener('hashchange', () => {
 });
 window.setArticleLevel = function(articleId, level) {
     console.log(`🎯 Nivel ${level} pre-seleccionado para la tarjeta ${articleId}`);
-    
-    // 1. Guardamos para que el sistema lo recuerde
-    localStorage.setItem(`temp-level-${articleId}`, level);
-    
-    // 2. Buscamos la tarjeta en el DOM
-    const card = document.querySelector(`.card h3[onclick*="'${articleId}'"]`)?.closest('.card') 
-                 || document.querySelector(`button[id*="${articleId}"]`)?.closest('.card');
+    try {
+        localStorage.setItem(`temp-level-${articleId}`, level);
+    } catch (e) { /* ignore */ }
+    try {
+        localStorage.setItem('user-level', level);
+    } catch (e) { /* ignore */ }
+
+    try {
+        const selector = `[id^="btn-${articleId}-"]`;
+        document.querySelectorAll(selector).forEach(btn => {
+            btn.style.background = 'white';
+            btn.style.color = '#007bff';
+            btn.classList.remove('active');
+        });
+        const clicked = document.getElementById(`btn-${articleId}-${level}`);
+        if (clicked) {
+            clicked.style.background = '#007bff';
+            clicked.style.color = 'white';
+            clicked.classList.add('active');
+        }
+    } catch (e) {
+        console.error('setArticleLevel error', e);
+    }
+
+    const card = document.getElementById(`btn-${articleId}-${level}`)?.closest('.card')
+        || document.querySelector(`[id^="btn-${articleId}-"]`)?.closest('.card');
 
     if (card) {
-        // Marcamos visualmente los botones de la tarjeta
-        card.querySelectorAll('.level-btn').forEach(btn => {
-            btn.style.background = 'white';
-            btn.style.color = 'black';
-        });
-        const activeBtn = card.querySelector(`[id$="-${level}"]`);
-        if (activeBtn) {
-            activeBtn.style.background = '#007bff';
-            activeBtn.style.color = 'white';
-        }
-
-        // ¡ESTO ES LO MÁS IMPORTANTE!: Actualizamos el botón "Read"
         const readBtn = card.querySelector('a[onclick*="userMode\', \'read\'"]');
         if (readBtn) {
             const topic = new URLSearchParams(window.location.hash.substring(1)).get('topic') || '';
-            // Creamos la URL exacta con el nivel elegido
             const newUrl = `reader.html#id=${articleId}&level=${level}&topic=${topic}`;
             readBtn.setAttribute('onclick', `localStorage.setItem('userMode', 'read'); window.location.href='${newUrl}'; return false;`);
         }
