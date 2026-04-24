@@ -464,7 +464,8 @@ function renderLevelSelector(currentArticleId, activeLevel) {
         return `
         <button 
             class="level-btn ${isThisActive ? 'active' : ''}" 
-            onclick="changeArticleLevel('${currentArticleId}', '${level}')"
+            id="btn-${currentArticleId}-${level}"
+            onclick="setArticleLevel('${currentArticleId}', '${level}')"
             style="margin-right: 8px; padding: 5px 15px; cursor: pointer; border-radius: 15px; 
                    border: 1px solid #007bff; 
                    background: ${isThisActive ? '#007bff' : 'white'}; 
@@ -1154,6 +1155,8 @@ window.addEventListener('hashchange', () => {
     if (panel) panel.remove();
 });
 window.setArticleLevel = function(articleId, level) {
+    level = String(level || '').toUpperCase().trim() || 'B1';
+    console.log('[LinguistFeed-level] setArticleLevel', articleId, level);
     console.log(`🎯 Nivel ${level} pre-seleccionado para la tarjeta ${articleId}`);
     try {
         localStorage.setItem(`temp-level-${articleId}`, level);
@@ -1161,6 +1164,18 @@ window.setArticleLevel = function(articleId, level) {
     try {
         localStorage.setItem('user-level', level);
     } catch (e) { /* ignore */ }
+
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const hashArticleId = hashParams.get('id');
+    const inFullArticleView = !!document.querySelector('.article-full')
+        && hashArticleId != null
+        && String(hashArticleId) === String(articleId);
+
+    if (inFullArticleView && typeof window.changeArticleLevel === 'function') {
+        console.log('[LinguistFeed-level] full view → changeArticleLevel', articleId, level);
+        void window.changeArticleLevel(articleId, level);
+        return;
+    }
 
     try {
         const selector = `[id^="btn-${articleId}-"]`;

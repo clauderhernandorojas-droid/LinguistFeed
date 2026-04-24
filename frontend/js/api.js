@@ -29,7 +29,8 @@ export async function fetchDailyArticles(topic = 'news') {
  */
 export async function fetchArticleById(id, level = 'B1') {
     try {
-        const response = await fetch(`${API_BASE_URL}/articles/${id}?level=${level}`, {
+        const lvl = encodeURIComponent(String(level || 'B1').toUpperCase().trim());
+        const response = await fetch(`${API_BASE_URL}/articles/${id}?level=${lvl}`, {
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('token')}`
             }
