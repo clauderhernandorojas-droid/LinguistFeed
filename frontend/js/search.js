@@ -9,9 +9,7 @@
     const input = document.getElementById(searchBarId);
     if (!input) return;
 
-    // Evitar volver a enlazar listeners si ya está hecho
     if (input.dataset.lfSearchBound === '1') {
-      // Reaplicar filtro si ya hay texto
       input.dispatchEvent(new Event('input'));
       return;
     }
@@ -51,10 +49,8 @@
       timer = setTimeout(applyFilter, 120);
     });
 
-    // Aplicar filtro inicial
     applyFilter();
   }
 
-  // Exponer la API globalmente (fuera de initSearch) — importante para llamadas tempranas
   window.initSearch = initSearch;
 })();
