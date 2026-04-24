@@ -50,6 +50,17 @@
             color: #666;
             margin: 20px 0;
         }
+
+        #searchBarCategory {
+            width: 100%;
+            max-width: 480px;
+            margin: 8px 0 12px 0;
+            padding: 10px 14px;
+            font-size: 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
     </style>
 </head>
 <body>
@@ -71,6 +82,7 @@
         </div>
 
         <div id="loading">Loading articles...</div>
+        <input type="search" id="searchBarCategory" placeholder="Buscar artículos..." autocomplete="off">
         <div id="articles-container" class="articles-grid"></div>
     </div>
 
@@ -87,6 +99,10 @@
             // Protección de ruta
             requireAuth();
             mountNavbar('student', '');
+
+            if (typeof window.initSearch === 'function') {
+                window.initSearch('searchBarCategory', ['#articles-container'], '.article-card');
+            }
 
             const container = document.getElementById('articles-container');
             const loading = document.getElementById('loading');
@@ -139,6 +155,7 @@
                     console.error("Fetch Error:", err);
                 } finally {
                     loading.style.display = 'none';
+                    document.getElementById('searchBarCategory')?.dispatchEvent(new Event('input'));
                 }
             }
 
@@ -149,5 +166,6 @@
             handleLogout(logout);
         });
     </script>
+    <script src="./js/search.js"></script>
 </body>
 </html>

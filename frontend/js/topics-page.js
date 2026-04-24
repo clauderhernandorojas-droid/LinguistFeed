@@ -7,5 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
   requireAuth();
   mountNavbar('student', '');
   renderTopics();
+  if (typeof window.initSearch === 'function') {
+    window.initSearch('searchBarTopics', ['#favorites-grid', '#others-grid'], '.topic-card');
+  }
   handleLogout(logout);
 });

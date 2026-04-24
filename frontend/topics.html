@@ -30,6 +30,16 @@
         }
         .topic-card:hover { transform: translateY(-5px); }
         hr { border: 0; height: 1px; background: #e2e8f0; margin: 50px 0; }
+        #searchBarTopics {
+            width: 100%;
+            max-width: 480px;
+            margin: 16px 0 24px 0;
+            padding: 10px 14px;
+            font-size: 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
     </style>
 </head>
 <body>
@@ -38,6 +48,8 @@
     <div class="container">
         <h1 style="margin-top: 30px;">Explore Topics</h1>
         <p>Your personalized reading library.</p>
+
+        <input type="search" id="searchBarTopics" placeholder="Buscar temas..." autocomplete="off">
 
         <h2 class="section-title">Your Favorite Topics 🌟</h2>
         <div id="favorites-grid" class="topics-grid"></div>
@@ -49,5 +61,6 @@
     </div>
 
     <script type="module" src="./js/topics-page.js"></script>
+    <script src="./js/search.js"></script>
 </body>
 </html>
