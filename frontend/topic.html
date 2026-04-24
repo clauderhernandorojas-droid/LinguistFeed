@@ -90,6 +90,7 @@
         <p>&copy; 2026 LinguistFeed. All rights reserved.</p>
     </footer>
 
+    <script src="./js/search.js"></script>
     <script type="module">
         import { logout, requireAuth } from './js/auth.js';
         import { handleLogout } from './js/reader.js';
@@ -99,10 +100,6 @@
             // Protección de ruta
             requireAuth();
             mountNavbar('student', '');
-
-            if (typeof window.initSearch === 'function') {
-                window.initSearch('searchBarCategory', ['#articles-container'], '.article-card');
-            }
 
             const container = document.getElementById('articles-container');
             const loading = document.getElementById('loading');
@@ -150,6 +147,14 @@
                         container.appendChild(card);
                     });
 
+                    // --- initSearch for articles list (safe; después de pintar tarjetas) ---
+                    if (typeof window.initSearch === 'function') {
+                        window.initSearch('searchBarCategory', ['#articles-container'], '.article-card');
+                        const sb = document.getElementById('searchBarCategory');
+                        if (sb) sb.dispatchEvent(new Event('input'));
+                    }
+                    // --- end initSearch snippet ---
+
                 } catch (err) {
                     container.innerHTML = '<p class="text-center" style="color:red;">Error connecting to the server.</p>';
                     console.error("Fetch Error:", err);
@@ -166,6 +171,5 @@
             handleLogout(logout);
         });
     </script>
-    <script src="./js/search.js"></script>
 </body>
 </html>

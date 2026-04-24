@@ -1,29 +1,60 @@
+// frontend/js/search.js
 /**
- * Inicializa filtrado por texto en una o más listas.
- * Expuesta como window.initSearch para usarla desde script clásico en el HTML.
- *
- * @param {string} searchBarId - id del input de búsqueda
- * @param {string[]} listSelectors - selectores de contenedores (ej. '#favorites-grid')
- * @param {string} itemSelector - selector de cada ítem (ej. '.topic-card')
+ * initSearch(searchBarId, listSelectors, itemSelector)
+ * - Lee h3, strong y p dentro de cada tarjeta; solo cambia style.display.
+ * - Idempotente: evita duplicar listeners usando data-lf-search-bound.
  */
-function initSearch(searchBarId, listSelectors, itemSelector) {
-  const bar = document.getElementById(searchBarId);
-  if (!bar) return;
+(function () {
+  function initSearch(searchBarId, listSelectors = [], itemSelector) {
+    const input = document.getElementById(searchBarId);
+    if (!input) return;
 
-  const applyFilter = () => {
-    const q = (bar.value || '').trim().toLowerCase();
-    listSelectors.forEach((sel) => {
-      const root = document.querySelector(sel);
-      if (!root) return;
-      root.querySelectorAll(itemSelector).forEach((el) => {
-        const text = (el.textContent || '').toLowerCase();
-        el.style.display = !q || text.includes(q) ? '' : 'none';
+    // Evitar volver a enlazar listeners si ya está hecho
+    if (input.dataset.lfSearchBound === '1') {
+      // Reaplicar filtro si ya hay texto
+      input.dispatchEvent(new Event('input'));
+      return;
+    }
+    input.dataset.lfSearchBound = '1';
+
+    function getAllItems() {
+      const items = [];
+      listSelectors.forEach((sel) => {
+        const container = document.querySelector(sel);
+        if (!container) return;
+        container.querySelectorAll(itemSelector).forEach((it) => items.push(it));
       });
+      return items;
+    }
+
+    function applyFilter() {
+      const q = (input.value || '').trim().toLowerCase();
+      const items = getAllItems();
+
+      items.forEach((item) => {
+        const h3 = (item.querySelector('h3')?.textContent || '').toLowerCase();
+        const strong = (item.querySelector('strong')?.textContent || '').toLowerCase();
+        const preview = (item.querySelector('p')?.textContent || '').toLowerCase();
+        const combined = `${h3} ${strong} ${preview}`.trim();
+
+        if (!q || combined.includes(q)) {
+          item.style.display = '';
+        } else {
+          item.style.display = 'none';
+        }
+      });
+    }
+
+    let timer = null;
+    input.addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(applyFilter, 120);
     });
-  };
 
-  bar.addEventListener('input', applyFilter);
-  applyFilter();
-}
+    // Aplicar filtro inicial
+    applyFilter();
+  }
 
-window.initSearch = initSearch;
+  // Exponer la API globalmente (fuera de initSearch) — importante para llamadas tempranas
+  window.initSearch = initSearch;
+})();
