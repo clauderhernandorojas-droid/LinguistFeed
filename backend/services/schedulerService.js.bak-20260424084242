@@ -40,8 +40,9 @@ class SchedulerService {
    * Schedule article fetching job
    */
   scheduleArticleFetching() {
-    // Schedule job to run monthly at midnight on day 1
-    const job = schedule.scheduleJob('0 0 1 * *', async () => {
+    // Schedule job to run every 6 hours
+    // Cron format: second minute hour day-of-month month day-of-week
+    const job = schedule.scheduleJob('0 0 */6 * * *', async () => {
       console.log('Running scheduled article fetching job');
       
       try {
@@ -67,7 +68,10 @@ class SchedulerService {
     // Store the job
     this.jobs.articleFetching = job;
     
-    console.log('Article fetching job scheduled to run monthly (day 1 at 00:00)');
+    console.log('Article fetching job scheduled to run every 6 hours');
+    
+    // Run the job immediately on startup
+    this.runArticleFetchingJob();
   }
 
   /**
@@ -133,24 +137,6 @@ class SchedulerService {
             articleId = result.lastID; // Importante: usar lastID
             articleContent = scrapedArticle.text;
             console.log(`✅ Articulo insertado con ID: ${articleId}`);
-
-            const levelsToPersist = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
-            for (const simplifiedLevel of levelsToPersist) {
-              try {
-                const leveledText = await aiService.generateLeveledArticle(articleContent, simplifiedLevel);
-                await db.run(
-                  'INSERT INTO simplified_articles (article_id, text, level) VALUES (?, ?, ?)',
-                  [articleId, leveledText, simplifiedLevel]
-                );
-              } catch (aiError) {
-                console.warn(`⚠️ Fallback to original text for level ${simplifiedLevel}`);
-                await db.run(
-                  'INSERT INTO simplified_articles (article_id, text, level) VALUES (?, ?, ?)',
-                  [articleId, articleContent, simplifiedLevel]
-                );
-              }
-            }
-            console.log(`✅ Simplified versions generated for article ${articleId}`);
           } else {
             articleId = existingArticle.id;
             articleContent = existingArticle.content;

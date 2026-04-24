@@ -108,7 +108,6 @@ router.get('/daily-articles', async (req, res) => {
 // 🔍 RUTA PARA OBTENER UN ARTÍCULO POR SU ID (Híbrida: JSON + DB)
 router.get('/:id', async (req, res) => {
     const articleId = req.params.id.replace(/['"]+/g, '').trim();
-    const level = req.query.level?.toUpperCase();
     const filePath = path.join(__dirname, '..', 'data', 'simplified_articles.json');
 
     try {
@@ -122,20 +121,7 @@ router.get('/:id', async (req, res) => {
 
         // 2. Si no está en el JSON, buscar en la Base de Datos (Originales)
         const dbArt = await db.get("SELECT * FROM articles WHERE id = ?", [articleId]);
-        if (dbArt) {
-            if (level) {
-                const simplified = await db.get(
-                    "SELECT text FROM simplified_articles WHERE article_id = ? AND level = ? ORDER BY id DESC LIMIT 1",
-                    [dbArt.id, level]
-                );
-
-                if (simplified) {
-                    return res.json({ id: articleId, level, content: simplified.text });
-                }
-            }
-
-            return res.json(dbArt);
-        }
+        if (dbArt) return res.json(dbArt);
 
         res.status(404).json({ error: "Artículo no encontrado" });
     } catch (error) {
@@ -198,6 +184,70 @@ router.post('/manual-upload', async (req, res) => {
     } catch (error) {
         console.error("❌ ERROR REAL:", error);
         res.status(500).json({ error: "Fallo total al escribir el archivo" });
+    }
+});
+
+// Ruta para obtener UN artículo específico por su ID
+router.get('/:id', async (req, res) => {
+    const articleId = req.params.id.replace(/['"]+/g, ''); // Limpiamos comillas por si acaso
+    const filePath = path.join(__dirname, '..', 'data', 'simplified_articles.json');
+
+    try {
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: "Archivo de artículos no encontrado" });
+        }
+
+        const data = fs.readFileSync(filePath, 'utf8');
+        const articles = JSON.parse(data);
+
+        // Buscamos el artículo que coincida con el ID de la URL
+        const article = articles.find(a => a.id === articleId);
+
+        if (article) {
+            console.log(`✅ Artículo encontrado: ${article.title}`);
+            res.json(article);
+        } else {
+            console.log(`❌ No encontré el ID: ${articleId}`);
+            res.status(404).json({ error: "Artículo no encontrado" });
+        }
+    } catch (error) {
+        console.error("❌ Error al leer el artículo:", error);
+        res.status(500).json({ error: "Error interno del servidor" });
+    }
+});
+
+// 🔍 RUTA PARA OBTENER UN ARTÍCULO POR SU ID
+router.get('/:id', async (req, res) => {
+    // 1. Limpiamos el ID que viene de la URL (por si acaso)
+    const articleId = req.params.id.replace(/['"]+/g, '').trim();
+    
+    // 2. Definimos la ruta al archivo (la misma que usamos para guardar)
+    const filePath = path.join(__dirname, '..', 'data', 'simplified_articles.json');
+
+    try {
+        console.log(`🔎 Buscando artículo con ID: ${articleId}`);
+
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: "No hay base de datos de artículos" });
+        }
+
+        // 3. Leemos el archivo JSON
+        const rawData = fs.readFileSync(filePath, 'utf8');
+        const articles = JSON.parse(rawData);
+
+        // 4. Buscamos el artículo que coincida con el ID
+        const article = articles.find(a => a.id === articleId);
+
+        if (article) {
+            console.log(`✅ ¡Artículo encontrado!: ${article.title}`);
+            res.json(article); // Se lo enviamos al lector
+        } else {
+            console.log(`❌ No se encontró el ID en el JSON: ${articleId}`);
+            res.status(404).json({ error: "Artículo no encontrado en la lista" });
+        }
+    } catch (error) {
+        console.error("❌ Error en el servidor al buscar:", error);
+        res.status(500).json({ error: "Error interno del servidor" });
     }
 });
 
