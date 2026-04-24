@@ -378,6 +378,21 @@ async function loadFullArticle(id, level = null) {
                 </div>
             </div>
         `;
+
+        // --- START SAFE INJECTION: article.content → #interactive-text (tras render; sin initReader para evitar bucle con loadFullArticle) ---
+        try {
+            const contentHtml = article.content || '';
+            const target = document.getElementById('interactive-text')
+                || document.querySelector('#articles-container .article-body-text');
+            if (target) {
+                target.innerHTML = contentHtml;
+            } else {
+                console.warn('Safe injection: #interactive-text not found after render');
+            }
+        } catch (e) {
+            console.error('Safe injection error', e);
+        }
+        // --- END SAFE INJECTION ---
         
         setTimeout(() => {
             setupAudioLogic(article.content);
