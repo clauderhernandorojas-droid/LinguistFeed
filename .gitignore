@@ -50,3 +50,6 @@ node_modules
 backend/.env
 backend/*.env.bak
 backend/.env.pre_clean.bak
+
+# Playwright smoke output (local)
+cursor_agent_playwright_output/
