@@ -1,4 +1,4 @@
-// frontend/js/search.js (idempotent safe version)
+// frontend/js/search.js (safe, idempotent)
 (function () {
   function initSearch(searchBarId, listSelectors = [], itemSelector) {
     const input = document.getElementById(searchBarId);
