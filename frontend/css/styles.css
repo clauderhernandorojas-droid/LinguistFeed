@@ -699,3 +699,20 @@ hr {
     background: #2980b9;
   }
   
+
+/* Level buttons (reader list / full article): ensure labels always visible */
+.level-btn {
+  color: #0b0b0b !important;
+  background-color: #ffffff !important;
+  border: 1px solid #2b6cb0 !important;
+  padding: 6px 10px !important;
+  font-size: 14px !important;
+  line-height: 1.2 !important;
+  text-indent: 0 !important;
+  overflow: visible !important;
+  display: inline-block !important;
+  vertical-align: middle !important;
+}
+.level-btn::before,
+.level-btn::after { display: none !important; }
+.level-btn.active { background-color: #2b6cb0 !important; color: #ffffff !important; }
