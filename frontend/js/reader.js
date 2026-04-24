@@ -273,6 +273,14 @@ async function loadDailyArticlesList(filterTopic = null) {
             </div>
         `;
 
+        // --- initSearch for reader list (safe; después de pintar tarjetas) ---
+        if (typeof window.initSearch === 'function') {
+            window.initSearch('searchBarCategory', ['#articles-container'], '.card');
+            const sb = document.getElementById('searchBarCategory');
+            if (sb) sb.dispatchEvent(new Event('input'));
+        }
+        // --- end initSearch snippet ---
+
         // --- ASIGNAR TRADUCCIÓN A TÍTULOS ---
         container.querySelectorAll('.card h3').forEach(title => {
             title.style.cursor = 'pointer';
