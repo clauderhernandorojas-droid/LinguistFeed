@@ -53,3 +53,7 @@ backend/.env.pre_clean.bak
 
 # Playwright smoke output (local)
 cursor_agent_playwright_output/
+
+# Local SQLite DB and ad-hoc backups folder (never commit)
+backend/linguistfeed.db
+tmp_backups/
