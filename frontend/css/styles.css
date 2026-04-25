@@ -715,4 +715,10 @@ hr {
 }
 .level-btn::before,
 .level-btn::after { display: none !important; }
-.level-btn.active { background-color: #2b6cb0 !important; color: #ffffff !important; }
+
+/* Asegurar estilo visible para el botón activo */
+.level-btn.active {
+  background-color: #2b6cb0 !important;
+  color: #ffffff !important;
+  border-color: #234e7a !important;
+}
