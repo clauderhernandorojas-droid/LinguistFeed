@@ -90,6 +90,31 @@ async function initializeDatabase() {
     )`);
     console.log("✅ Tabla 'attempts' verificada/creada");
 
+    await run(`CREATE TABLE IF NOT EXISTS answer_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      session_id TEXT,
+      article_id INTEGER NOT NULL,
+      question_id TEXT NOT NULL,
+      question_type TEXT NOT NULL,
+      quiz_source TEXT DEFAULT 'reader_ai',
+      selected_value TEXT,
+      is_correct INTEGER NOT NULL,
+      response_time_ms INTEGER,
+      attempt_index INTEGER DEFAULT 1,
+      counted_for_stats INTEGER DEFAULT 1,
+      level TEXT,
+      answered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+      UNIQUE(user_id, article_id, question_id, attempt_index)
+    )`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_answer_events_user_date
+      ON answer_events (user_id, answered_at)`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_answer_events_user_article
+      ON answer_events (user_id, article_id)`);
+    console.log("✅ Tabla 'answer_events' verificada/creada");
+
     // 4. Vocabulary table
     await run(`CREATE TABLE IF NOT EXISTS vocabulary (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

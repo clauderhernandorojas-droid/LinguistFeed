@@ -47,7 +47,23 @@ window.handleWordClick = async function(text, event) {
             })
         });
 
-        const result = await response.json();
+        let result = {};
+        try {
+            result = await response.json();
+        } catch {
+            result = {};
+        }
+
+        if (!response.ok) {
+            const errMsg = result.message || result.error || `Error del servidor (${response.status})`;
+            if (typeof window.showTranslationPopup === 'function') {
+                window.showTranslationPopup(text, errMsg, event.pageX, event.pageY);
+            } else {
+                renderMiniPopup(text, errMsg, event);
+            }
+            return;
+        }
+
         const translation = result.translation || result.text;
 
         if (translation) {
@@ -105,9 +121,81 @@ function renderMiniPopup(original, translated, event) {
  */
 let savedWordsSet = new Set(); // Aquí guardaremos tus palabras "tesoro"
 
+/** Palabras analizadas en esta sesión (palabra + definición EN) para el ejercicio matching */
+const MAX_SESSION_VOCAB = 24;
+let sessionVocabPairs = [];
+const quizAnswerAttempts = new Map();
+
+function recordSessionVocabPair(word, definition) {
+    const w = String(word || '').trim();
+    const d = String(definition || '').trim();
+    if (!w || !d) return;
+    const key = w.toLowerCase();
+    if (sessionVocabPairs.some((p) => p.word.toLowerCase() === key)) return;
+    sessionVocabPairs.push({ word: w, definition: d });
+    if (sessionVocabPairs.length > MAX_SESSION_VOCAB) sessionVocabPairs.shift();
+}
+
+function mergeQuizWithMatching(aiQuizzes) {
+    const out = [...(aiQuizzes || [])];
+    const hasMatching = out.some((q) => String(q.type || '').toLowerCase() === 'matching');
+    if (!hasMatching && sessionVocabPairs.length >= 2) {
+        const pairs = sessionVocabPairs.slice(-8).map((p) => ({ word: p.word, definition: p.definition }));
+        out.push({ type: 'matching', pairs });
+    }
+    return out;
+}
+
+function getQuestionAttemptKey(question) {
+    const qid = String(question?._lfQuestionId || question?.id || question?.question || question?.statement || 'q').trim();
+    const articleId = String(question?._lfArticleId || 'article').trim();
+    return `${articleId}::${qid}`;
+}
+
+function nextQuestionAttempt(question) {
+    const key = getQuestionAttemptKey(question);
+    const curr = quizAnswerAttempts.get(key) || 0;
+    const next = curr + 1;
+    quizAnswerAttempts.set(key, next);
+    return next;
+}
+
+async function trackQuizAnswerEvent(question, payload) {
+    try {
+        const token = localStorage.getItem('token');
+        if (!token || !question) return;
+
+        const body = {
+            sessionId: question._lfSessionId || null,
+            articleId: Number(question._lfArticleId),
+            quizSource: question._lfSource || 'reader_ai',
+            questionId: question._lfQuestionId || `q-${Date.now()}`,
+            questionType: String(question.type || '').toLowerCase() || 'unknown',
+            attemptIndex: payload.attemptIndex,
+            selected: payload.selected,
+            isCorrect: !!payload.isCorrect,
+            responseTimeMs: payload.responseTimeMs,
+            answeredAt: new Date().toISOString(),
+            meta: { level: question._lfLevel || null }
+        };
+
+        await fetch(`${API_BASE_URL}/progress/answer-event`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(body)
+        });
+    } catch (e) {
+        console.warn('No se pudo registrar answer-event:', e?.message || e);
+    }
+}
+
 async function initReader() {
     const container = document.getElementById('articles-container');
     const loadingDiv = document.getElementById('loading');
+    await refreshSavedWords();
     
     // 1. Analizar la URL (Hash) - ESTO ES LO MÁS IMPORTANTE
     const hash = window.location.hash.substring(1); 
@@ -315,7 +403,9 @@ async function loadFullArticle(id, level = null) {
 
     // --- PASO 1: LIMPIEZA INMEDIATA ---
     // Esto hace que el artículo viejo desaparezca al instante
-    container.innerHTML = ""; 
+    sessionVocabPairs = [];
+    quizAnswerAttempts.clear();
+    container.innerHTML = "";
     if (quizContainer) {
         quizContainer.innerHTML = "";
         quizContainer.style.display = 'none';
@@ -337,11 +427,9 @@ async function loadFullArticle(id, level = null) {
         // Ocultamos el cargando
         if (loadingDiv) loadingDiv.style.display = 'none';
 
-        // --- PASO 4: PINTAR BOTONES Y CONTENIDO ---
-        // Llamamos al selector para que el botón correcto se ponga azul
-        renderLevelSelector(id, activeLevel);
-
         // --- PASO 4: PINTAR TODO EL CONTENIDO ---
+        const safeArticleId = String(id).replace(/[^a-zA-Z0-9_-]/g, '_');
+        const selectorContainerId = `level-selector-container-${safeArticleId}`;
         container.innerHTML = `
             <div class="article-full">
                 <div id="nav-and-title-area" style="margin-bottom: 20px;">
@@ -356,24 +444,24 @@ async function loadFullArticle(id, level = null) {
                     <div style="flex: 1;">
                         <span style="font-weight: bold; color: #4a5568; display: block; margin-bottom: 5px;">Audio Mode 🎧</span>
                         <div style="display: flex; flex-direction: column; gap: 10px;">
-                            <div style="display: flex; gap: 10px;">
-                                <button id="btn-pause" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">⏸ Pause</button>
-                                <button id="btn-resume" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">▶ Resume</button>
-                                <button id="btn-stop" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">Stop</button>
+                            <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                                <button type="button" id="btn-play-article" class="audio-toolbar-btn audio-toolbar-btn--primary">Listen / Play</button>
+                                <button type="button" id="btn-pause" class="audio-toolbar-btn">Pause</button>
+                                <button type="button" id="btn-resume" class="audio-toolbar-btn">Resume</button>
+                                <button type="button" id="btn-stop" class="audio-toolbar-btn">Stop</button>
                             </div>
-                            
                             <div style="display: flex; align-items: center; gap: 10px;">
-                                <input type="range" id="audio-progress" oninput="console.log('¡SOY LA BARRA 1!')" value="0" min="0" max="100" style="flex: 1; cursor: pointer;">
-                                <span id="audio-percentage" style="font-size: 12px; color: #718096; min-width: 35px;">0%</span>
+                                <input type="range" id="article-audio-progress" value="0" min="0" max="100" style="flex: 1; cursor: pointer;">
+                                <span id="article-audio-percentage" style="font-size: 12px; color: #718096; min-width: 35px;">0%</span>
                             </div>
                         </div>
                     </div>
-                    <button onclick="window.toggleTranscript()" id="toggle-text-btn" style="cursor:pointer; padding: 10px; background: white; border: 1px solid #007bff; color: #007bff; border-radius: 5px; font-weight: bold;">
+                    <button type="button" onclick="window.toggleTranscript()" id="toggle-text-btn" style="cursor:pointer; padding: 10px; background: white; border: 1px solid #007bff; color: #007bff; border-radius: 5px; font-weight: bold;">
                         Show Text
                     </button>
                 </div>
 
-                <div id="level-selector-container" style="margin-bottom: 25px; padding: 10px; background: #f8fafc; border-radius: 10px;">
+                <div id="${selectorContainerId}" style="margin-bottom: 25px; padding: 10px; background: #f8fafc; border-radius: 10px;">
                     </div>
 
                 <div id="article-body-wrapper">
@@ -386,13 +474,9 @@ async function loadFullArticle(id, level = null) {
                 </div>
             </div>
         `;
-        
-        setTimeout(() => {
-            setupAudioLogic(article.content);
-        }, 100);
 
         // 🦾 PASO 5: Ahora que el contenedor existe arriba, llamamos a la función para llenarlo
-        renderLevelSelector(id, activeLevel);
+        renderLevelSelector(selectorContainerId, id, activeLevel);
         const titleEl = document.getElementById('interactive-title');
         if (titleEl) {
             titleEl.style.cursor = 'pointer';
@@ -426,28 +510,83 @@ async function loadFullArticle(id, level = null) {
             setupTextInteractivity(); 
         }
 
+        attachReadModeArticleAudio();
+
         // Lógica del Quiz... (se mantiene igual que tu código)
         const quizBtn = document.getElementById('generate-quiz-btn');
         if (quizBtn) {
             quizBtn.onclick = async () => {
                 const resultsArea = document.getElementById('quiz-results-area');
                 quizBtn.disabled = true;
-                quizBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating...';
+                quizBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Loading...';
+                resultsArea.style.display = 'none';
+                resultsArea.innerHTML = '';
                 try {
-                    const res = await fetch(`${API_BASE_URL}/generate-quiz-only`, {
+                    const res = await fetch(`${API_BASE_URL}/articles/generate-quiz-only`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ text: article.content, level: article.level })
+                        body: JSON.stringify({
+                            text: article.content,
+                            level: article.level || activeLevel,
+                            articleId: String(id)
+                        })
                     });
-                    const data = await res.json();
-                    if (data.quizzes) {
+                    let data = {};
+                    try {
+                        data = await res.json();
+                    } catch {
+                        data = {};
+                    }
+
+                    if (!res.ok) {
+                        const msg = data.message || data.error || `Error ${res.status}`;
+                        resultsArea.style.display = 'block';
+                        resultsArea.innerHTML = `<p class="text-danger">${msg}</p>`;
+                        quizBtn.disabled = false;
+                        quizBtn.innerHTML = '🧠 Generate AI Quiz';
+                        return;
+                    }
+
+                    if (data.quizzes && data.quizzes.length > 0) {
                         quizBtn.style.display = 'none';
                         resultsArea.style.display = 'block';
-                        displayQuiz(data.quizzes, 'quiz-results-area'); 
+                        const baseQuiz = mergeQuizWithMatching(data.quizzes);
+                        const sessionId = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                        const enrichedQuiz = baseQuiz.map((q, idx) => ({
+                            ...q,
+                            _lfQuestionId: `${id}_${idx}_${String(q.type || 'q').toLowerCase()}`,
+                            _lfArticleId: String(id),
+                            _lfLevel: article.level || activeLevel,
+                            _lfSource: data.mock ? 'reader_mock' : 'reader_ai',
+                            _lfSessionId: sessionId
+                        }));
+                        displayQuiz(enrichedQuiz, 'quiz-results-area');
+                        if (data.cached) {
+                            const note = document.createElement('p');
+                            note.className = 'small text-muted text-center mb-2';
+                            note.textContent = 'Quiz recuperado de caché (sin nueva llamada a la IA).';
+                            const h3 = resultsArea.querySelector('h3');
+                            if (h3) h3.insertAdjacentElement('afterend', note);
+                            else resultsArea.prepend(note);
+                        } else if (data.mock) {
+                            const note = document.createElement('p');
+                            note.className = 'small text-info text-center mb-2';
+                            note.textContent =
+                                'Modo demo: quiz fijo en el servidor (MOCK_READER_QUIZ). Desactívalo y añade créditos para usar la IA.';
+                            const h3 = resultsArea.querySelector('h3');
+                            if (h3) h3.insertAdjacentElement('afterend', note);
+                            else resultsArea.prepend(note);
+                        }
+                    } else {
+                        resultsArea.style.display = 'block';
+                        resultsArea.innerHTML = '<p class="text-warning">No se recibieron preguntas. Inténtalo de nuevo.</p>';
+                        quizBtn.disabled = false;
+                        quizBtn.innerHTML = '🧠 Generate AI Quiz';
                     }
                 } catch (e) {
+                    console.error(e);
                     quizBtn.disabled = false;
-                    quizBtn.innerHTML = '❌ Error';
+                    quizBtn.innerHTML = '❌ Error — reintentar';
                 }
             };
         }
@@ -458,8 +597,34 @@ async function loadFullArticle(id, level = null) {
     }
 }
 
-function renderLevelSelector(currentArticleId, activeLevel) {
-    const levelContainer = document.getElementById('level-selector-container');
+function renderLevelSelector(containerOrArticleId, maybeArticleId, maybeActiveLevel) {
+    let levelContainer = null;
+    let currentArticleId = null;
+    let activeLevel = null;
+
+    // Nueva firma: renderLevelSelector(containerOrId, articleId, level)
+    if (maybeActiveLevel !== undefined) {
+        currentArticleId = maybeArticleId;
+        activeLevel = maybeActiveLevel;
+
+        if (containerOrArticleId && containerOrArticleId.nodeType === 1) {
+            levelContainer = containerOrArticleId;
+        } else if (typeof containerOrArticleId === 'string') {
+            levelContainer = document.getElementById(containerOrArticleId);
+        }
+    } else {
+        // Compatibilidad: renderLevelSelector(articleId, level)
+        currentArticleId = containerOrArticleId;
+        activeLevel = maybeArticleId;
+        const safeArticleId = String(currentArticleId).replace(/[^a-zA-Z0-9_-]/g, '_');
+        levelContainer = document.getElementById(`level-selector-container-${safeArticleId}`);
+    }
+
+    // Fallback legacy para no romper flujos existentes.
+    if (!levelContainer) {
+        levelContainer = document.getElementById('level-selector-container');
+    }
+
     if (!levelContainer) return;
 
     const levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -676,8 +841,10 @@ if (saveBtn) {
             utterance.rate = 0.9; // Un poquito más lento para B1
 
             // 🎯 Buscamos la barra y el texto del porcentaje que pusimos en el panel
-            const progressBar = document.getElementById('audio-progress');
-            const progressLabel = document.getElementById('audio-percentage');
+            const progressBar = document.getElementById('article-audio-progress')
+                || document.getElementById('audio-progress');
+            const progressLabel = document.getElementById('article-audio-percentage')
+                || document.getElementById('audio-percentage');
 
             // 3. 🧠 EL TRUCO: Mientras la IA habla, mueve la barra
             utterance.onboundary = (event) => {
@@ -685,31 +852,13 @@ if (saveBtn) {
                     const charIndex = event.charIndex;
                     const totalChars = text.length;
                     const percentage = Math.floor((charIndex / totalChars) * 100);
-                    
+
                     progressBar.value = percentage;
-                    if (progressLabel) progressLabel.innerText = percentage + "%";
+                    if (progressLabel) progressLabel.textContent = percentage + '%';
                 }
             };
 
-            // 4. 🚀 EL "SEEK": Si el estudiante mueve la barra, saltamos en el texto
-            if (progressBar) {
-                progressBar.oninput = () => {
-                    window.speechSynthesis.cancel(); // Detenemos la lectura actual
-                    
-                    const percentage = progressBar.value;
-                    const startIndex = Math.floor((text.length * percentage) / 100);
-                    
-                    // Creamos una nueva locución desde el punto elegido
-                    const newStart = new SpeechSynthesisUtterance(text.substring(startIndex));
-                    newStart.lang = 'en-US';
-                    newStart.rate = 0.9;
-                    
-                    // Le pasamos el mismo truco de la barra a la nueva lectura
-                    newStart.onboundary = utterance.onboundary; 
-                    
-                    window.speechSynthesis.speak(newStart);
-                };
-            }
+            // No asignamos progressBar.oninput aquí: reemplazaría el seek del artículo (attachReadModeArticleAudio).
 
             window.speechSynthesis.speak(utterance);
         };
@@ -730,20 +879,40 @@ if (saveBtn) {
                 type: "word"  // 🎯 Sello de PALABRA (Esto arregla el error)
             })
         });
-        const data = await response.json();
-        
-        // Rellenamos con los datos finales
-        document.getElementById('flashcard-definition').textContent = data.definition || "No definition found";
-        document.getElementById('flashcard-translation').textContent = data.translation || "No translation found";
-        
+
+        let data = {};
+        try {
+            data = await response.json();
+        } catch {
+            data = {};
+        }
+
+        if (!response.ok) {
+            const msg = data.message || data.error || `Error del servidor (${response.status})`;
+            document.getElementById('flashcard-definition').textContent = 'No disponible';
+            document.getElementById('flashcard-translation').textContent = msg;
+            const exElemErr = document.getElementById('flashcard-example');
+            if (exElemErr) {
+                exElemErr.textContent = 'Revisa OPENROUTER_API_KEY en backend/.env y los logs del servidor Node.';
+            }
+            return;
+        }
+
+        document.getElementById('flashcard-definition').textContent = data.definition || 'No definition found';
+        document.getElementById('flashcard-translation').textContent = data.translation || 'No translation found';
+
         const exElem = document.getElementById('flashcard-example');
         if (exElem) {
-            // Si hay ejemplo, lo mostramos; si no, ponemos un contexto genérico
             exElem.textContent = data.example || `Context: "${text}"`;
         }
+
+        recordSessionVocabPair(text, data.definition);
     } catch (error) {
         console.error("Error al analizar texto:", error);
-        document.getElementById('flashcard-definition').textContent = "Service error. Please try again.";
+        document.getElementById('flashcard-definition').textContent = 'Service error. Please try again.';
+        document.getElementById('flashcard-translation').textContent = error.message || 'Network or parse error';
+        const exCatch = document.getElementById('flashcard-example');
+        if (exCatch) exCatch.textContent = '';
     }
 }
 
@@ -820,18 +989,225 @@ function toggleArticleAudio(htmlContent, btn) {
     window.speechSynthesis.speak(utterance);
 }
 
-// Función para renderizar el quiz de forma segura (usando textContent)
-// Añadimos el parámetro targetId para saber dónde dibujar
+function shuffleArray(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+function renderMcqCard(cardBody, q, index) {
+    const renderTs = Date.now();
+    const questionText = document.createElement('p');
+    questionText.className = 'fw-bold mb-3';
+    questionText.style.color = '#2d3748';
+    questionText.textContent = `${index + 1}. ${q.question}`;
+    cardBody.appendChild(questionText);
+
+    const optionsDiv = document.createElement('div');
+    optionsDiv.className = 'd-grid gap-2';
+
+    q.options.forEach((opt, optIndex) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-outline-primary text-start btn-sm py-2 px-3';
+        btn.style.borderRadius = '6px';
+        btn.textContent = opt;
+
+        btn.onclick = () => {
+            const allBtns = optionsDiv.querySelectorAll('button');
+            allBtns.forEach((b) => { b.disabled = true; });
+            const isCorrect = optIndex === q.correct_index;
+            const attemptIndex = nextQuestionAttempt(q);
+            const responseTimeMs = Date.now() - renderTs;
+
+            if (isCorrect) {
+                btn.className = 'btn btn-success text-start btn-sm py-2 px-3 text-white';
+                showFeedback(cardBody, '✅ Correct! Well done.', 'text-success');
+            } else {
+                btn.className = 'btn btn-danger text-start btn-sm py-2 px-3 text-white';
+                showFeedback(cardBody, `❌ Incorrect. Right answer: ${q.options[q.correct_index]}`, 'text-danger');
+            }
+            trackQuizAnswerEvent(q, {
+                selected: { optionIndex: optIndex, value: opt },
+                isCorrect,
+                attemptIndex,
+                responseTimeMs
+            });
+        };
+        optionsDiv.appendChild(btn);
+    });
+
+    cardBody.appendChild(optionsDiv);
+}
+
+function renderTfCard(cardBody, q, index) {
+    const renderTs = Date.now();
+    const p = document.createElement('p');
+    p.className = 'fw-bold mb-3';
+    p.style.color = '#2d3748';
+    p.textContent = `${index + 1}. True or false: ${q.statement}`;
+    cardBody.appendChild(p);
+
+    const row = document.createElement('div');
+    row.className = 'd-flex gap-2 flex-wrap';
+
+    [true, false].forEach((val) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-outline-primary btn-sm px-4';
+        btn.textContent = val ? 'True' : 'False';
+        btn.onclick = () => {
+            row.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+            const ok = val === q.correct;
+            const attemptIndex = nextQuestionAttempt(q);
+            const responseTimeMs = Date.now() - renderTs;
+            if (ok) {
+                btn.className = 'btn btn-success btn-sm px-4 text-white';
+                showFeedback(cardBody, '✅ Correct!', 'text-success');
+            } else {
+                btn.className = 'btn btn-danger btn-sm px-4 text-white';
+                showFeedback(cardBody, `❌ Incorrect. Answer: ${q.correct ? 'True' : 'False'}`, 'text-danger');
+            }
+            trackQuizAnswerEvent(q, {
+                selected: { value: val ? 'True' : 'False' },
+                isCorrect: ok,
+                attemptIndex,
+                responseTimeMs
+            });
+        };
+        row.appendChild(btn);
+    });
+    cardBody.appendChild(row);
+}
+
+function renderMatchingCard(cardBody, q, index) {
+    const renderTs = Date.now();
+    const pairs = q.pairs || [];
+    if (pairs.length < 2) return;
+
+    const title = document.createElement('p');
+    title.className = 'fw-bold mb-2';
+    title.style.color = '#2d3748';
+    title.textContent = `${index + 1}. Match each word with its definition (English). Click a word, then its definition.`;
+    cardBody.appendChild(title);
+
+    const words = shuffleArray(pairs.map((p) => ({ word: p.word, definition: p.definition })));
+    const defTexts = shuffleArray(pairs.map((p) => p.definition));
+
+    let selectedWordBtn = null;
+    let matched = 0;
+
+    const hint = document.createElement('p');
+    hint.className = 'small text-muted mt-2 mb-0';
+    hint.textContent = 'Uses words you looked up in this article (this session).';
+    cardBody.appendChild(hint);
+
+    const grid = document.createElement('div');
+    grid.style.display = 'grid';
+    grid.style.gridTemplateColumns = '1fr 1fr';
+    grid.style.gap = '12px';
+    grid.className = 'mt-3';
+
+    const left = document.createElement('div');
+    const right = document.createElement('div');
+    const lh = document.createElement('div');
+    lh.className = 'small text-muted mb-1';
+    lh.textContent = 'Words';
+    const rh = document.createElement('div');
+    rh.className = 'small text-muted mb-1';
+    rh.textContent = 'Definitions';
+    left.appendChild(lh);
+    right.appendChild(rh);
+
+    words.forEach(({ word, definition }) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-outline-secondary btn-sm w-100 mb-1 text-start';
+        btn.textContent = word;
+        btn.dataset.correctDef = definition;
+
+        btn.onclick = () => {
+            if (btn.disabled) return;
+            left.querySelectorAll('button').forEach((b) => {
+                if (!b.disabled) b.classList.remove('border-primary', 'border-2');
+            });
+            selectedWordBtn = btn;
+            btn.classList.add('border-primary', 'border-2');
+        };
+        left.appendChild(btn);
+    });
+
+    defTexts.forEach((defText) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-outline-secondary btn-sm w-100 mb-1 text-start';
+        btn.textContent = defText;
+        if (defText.length > 90) btn.title = defText;
+
+        btn.onclick = () => {
+            if (btn.disabled || !selectedWordBtn) return;
+            const correctDef = selectedWordBtn.dataset.correctDef;
+            const attemptIndex = nextQuestionAttempt(q);
+            const responseTimeMs = Date.now() - renderTs;
+            const chosenWord = selectedWordBtn.textContent;
+            if (correctDef === defText) {
+                selectedWordBtn.disabled = true;
+                btn.disabled = true;
+                selectedWordBtn.classList.remove('border-primary');
+                selectedWordBtn.className = 'btn btn-success btn-sm w-100 mb-1 text-start text-white';
+                btn.className = 'btn btn-success btn-sm w-100 mb-1 text-start text-white';
+                const good = document.createElement('div');
+                good.className = 'small text-success mt-1';
+                good.textContent = `✅ Correct pair: ${chosenWord}`;
+                cardBody.appendChild(good);
+                setTimeout(() => good.remove(), 1800);
+                matched++;
+                selectedWordBtn = null;
+                if (matched === pairs.length) {
+                    showFeedback(cardBody, '✅ All pairs matched!', 'text-success');
+                }
+                trackQuizAnswerEvent(q, {
+                    selected: { word: chosenWord, definition: defText },
+                    isCorrect: true,
+                    attemptIndex,
+                    responseTimeMs
+                });
+            } else {
+                const bad = document.createElement('div');
+                bad.className = 'small text-danger mt-1';
+                bad.textContent = '❌ Not a pair — try another definition.';
+                cardBody.appendChild(bad);
+                setTimeout(() => bad.remove(), 2000);
+                trackQuizAnswerEvent(q, {
+                    selected: { word: chosenWord, definition: defText },
+                    isCorrect: false,
+                    attemptIndex,
+                    responseTimeMs
+                });
+            }
+        };
+        right.appendChild(btn);
+    });
+
+    grid.appendChild(left);
+    grid.appendChild(right);
+    cardBody.appendChild(grid);
+}
+
 function displayQuiz(questions, targetId = 'quiz-container') {
-    // Buscamos el contenedor específico
     const container = document.getElementById(targetId);
     if (!container) return;
 
-    // Limpiamos y ponemos título
     container.innerHTML = '<h3 class="mt-4 mb-3 text-center">Reading Comprehension</h3>';
     container.style.display = 'block';
 
-    questions.forEach((q, index) => {
+    (questions || []).forEach((q, index) => {
+        const t = (q.type || '').toLowerCase();
+        const isMcq = t === 'mcq' || t === 'multiple' || (!t && Array.isArray(q.options));
+
         const card = document.createElement('div');
         card.className = 'card mb-3 shadow-sm border-0';
         card.style.background = '#f8fafc';
@@ -841,43 +1217,21 @@ function displayQuiz(questions, targetId = 'quiz-container') {
         const cardBody = document.createElement('div');
         cardBody.className = 'card-body';
 
-        // Pregunta segura
-        const questionText = document.createElement('p');
-        questionText.className = 'fw-bold mb-3';
-        questionText.style.color = '#2d3748';
-        questionText.textContent = `${index + 1}. ${q.question}`;
-        cardBody.appendChild(questionText);
+        if (t === 'matching' && Array.isArray(q.pairs) && q.pairs.length >= 2) {
+            renderMatchingCard(cardBody, q, index);
+        } else if (t === 'tf' || t === 'true_false') {
+            renderTfCard(cardBody, q, index);
+        } else if (isMcq && q.options && q.options.length >= 3) {
+            renderMcqCard(cardBody, q, index);
+        } else {
+            const skip = document.createElement('p');
+            skip.className = 'text-muted small';
+            skip.textContent = `(${index + 1}) Skipped unsupported question format.`;
+            cardBody.appendChild(skip);
+        }
 
-        // Opciones seguras
-        const optionsDiv = document.createElement('div');
-        optionsDiv.className = 'd-grid gap-2';
-
-        q.options.forEach((opt, optIndex) => {
-            const btn = document.createElement('button');
-            btn.className = 'btn btn-outline-primary text-start btn-sm py-2 px-3';
-            btn.style.borderRadius = '6px';
-            btn.textContent = opt;
-            
-            btn.onclick = () => {
-                // Deshabilitar botones
-                const allBtns = optionsDiv.querySelectorAll('button');
-                allBtns.forEach(b => b.disabled = true);
-
-                if (optIndex === q.correct_index) {
-                    btn.className = 'btn btn-success text-start btn-sm py-2 px-3 text-white';
-                    showFeedback(cardBody, '✅ Correct! Well done.', 'text-success');
-                } else {
-                    btn.className = 'btn btn-danger text-start btn-sm py-2 px-3 text-white';
-                    showFeedback(cardBody, `❌ Incorrect. Right answer: ${q.options[q.correct_index]}`, 'text-danger');
-                }
-            };
-            optionsDiv.appendChild(btn);
-        });
-
-        cardBody.appendChild(optionsDiv);
         card.appendChild(cardBody);
-        container.appendChild(cardBody); // Corregido: añadir card al container, no cardBody
-        container.appendChild(card); // Añadimos la tarjeta completa
+        container.appendChild(card);
     });
 }
 
@@ -938,17 +1292,107 @@ function applyHighlights(container) {
     });
 }
 // FUNCIONES GLOBALES PARA EL HTML
-// Esta función debe existir en tu reader.js para manejar los clics dentro del artículo
+
+/** Texto plano para TTS (título + cuerpo), alineado con lo que ve el usuario */
+function getArticleSpeechPlainText() {
+    const titleEl = document.getElementById('interactive-title');
+    const textEl = document.getElementById('interactive-text');
+    const titleText = titleEl ? titleEl.innerText.trim() : '';
+    const bodyText = textEl ? textEl.innerText.trim() : '';
+    return `${titleText}. ${bodyText}`.trim();
+}
+
+/**
+ * Enlaza Listen/Play, Pause, Resume, Stop y la barra al Speech Synthesis del artículo (modo Read y panel de Listen).
+ */
+function attachReadModeArticleAudio() {
+    const panel = document.getElementById('audio-controls-panel');
+    if (!panel) return;
+
+    const progressBar = document.getElementById('article-audio-progress')
+        || panel.querySelector('input[type="range"]');
+    const progressLabel = document.getElementById('article-audio-percentage')
+        || document.getElementById('audio-percentage');
+    const playBtn = document.getElementById('btn-play-article');
+    const pauseBtn = document.getElementById('btn-pause');
+    const resumeBtn = document.getElementById('btn-resume');
+    const stopBtn = document.getElementById('btn-stop');
+
+    if (!progressBar) return;
+
+    const updateLabel = (pct) => {
+        const n = Math.round(Math.min(100, Math.max(0, pct)));
+        if (progressLabel) progressLabel.textContent = `${n}%`;
+    };
+
+    const speakFromPercent = (pctRaw) => {
+        const fullText = getArticleSpeechPlainText();
+        if (fullText.length < 5) return;
+
+        window.speechSynthesis.cancel();
+        const pct = Math.max(0, Math.min(100, Number(pctRaw) || 0));
+        const startIndex = Math.floor((fullText.length * pct) / 100);
+        const segment = fullText.substring(startIndex);
+
+        progressBar.value = String(pct);
+        updateLabel(pct);
+
+        const utterance = new SpeechSynthesisUtterance(segment);
+        utterance.lang = 'en-US';
+        utterance.rate = 0.9;
+        window.currentUtterance = utterance;
+
+        utterance.onboundary = (event) => {
+            if (event.name !== 'word') return;
+            const charInSegment = event.charIndex;
+            const absolute = Math.min(fullText.length, startIndex + charInSegment);
+            const currentPct = fullText.length ? (absolute / fullText.length) * 100 : 0;
+            progressBar.value = String(Math.min(100, currentPct));
+            updateLabel(Number(progressBar.value));
+        };
+
+        utterance.onend = () => {
+            const endPos = startIndex + segment.length;
+            if (endPos >= fullText.length - 2) {
+                progressBar.value = '100';
+                updateLabel(100);
+            }
+        };
+
+        window.speechSynthesis.speak(utterance);
+    };
+
+    window._speakArticleFromPercent = speakFromPercent;
+
+    if (playBtn) playBtn.onclick = () => speakFromPercent(parseFloat(progressBar.value) || 0);
+    if (pauseBtn) pauseBtn.onclick = () => window.speechSynthesis.pause();
+    if (resumeBtn) resumeBtn.onclick = () => window.speechSynthesis.resume();
+    if (stopBtn) {
+        stopBtn.onclick = () => {
+            window.speechSynthesis.cancel();
+            progressBar.value = '0';
+            updateLabel(0);
+        };
+    }
+
+    progressBar.oninput = () => {
+        const p = parseFloat(progressBar.value) || 0;
+        updateLabel(p);
+        speakFromPercent(p);
+    };
+}
+
 window.changeArticleLevel = async function(id, newLevel) {
+    window.speechSynthesis.cancel();
     console.log(`🎯 Nivel ${newLevel} solicitado para el artículo ${id}`);
 
     // 1. UI: Poner el botón azul inmediatamente (Feedback visual instantáneo)
-    renderLevelSelector(id, newLevel); 
+    renderLevelSelector(id, newLevel);
 
     // 2. UI: Hacer desaparecer el artículo actual y mostrar el Loading
     const container = document.getElementById('articles-container');
     const loadingDiv = document.getElementById('loading');
-    
+
     if (container) container.innerHTML = ""; // Borramos el texto viejo para no confundir
     if (loadingDiv) loadingDiv.style.display = 'block'; // Mostramos el cargando
 
@@ -958,99 +1402,41 @@ window.changeArticleLevel = async function(id, newLevel) {
     window.location.hash = params.toString();
 
     // 4. Ahora sí, llamar al servidor para traer el nuevo texto
-    // (Como ya limpiamos arriba, loadFullArticle se encargará de pintar lo nuevo cuando llegue)
     await loadFullArticle(id, newLevel);
 };
 
 window.speakArticle = () => {
-    window.speechSynthesis.cancel();
-    
-    // Buscamos los dos elementos por su ID
-    const titleEl = document.getElementById('interactive-title');
-    const textEl = document.getElementById('interactive-text');
-    
-    const titleText = titleEl ? titleEl.innerText : "";
-    const bodyText = textEl ? textEl.innerText : "";
-    
-    // Concatenamos ambos. IMPORTANTE: Aunque el div esté oculto (display: none), 
-    // .innerText o .textContent siguen funcionando.
-    const fullText = `${titleText}. ${bodyText}`.trim();
-    
-    console.log("Texto detectado para leer:", fullText.substring(0, 50) + "...");
-
-    if (fullText.length < 10) {
-        console.warn("⚠️ No se encontró texto suficiente para leer.");
+    if (typeof window._speakArticleFromPercent === 'function') {
+        window._speakArticleFromPercent(0);
         return;
     }
-
+    window.speechSynthesis.cancel();
+    const fullText = getArticleSpeechPlainText();
+    if (fullText.length < 10) return;
     const utterance = new SpeechSynthesisUtterance(fullText);
     utterance.lang = 'en-US';
     utterance.rate = 0.9;
+    window.currentUtterance = utterance;
     window.speechSynthesis.speak(utterance);
 };
-// 2. Función para mostrar/ocultar el texto
+
 window.toggleTranscript = () => {
     const wrapper = document.getElementById('article-body-wrapper');
-    const btn = document.getElementById('toggle-text-btn'); // Usamos el ID para ir sobre seguro
-    
+    const btn = document.getElementById('toggle-text-btn');
+
     if (!wrapper || !btn) return;
 
-    // Miramos la realidad: ¿Está escondido?
-    const isHidden = wrapper.style.display === 'none';
+    const isHidden = wrapper.style.display === 'none' || window.getComputedStyle(wrapper).display === 'none';
 
     if (isHidden) {
-        // Si está escondido, lo mostramos con fuerza
         wrapper.style.setProperty('display', 'block', 'important');
         btn.innerText = 'Hide Text';
     } else {
-        // Si se ve, lo escondemos con fuerza
         wrapper.style.setProperty('display', 'none', 'important');
         btn.innerText = 'Show Text';
     }
 };
 
-function renderAudioControls() {
-    const selector = document.getElementById('level-selector-container');
-    if (!selector) return;
-
-    let panel = document.getElementById('audio-controls-panel');
-    if (!panel) {
-        panel = document.createElement('div');
-        panel.id = 'audio-controls-panel';
-        panel.style = "background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 12px; border: 1px solid #e9ecef; box-shadow: 0 2px 4px rgba(0,0,0,0.05);";
-        selector.parentNode.insertBefore(panel, selector.nextSibling);
-    }
-
-    // --- EL FIX PARA EL BOTÓN BACK ---
-    // Buscamos el tema en la URL actual (ej: #id=123&topic=science)
-    const currentHash = window.location.hash.substring(1);
-    const params = new URLSearchParams(currentHash);
-    const topic = params.get('topic') || ''; 
-
-    panel.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 5px;">
-        <a href="#" onclick="window.location.hash='topic=${topic}'; return false;" 
-           style="text-decoration:none; color:#007bff; font-weight:bold; font-size: 0.9rem;">
-           ← Back to Articles
-        </a>
-        <span style="font-weight: bold; color: #4a5568; font-size: 0.9rem;">Audio Mode 🎧</span>
-    </div>
-    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-        <div style="display: flex; gap: 8px;">
-            <button onclick="window.speechSynthesis.pause()" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">⏸ Pause</button>
-            <button onclick="window.speechSynthesis.resume()" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">▶ Resume</button>
-            <button onclick="window.speechSynthesis.cancel()" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">Stop</button>
-        </div>
-        <button onclick="window.toggleTranscript()" 
-                id="toggle-text-btn" 
-                style="cursor:pointer; padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 5px; font-weight: bold;">
-            Show Text
-        </button>
-    </div>
-    `;
-}
-
-// También es buena idea detenerlo cuando se hace logout o se cambia de sección
 function handleLogout(logoutFn) {
     const link = document.getElementById('logout-link');
     if (link) {
@@ -1065,95 +1451,50 @@ window.addEventListener('beforeunload', () => {
     window.speechSynthesis.cancel();
 });
 
-// --- SISTEMA DE AUDIO Y CONTROLES (NUEVO) ---
-
 /**
- * Función que hace hablar al navegador.
- */
-window.speakArticle = () => {
-    window.speechSynthesis.cancel(); 
-
-    const title = document.getElementById('interactive-title')?.innerText || "";
-    const body = document.getElementById('interactive-text')?.innerText || "";
-    
-    // Al no incluir el 'back-nav-container', el TTS no dirá jamás "Back to articles"
-    const fullText = `${title}. ${body}`.trim();
-
-    if (fullText.length < 10) return;
-
-    const utterance = new SpeechSynthesisUtterance(fullText);
-    utterance.lang = 'en-US';
-    utterance.rate = 0.9;
-    window.currentUtterance = utterance; 
-    window.speechSynthesis.speak(utterance);
-};
-
-/**
- * Dibuja el panel gris con Pause/Stop justo debajo de los niveles.
+ * Modo Listen: inserta el panel de audio bajo el selector de nivel (id dinámico o legacy).
  */
 window.renderAudioControls = () => {
-    const selectorContainer = document.getElementById('level-selector-container');
+    const params = new URLSearchParams(window.location.hash.substring(1));
+    const articleId = params.get('id');
+    const safeId = articleId ? String(articleId).replace(/[^a-zA-Z0-9_-]/g, '_') : '';
+    const selectorContainer =
+        (safeId && document.getElementById(`level-selector-container-${safeId}`)) ||
+        document.getElementById('level-selector-container');
     if (!selectorContainer) return;
 
-    // Si ya existe el panel, lo borramos para recrearlo limpio
     const existingPanel = document.getElementById('audio-controls-panel');
     if (existingPanel) existingPanel.remove();
 
     const audioPanel = document.createElement('div');
     audioPanel.id = 'audio-controls-panel';
-    audioPanel.style = "background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 15px; border: 1px solid #e9ecef;";
+    audioPanel.style = 'background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 15px; border: 1px solid #e9ecef;';
 
     audioPanel.innerHTML = `
         <div style="flex: 1;">
             <span style="font-weight: bold; color: #4a5568; display: block; margin-bottom: 5px;">Audio Mode 🎧</span>
             <div style="display: flex; flex-direction: column; gap: 10px;">
-                <div style="display: flex; gap: 10px;">
-                    <button onclick="window.speechSynthesis.pause()" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">⏸ Pause</button>
-                    <button onclick="window.speechSynthesis.resume()" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">▶ Resume</button>
-                    <button onclick="window.speechSynthesis.cancel()" style="cursor:pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">Stop</button>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                    <button type="button" id="btn-play-article" class="audio-toolbar-btn audio-toolbar-btn--primary">Listen / Play</button>
+                    <button type="button" id="btn-pause" class="audio-toolbar-btn">Pause</button>
+                    <button type="button" id="btn-resume" class="audio-toolbar-btn">Resume</button>
+                    <button type="button" id="btn-stop" class="audio-toolbar-btn">Stop</button>
                 </div>
-                
                 <div style="display: flex; align-items: center; gap: 10px;">
-                    <input type="range" id="audio-progress-active" value="0" min="0" max="100" style="flex: 1; cursor: pointer;">
-                    <span id="audio-percentage" style="font-size: 12px; color: #718096; min-width: 35px;">0%</span>
+                    <input type="range" id="article-audio-progress" value="0" min="0" max="100" style="flex: 1; cursor: pointer;">
+                    <span id="article-audio-percentage" style="font-size: 12px; color: #718096; min-width: 35px;">0%</span>
                 </div>
             </div>
         </div>
-        <button onclick="window.toggleTranscript()" id="toggle-text-btn" style="cursor:pointer; padding: 10px; background: white; border: 1px solid #007bff; color: #007bff; border-radius: 5px; font-weight: bold;">
+        <button type="button" onclick="window.toggleTranscript()" id="toggle-text-btn" style="cursor:pointer; padding: 10px; background: white; border: 1px solid #007bff; color: #007bff; border-radius: 5px; font-weight: bold;">
             Show Text
         </button>
     `;
 
     selectorContainer.parentNode.insertBefore(audioPanel, selectorContainer.nextSibling);
+    attachReadModeArticleAudio();
 };
 
-/**
- * Función para el botón "Show/Hide Text"
- */
-window.toggleTranscript = () => {
-    const wrapper = document.getElementById('article-body-wrapper');
-    const btn = document.getElementById('toggle-text-btn');
-    
-    if (!wrapper || !btn) return;
-
-    // Comprobamos la realidad del elemento
-    const isHidden = wrapper.style.display === 'none' || window.getComputedStyle(wrapper).display === 'none';
-
-    if (isHidden) {
-        wrapper.style.setProperty('display', 'block', 'important');
-        btn.innerText = 'Hide Text';
-    } else {
-        wrapper.style.setProperty('display', 'none', 'important');
-        btn.innerText = 'Show Text';
-    }
-};
-
-/**
- * CRÍTICO: Detener audio al salir de la página
- */
-window.addEventListener('beforeunload', () => {
-    window.speechSynthesis.cancel();
-});
 // También al cambiar el hash (navegación interna)
 window.addEventListener('hashchange', () => {
     window.speechSynthesis.cancel();
@@ -1207,54 +1548,6 @@ window.goToArticle = function(id, mode) {
     // Redirigimos con el ID y el NIVEL elegido
     window.location.href = `reader.html#id=${id}&level=${selectedLevel}&topic=${topic}`;
 };
-
-let attempts = 0;
-
-function setupAudioLogic(text) {
-    const progressBar = document.getElementById('audio-progress-active');
-    
-    if (!progressBar) {
-        attempts++;
-        if (attempts > 50) { // Si después de 5 segundos no sale, paramos.
-            console.log("⚠️ Desisto: La barra no apareció. ¿Cargó el artículo?");
-            attempts = 0;
-            return;
-        }
-        setTimeout(() => setupAudioLogic(text), 100);
-        return;
-    }
-
-    attempts = 0; //
-    console.log("🚀 ¡Barra encontrada!");
-
-    // 3. Si la encuentra, procedemos con éxito
-    console.log("🚀 ¡La función setupAudioLogic ha despertado y encontró la barra!");
-    const progressLabel = document.getElementById('audio-percentage');
-
-    progressBar.oninput = () => {
-        const percentage = progressBar.value;
-        console.log("🎯 Saltando al: " + percentage + "%");
-        
-        if (progressLabel) progressLabel.innerText = percentage + "%";
-
-        window.speechSynthesis.cancel();
-        const startIndex = Math.floor((text.length * percentage) / 100);
-        const utterance = new SpeechSynthesisUtterance(text.substring(startIndex));
-        utterance.lang = 'en-US';
-        utterance.rate = 0.9;
-
-        utterance.onboundary = (event) => {
-            if (event.name === 'word') {
-                const charIndex = event.charIndex + startIndex;
-                const currentPct = Math.floor((charIndex / text.length) * 100);
-                progressBar.value = currentPct;
-                if (progressLabel) progressLabel.innerText = currentPct + "%";
-            }
-        };
-
-        window.speechSynthesis.speak(utterance);
-    };
-}
 
 window.saveFlashcardToStorage = saveFlashcardToStorage;
 window.showFlashcardPopup = showFlashcardPopup; // Añade esta línea

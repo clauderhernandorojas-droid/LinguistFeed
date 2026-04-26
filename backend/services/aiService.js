@@ -123,6 +123,124 @@ class AiService {
             return [];
         }
     }
+
+    isMockReaderQuiz() {
+        const v = String(process.env.MOCK_READER_QUIZ || '').toLowerCase();
+        return v === 'true' || v === '1' || v === 'yes';
+    }
+
+    mockRichQuizForReader(level = 'B1') {
+        const tag = `[Demo · ${level}]`;
+        return [
+            {
+                type: 'mcq',
+                question: `${tag} What is this mock quiz for?`,
+                options: ['Production traffic only', 'Previewing the reader UI without API credits', 'Encrypting passwords'],
+                correct_index: 1,
+                hint: 'Toggle MOCK_READER_QUIZ off and add credits to use real AI.'
+            },
+            {
+                type: 'mcq',
+                question: `${tag} To switch back to the real generator you should…`,
+                options: [
+                    'Set MOCK_READER_QUIZ=false (or remove it), ensure OPENROUTER_API_KEY, add credits',
+                    'Only clear browser cache',
+                    'Change the article ID only'
+                ],
+                correct_index: 0,
+                hint: 'Environment + OpenRouter billing.'
+            },
+            {
+                type: 'tf',
+                statement: `${tag} True/false cards use a statement and a boolean correct answer.`,
+                correct: true
+            },
+            {
+                type: 'tf',
+                statement: `${tag} This demo statement is intentionally false.`,
+                correct: false
+            }
+        ];
+    }
+
+    async generateRichQuizForReader(text, level = 'B1') {
+        if (this.isMockReaderQuiz()) {
+            return this.mockRichQuizForReader(level);
+        }
+        if (!this.apiKey) {
+            throw new Error('OPENROUTER_API_KEY no está configurada en backend/.env');
+        }
+        const excerpt = String(text || '').trim().slice(0, 14000);
+        if (!excerpt) throw new Error('Texto del artículo vacío');
+
+        const systemRole = `You are an expert English teacher.
+Based ONLY on the article text below, create reading comprehension exercises for CEFR level ${level}.
+
+Return ONLY a valid JSON object with this exact structure:
+{
+  "quizzes": [
+    {
+      "type": "mcq",
+      "question": "string",
+      "options": ["string", "string", "string"],
+      "correct_index": 0,
+      "hint": "string"
+    },
+    {
+      "type": "tf",
+      "statement": "A clear statement about the text that is either true or false",
+      "correct": true
+    }
+  ]
+}
+
+Rules:
+- Include exactly 2 items with "type": "mcq" and exactly 2 with "type": "tf".
+- Each mcq must have exactly 3 options; correct_index is 0, 1, or 2.
+- Each tf must use "statement" and boolean "correct".
+- No markdown and no commentary.`;
+
+        const response = await this.ask(excerpt, systemRole);
+        const stripped = String(response || '').replace(/```json/gi, '').replace(/```/g, '').trim();
+        const slice = extractFirstJsonObject(stripped) || stripped;
+        let parsed;
+        try {
+            parsed = JSON.parse(slice);
+        } catch (e) {
+            throw new Error('La IA no devolvió JSON válido para el quiz.');
+        }
+
+        const raw = Array.isArray(parsed.quizzes) ? parsed.quizzes : [];
+        const normalized = [];
+        for (const item of raw) {
+            if (!item || typeof item !== 'object') continue;
+            const t = String(item.type || '').toLowerCase();
+            if (t === 'tf' || t === 'true_false') {
+                const statement = String(item.statement || item.question || '').trim();
+                let c = item.correct;
+                if (c === 'true') c = true;
+                if (c === 'false') c = false;
+                if (!statement || (c !== true && c !== false)) continue;
+                normalized.push({ type: 'tf', statement, correct: c });
+            } else {
+                const opts = item.options;
+                const ci = parseInt(item.correct_index, 10);
+                if (!Array.isArray(opts) || opts.length < 3 || Number.isNaN(ci) || ci < 0 || ci > 2) continue;
+                normalized.push({
+                    type: 'mcq',
+                    question: String(item.question || '').trim(),
+                    options: [String(opts[0]), String(opts[1]), String(opts[2])],
+                    correct_index: ci,
+                    hint: item.hint != null ? String(item.hint) : ''
+                });
+            }
+        }
+
+        if (normalized.length === 0) {
+            throw new Error('No se pudo normalizar ninguna pregunta del quiz.');
+        }
+        return normalized;
+    }
     async generateQuiz(articleId, text, level) {
         try {
             // 1. Generamos las preguntas usando la IA

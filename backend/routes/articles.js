@@ -140,6 +140,70 @@ router.post('/analyze-text', async (req, res) => {
         res.status(500).json({ error: "Error en IA" });
     }
 });
+
+router.post('/generate-quiz-only', async (req, res) => {
+    const { text, level, articleId, force } = req.body || {};
+    const lev = (level || 'B1').trim();
+    const mockReaderQuiz = aiService.isMockReaderQuiz && aiService.isMockReaderQuiz();
+    const articleKey =
+        articleId !== undefined && articleId !== null && String(articleId).trim() !== ''
+            ? String(articleId).replace(/['"]+/g, '').trim()
+            : '';
+
+    try {
+        if (!mockReaderQuiz && !force && articleKey) {
+            const row = await db.get(
+                'SELECT payload FROM reader_quiz_cache WHERE article_key = ? AND level = ?',
+                [articleKey, lev]
+            );
+            if (row && row.payload) {
+                try {
+                    const quizzes = JSON.parse(row.payload);
+                    if (Array.isArray(quizzes) && quizzes.length > 0) {
+                        return res.json({ quizzes, cached: true });
+                    }
+                } catch (e) {
+                    console.warn('reader_quiz_cache JSON inválido, regenerando:', articleKey, lev);
+                }
+            }
+        }
+
+        if (!text || !String(text).trim()) {
+            return res.status(400).json({ error: 'Se requiere el texto del artículo' });
+        }
+
+        const quizzes = await aiService.generateRichQuizForReader(text, lev);
+
+        if (!mockReaderQuiz && articleKey && Array.isArray(quizzes) && quizzes.length > 0) {
+            await db.run(
+                `INSERT OR REPLACE INTO reader_quiz_cache (article_key, level, payload, created_at)
+                 VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
+                [articleKey, lev, JSON.stringify(quizzes)]
+            );
+        }
+
+        res.json({ quizzes, cached: false, mock: !!mockReaderQuiz });
+    } catch (error) {
+        const msg = error.message || '';
+        const axStatus = error.response && error.response.status;
+        const billing =
+            axStatus === 402 ||
+            /status code 402/i.test(msg) ||
+            /402/.test(String(error.code || ''));
+        console.error('POST /articles/generate-quiz-only:', msg);
+        if (billing) {
+            return res.status(402).json({
+                error: 'OpenRouter requiere créditos o pago',
+                message:
+                    'Sin saldo en OpenRouter. Añade créditos o deja MOCK_READER_QUIZ=true en backend/.env para el quiz de demostración.'
+            });
+        }
+        res.status(500).json({
+            error: 'Error al generar el quiz',
+            message: msg || 'Error desconocido'
+        });
+    }
+});
 // Ruta para recibir los artículos del Teacher's Portal
 
 // Esta es la ruta que tu Teacher's Portal está llamando

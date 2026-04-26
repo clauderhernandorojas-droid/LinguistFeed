@@ -36,6 +36,18 @@ function displayUserProgress(progressData) {
     if (streakElement) {
         streakElement.textContent = progressData.streak;
     }
+
+    const accuracyElement = document.getElementById('accuracy');
+    if (accuracyElement) {
+        const n = progressData.accuracy;
+        accuracyElement.textContent = n != null ? `${Number(n).toFixed(1)}%` : '0.0%';
+    }
+
+    const overallScoreElement = document.getElementById('overall-score');
+    if (overallScoreElement) {
+        const n = progressData.overallScore;
+        overallScoreElement.textContent = n != null ? String(Number(n).toFixed(1)) : '0.0';
+    }
 }
 
 /**
@@ -60,18 +72,30 @@ async function initDashboard() {
     try {
         if (!sessionUser?.id) return;
 
-        const res = await fetch(`${API_BASE_URL}/users/${sessionUser.id}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const user = await res.json();
+        const token = localStorage.getItem('token');
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+        const [userRes, statsRes] = await Promise.all([
+            fetch(`${API_BASE_URL}/users/${sessionUser.id}`),
+            fetch(`${API_BASE_URL}/progress/stats-v2`, { headers })
+        ]);
+        if (!userRes.ok) throw new Error(`HTTP ${userRes.status}`);
+
+        const user = await userRes.json();
+        let statsV2 = null;
+        if (statsRes.ok) statsV2 = await statsRes.json();
+
+        const progressData = {
+            articlesRead: statsV2?.dashboard?.articlesRead ?? user.articlesRead ?? 0,
+            quizzesTaken: statsV2?.dashboard?.quizzesTaken ?? user.quizzesTaken ?? 0,
+            vocabularyLearned: statsV2?.dashboard?.vocabularyLearned ?? user.vocabularyLearned ?? 0,
+            streak: user.streak ?? 0,
+            accuracy: statsV2?.scores?.accuracy ?? 0,
+            overallScore: statsV2?.scores?.overallScore ?? 0
+        };
 
         displayUserInfo(user);
-        console.log('User data for progress:', user);
-        displayUserProgress(user);
-
-        const vocabEl = document.getElementById('vocabulary-learned');
-        if (vocabEl) {
-            vocabEl.textContent = user.vocabularyLearned != null ? String(user.vocabularyLearned) : '0';
-        }
+        displayUserProgress(progressData);
 
         await loadPersonalizedFeed();
     } catch (error) {
