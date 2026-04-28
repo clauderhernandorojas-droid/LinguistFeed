@@ -4,7 +4,7 @@
  * This module provides functions for displaying user progress and dashboard information.
  */
 
-import { getUser, requireAuth } from './auth.js';
+import { getUser, requireAuth, logout } from './auth.js';
 import { API_BASE_URL } from './config.js';
 
 /**
@@ -157,6 +157,102 @@ function bindJoinClass(sessionUser, headers) {
     });
 }
 
+function inferExportFilename(response) {
+    const header = response.headers.get('Content-Disposition') || '';
+    const match = header.match(/filename="([^"]+)"/i);
+    if (match && match[1]) return match[1];
+    return `linguistfeed-export-${new Date().toISOString().slice(0, 10)}.json`;
+}
+
+function bindPrivacyAccountControls(headers) {
+    const exportBtn = document.getElementById('export-account-data-btn');
+    const deleteBtn = document.getElementById('delete-account-btn');
+    const status = document.getElementById('privacy-account-status');
+    const deleteModal = document.getElementById('delete-account-modal');
+    const deleteInput = document.getElementById('delete-account-confirm-input');
+    const deleteConfirmBtn = document.getElementById('delete-account-confirm-btn');
+    const deleteCancelBtn = document.getElementById('delete-account-cancel-btn');
+    const deleteModalStatus = document.getElementById('delete-account-modal-status');
+    if (!exportBtn || !deleteBtn || !status) return;
+
+    exportBtn.addEventListener('click', async () => {
+        status.textContent = '';
+        try {
+            const res = await fetch(`${API_BASE_URL}/users/me/export`, { headers });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || `HTTP ${res.status}`);
+            }
+            const blob = await res.blob();
+            const fileName = inferExportFilename(res);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            status.style.color = 'green';
+            status.textContent = 'Exportación completada.';
+        } catch (error) {
+            status.style.color = '#b91c1c';
+            status.textContent = `No se pudo exportar: ${error.message || 'error'}`;
+        }
+    });
+
+    const closeDeleteModal = () => {
+        if (deleteModal) deleteModal.style.display = 'none';
+        if (deleteInput) deleteInput.value = '';
+        if (deleteModalStatus) deleteModalStatus.textContent = '';
+    };
+
+    deleteBtn.addEventListener('click', () => {
+        status.textContent = '';
+        if (deleteModal) deleteModal.style.display = 'flex';
+        if (deleteInput) deleteInput.focus();
+    });
+
+    if (deleteCancelBtn) {
+        deleteCancelBtn.addEventListener('click', () => closeDeleteModal());
+    }
+
+    if (deleteConfirmBtn) {
+        deleteConfirmBtn.addEventListener('click', async () => {
+            const confirmText = String(deleteInput?.value || '').trim().toUpperCase();
+            if (confirmText !== 'DELETE') {
+                if (deleteModalStatus) {
+                    deleteModalStatus.style.color = '#b91c1c';
+                    deleteModalStatus.textContent = 'Confirmación inválida. Debe ser DELETE.';
+                }
+                return;
+            }
+            try {
+                const res = await fetch(`${API_BASE_URL}/users/me`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...headers
+                    },
+                    body: JSON.stringify({ confirmText })
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error || `HTTP ${res.status}`);
+                }
+                alert('Tu cuenta fue borrada correctamente.');
+                closeDeleteModal();
+                logout();
+            } catch (error) {
+                if (deleteModalStatus) {
+                    deleteModalStatus.style.color = '#b91c1c';
+                    deleteModalStatus.textContent = `No se pudo borrar la cuenta: ${error.message || 'error'}`;
+                }
+            }
+        });
+    }
+}
+
 /**
  * Initializes the dashboard page
  * Fetches user progress and displays dashboard information
@@ -165,12 +261,12 @@ async function initDashboard() {
     requireAuth();
     const sessionUser = await getUser();
     displayUserInfo(sessionUser);
+    const token = localStorage.getItem('token');
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    bindPrivacyAccountControls(headers);
 
     try {
         if (!sessionUser?.id) return;
-
-        const token = localStorage.getItem('token');
-        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
 
         const [userRes, statsRes] = await Promise.all([
             fetch(`${API_BASE_URL}/users/${sessionUser.id}`),

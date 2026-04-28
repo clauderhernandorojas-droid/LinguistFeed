@@ -4,8 +4,13 @@ body.teacher-page {
     padding: 20px;
 }
 
+body.teacher-page.layout-sidebar {
+    padding: 16px 16px 16px 252px;
+    font-family: Inter, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
 .teacher-page main.container {
-    max-width: 800px;
+    max-width: 1120px;
     width: 100%;
 }
 

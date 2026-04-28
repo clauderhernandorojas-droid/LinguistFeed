@@ -144,10 +144,19 @@ async function initializeDatabase() {
       level TEXT DEFAULT 'B1',
       age INTEGER,
       interests TEXT,  -- ⬅️ Agrégala aquí directamente
+      onboarding_completed INTEGER DEFAULT 0,
       role TEXT DEFAULT 'student',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
     console.log("✅ Tabla 'users' verificada/creada");
+    const userCols = await all(`PRAGMA table_info(users)`);
+    const hasOnboardingCompleted = Array.isArray(userCols)
+      ? userCols.some((c) => String(c.name || '').toLowerCase() === 'onboarding_completed')
+      : false;
+    if (!hasOnboardingCompleted) {
+      await run('ALTER TABLE users ADD COLUMN onboarding_completed INTEGER DEFAULT 0');
+      console.log("✅ Columna 'users.onboarding_completed' agregada");
+    }
 
     await run(`CREATE TABLE IF NOT EXISTS user_preferences (
       user_id INTEGER PRIMARY KEY,

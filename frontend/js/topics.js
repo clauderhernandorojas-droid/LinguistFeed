@@ -48,10 +48,9 @@ export function renderTopics() {
     const createCard = (topic) => {
         const card = document.createElement('div');
         card.className = 'topic-card';
-        card.style.backgroundColor = topic.color;
         card.innerHTML = `
             <div style="font-size: 3rem; margin-bottom: 10px;">${topic.icon}</div>
-            <strong style="font-size: 1.2rem; color: #2d3748;">${topic.name}</strong>
+            <strong style="font-size: 1.2rem; color: #eef2ff;">${topic.name}</strong>
         `;
         card.onclick = () => window.location.href = `reader.html#topic=${topic.id}`;
         return card;

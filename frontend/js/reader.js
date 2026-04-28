@@ -146,6 +146,45 @@ function mergeQuizWithMatching(aiQuizzes) {
     return out;
 }
 
+function formatArticleIntoParagraphs(rawContent) {
+    const content = String(rawContent || '').trim();
+    if (!content) return '';
+
+    // Si ya viene con HTML estructurado, no lo re-formateamos.
+    if (/<(p|div|article|section|h[1-6]|ul|ol|li|br)\b/i.test(content)) {
+        return content;
+    }
+
+    const blocks = content
+        .split(/\r?\n\s*\r?\n/)
+        .map((block) => block.trim())
+        .filter(Boolean);
+
+    if (blocks.length > 1) {
+        return blocks
+            .map((block) => `<p>${block.replace(/\r?\n/g, '<br>')}</p>`)
+            .join('');
+    }
+
+    // Fallback robusto: cuando llega como una sola línea larga, partimos por oraciones.
+    const normalized = content.replace(/\s+/g, ' ').trim();
+    const sentences = normalized
+        .split(/(?<=[.!?])\s+(?=[A-Z0-9"“])/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+    if (sentences.length <= 1) {
+        return `<p>${normalized}</p>`;
+    }
+
+    const paragraphSize = 2;
+    const paragraphChunks = [];
+    for (let i = 0; i < sentences.length; i += paragraphSize) {
+        paragraphChunks.push(sentences.slice(i, i + paragraphSize).join(' '));
+    }
+    return paragraphChunks.map((chunk) => `<p>${chunk}</p>`).join('');
+}
+
 function getQuestionAttemptKey(question) {
     const qid = String(question?._lfQuestionId || question?.id || question?.question || question?.statement || 'q').trim();
     const articleId = String(question?._lfArticleId || 'article').trim();
@@ -338,7 +377,7 @@ async function loadDailyArticlesList(filterTopic = null) {
                     return `
                     <div class="card" style="border: 1px solid #ddd; padding: 15px; border-radius: 10px;">
                         <div>
-                            <span class="badge" style="background:#eee; padding:2px 5px; font-size:0.7rem;">Subtopic: ${article.topic}</span>
+                            <span class="badge" style="background: transparent; border: 1px solid #7a91ff; color: #eef2ff; padding: 2px 7px; font-size: 0.7rem; border-radius: 999px;">Subtopic: ${article.topic}</span>
                             <h3 style="cursor:pointer;" class="article-title">${article.title}</h3>
                             <p style="font-size: 0.85rem;">${article.content.substring(0, 80)}...</p>
                         </div>
@@ -440,9 +479,9 @@ async function loadFullArticle(id, level = null) {
                     <h1 id="interactive-title" style="margin-top:10px;">${article.title}</h1>
                 </div>
 
-                <div id="audio-controls-panel" style="background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 15px; border: 1px solid #e9ecef;">
+                <div id="audio-controls-panel" style="background: rgba(16, 23, 58, 0.35); padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 15px; border: 1px solid #2a356a;">
                     <div style="flex: 1;">
-                        <span style="font-weight: bold; color: #4a5568; display: block; margin-bottom: 5px;">Audio Mode 🎧</span>
+                        <span style="font-weight: bold; color: #eef2ff; display: block; margin-bottom: 5px;">Audio Mode 🎧</span>
                         <div style="display: flex; flex-direction: column; gap: 10px;">
                             <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
                                 <button type="button" id="btn-play-article" class="audio-toolbar-btn audio-toolbar-btn--primary">Listen / Play</button>
@@ -452,16 +491,16 @@ async function loadFullArticle(id, level = null) {
                             </div>
                             <div style="display: flex; align-items: center; gap: 10px;">
                                 <input type="range" id="article-audio-progress" value="0" min="0" max="100" style="flex: 1; cursor: pointer;">
-                                <span id="article-audio-percentage" style="font-size: 12px; color: #718096; min-width: 35px;">0%</span>
+                                <span id="article-audio-percentage" style="font-size: 12px; color: #c6d1ff; min-width: 35px;">0%</span>
                             </div>
                         </div>
                     </div>
-                    <button type="button" onclick="window.toggleTranscript()" id="toggle-text-btn" style="cursor:pointer; padding: 10px; background: white; border: 1px solid #007bff; color: #007bff; border-radius: 5px; font-weight: bold;">
+                    <button type="button" onclick="window.toggleTranscript()" id="toggle-text-btn" style="cursor:pointer; padding: 10px; background: transparent; border: 1px solid #7a91ff; color: #eef2ff; border-radius: 8px; font-weight: 700;">
                         Show Text
                     </button>
                 </div>
 
-                <div id="${selectorContainerId}" style="margin-bottom: 25px; padding: 10px; background: #f8fafc; border-radius: 10px;">
+                <div id="${selectorContainerId}" style="margin-bottom: 25px; padding: 10px; background: rgba(16, 23, 58, 0.35); border: 1px solid #2a356a; border-radius: 10px;">
                     </div>
 
                 <div id="article-body-wrapper">
@@ -469,7 +508,7 @@ async function loadFullArticle(id, level = null) {
                         <span class="badge bg-primary" style="padding: 5px 10px;">Current Level: ${activeLevel}</span>
                     </div>
                     <div id="interactive-text" class="article-body-text" style="line-height: 1.8; font-size: 1.1rem;">
-                        ${article.content}
+                        ${formatArticleIntoParagraphs(article.content)}
                     </div>
                 </div>
             </div>
@@ -1468,7 +1507,7 @@ window.renderAudioControls = () => {
 
     const audioPanel = document.createElement('div');
     audioPanel.id = 'audio-controls-panel';
-    audioPanel.style = 'background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 15px; border: 1px solid #e9ecef;';
+    audioPanel.style = 'background: rgba(16, 23, 58, 0.35); padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 15px; border: 1px solid #2a356a;';
 
     audioPanel.innerHTML = `
         <div style="flex: 1;">
@@ -1486,7 +1525,7 @@ window.renderAudioControls = () => {
                 </div>
             </div>
         </div>
-        <button type="button" onclick="window.toggleTranscript()" id="toggle-text-btn" style="cursor:pointer; padding: 10px; background: white; border: 1px solid #007bff; color: #007bff; border-radius: 5px; font-weight: bold;">
+        <button type="button" onclick="window.toggleTranscript()" id="toggle-text-btn" style="cursor:pointer; padding: 10px; background: transparent; border: 1px solid #7a91ff; color: #eef2ff; border-radius: 8px; font-weight: 700;">
             Show Text
         </button>
     `;

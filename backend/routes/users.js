@@ -3,6 +3,118 @@ const router = express.Router();
 const db = require('../database/db');
 const { authenticate } = require('../middleware/auth');
 
+// GET /api/users/me/export
+router.get('/me/export', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId ?? req.user.id;
+    const user = await db.get(
+      `SELECT id, username, email, level, age, interests, role, onboarding_completed, created_at
+       FROM users
+       WHERE id = ?`,
+      [userId]
+    );
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    const [preferences, flashcards, answerEvents, attempts, memberships, ownedClasses] = await Promise.all([
+      db.get(
+        `SELECT weekly_reading_goal_minutes, created_at, updated_at
+         FROM user_preferences
+         WHERE user_id = ?`,
+        [userId]
+      ),
+      db.all(
+        `SELECT id, word, context, level, created_at
+         FROM user_flashcards
+         WHERE user_id = ?
+         ORDER BY created_at DESC`,
+        [userId]
+      ),
+      db.all(
+        `SELECT id, session_id, article_id, question_id, question_type, quiz_source,
+                selected_value, is_correct, response_time_ms, attempt_index,
+                counted_for_stats, level, answered_at, created_at
+         FROM answer_events
+         WHERE user_id = ?
+         ORDER BY answered_at DESC
+         LIMIT 5000`,
+        [userId]
+      ),
+      db.all(
+        `SELECT id, quiz_id, selected_option, is_correct, submitted_at
+         FROM attempts
+         WHERE user_id = ?
+         ORDER BY submitted_at DESC
+         LIMIT 5000`,
+        [userId]
+      ),
+      db.all(
+        `SELECT c.id, c.name, c.invite_code, c.teacher_id, cm.joined_at
+         FROM class_members cm
+         JOIN classes c ON c.id = cm.class_id
+         WHERE cm.student_id = ?
+         ORDER BY cm.joined_at DESC`,
+        [userId]
+      ),
+      db.all(
+        `SELECT c.id, c.name, c.invite_code, c.is_active, c.created_at,
+                COUNT(cm.id) AS students_count
+         FROM classes c
+         LEFT JOIN class_members cm ON cm.class_id = c.id
+         WHERE c.teacher_id = ?
+         GROUP BY c.id
+         ORDER BY c.created_at DESC`,
+        [userId]
+      )
+    ]);
+
+    const payload = {
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      user,
+      preferences: preferences || null,
+      data: {
+        flashcards,
+        answerEvents,
+        attempts,
+        memberships,
+        ownedClasses
+      }
+    };
+
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="linguistfeed-user-${userId}-export.json"`
+    );
+    return res.status(200).send(JSON.stringify(payload, null, 2));
+  } catch (err) {
+    console.error('❌ Error exporting user data:', err.message);
+    return res.status(500).json({ error: 'No se pudo exportar la cuenta' });
+  }
+});
+
+// DELETE /api/users/me
+router.delete('/me', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId ?? req.user.id;
+    const confirmText = String(req.body?.confirmText || '').trim().toUpperCase();
+    if (confirmText !== 'DELETE') {
+      return res.status(400).json({ error: 'Confirmación inválida. Debe ser DELETE' });
+    }
+    const exists = await db.get('SELECT id FROM users WHERE id = ?', [userId]);
+    if (!exists) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    await db.run('DELETE FROM users WHERE id = ?', [userId]);
+    return res.json({
+      ok: true,
+      deletedAt: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('❌ Error deleting user account:', err.message);
+    return res.status(500).json({ error: 'No se pudo borrar la cuenta' });
+  }
+});
+
 // GET /api/users
 router.get('/', async (req, res) => {
   try {

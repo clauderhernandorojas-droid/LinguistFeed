@@ -19,6 +19,21 @@ function readStoredUser() {
   }
 }
 
+function hasCompletedOnboarding(user) {
+  if (!user) return false;
+  if (typeof user.onboardingCompleted === 'boolean') return user.onboardingCompleted;
+  if (user.onboarding_completed != null) return Number(user.onboarding_completed) === 1;
+  const level = String(user.level || '').trim();
+  const ageNum = Number(user.age);
+  const interests = String(user.interests || '').trim();
+  return (
+    !!level &&
+    Number.isFinite(ageNum) &&
+    ageNum >= 15 &&
+    interests.length > 0
+  );
+}
+
 export async function getUser() {
   return readStoredUser();
 }
@@ -75,8 +90,21 @@ export async function register(email, password, name) {
 }
 
 export function logout() {
-  localStorage.removeItem(USER_STORAGE_KEY);
-  localStorage.removeItem('token');
+  const keysToRemove = [
+    USER_STORAGE_KEY,
+    'token',
+    'userLevel',
+    'user-level',
+    'userAge',
+    'user-interests',
+    'weeklyReadingGoalMinutes',
+    'selectedTopic',
+    'selectedArticleId'
+  ];
+  keysToRemove.forEach((k) => localStorage.removeItem(k));
+  Object.keys(localStorage).forEach((k) => {
+    if (k.startsWith('temp-level-')) localStorage.removeItem(k);
+  });
   window.location.href = '/login.html';
 }
 
@@ -141,6 +169,16 @@ async function handleOnboarding(event) {
       localStorage.setItem('userAge', age);
       localStorage.setItem('user-interests', selectedInterests.join(','));
       localStorage.setItem('weeklyReadingGoalMinutes', String(weeklyReadingGoalMinutes));
+      const stored = readStoredUser();
+      if (stored) {
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify({
+          ...stored,
+          age: Number(age),
+          level,
+          interests: selectedInterests.join(','),
+          onboardingCompleted: true
+        }));
+      }
       document.getElementById('onboarding-modal').style.display = 'none';
       alert('¡Perfil actualizado!');
     } else {
@@ -163,9 +201,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (form) form.addEventListener('submit', handleOnboarding);
 
-  if (!localStorage.getItem('userLevel')) {
-    if (modal) modal.style.display = 'flex';
-  }
+  const maybeShowOnboarding = async () => {
+    if (!modal) return;
+    const token = localStorage.getItem('token');
+    const stored = readStoredUser();
+    if (!token || !stored?.id) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${stored.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        modal.style.display = 'flex';
+        return;
+      }
+      const fullUser = await response.json();
+      if (!hasCompletedOnboarding(fullUser)) {
+        modal.style.display = 'flex';
+      } else {
+        if (fullUser.level) localStorage.setItem('userLevel', String(fullUser.level));
+        if (fullUser.age != null) localStorage.setItem('userAge', String(fullUser.age));
+        if (fullUser.interests != null) localStorage.setItem('user-interests', String(fullUser.interests));
+        const storedUser = readStoredUser();
+        if (storedUser) {
+          localStorage.setItem(USER_STORAGE_KEY, JSON.stringify({
+            ...storedUser,
+            age: fullUser.age,
+            level: fullUser.level,
+            interests: fullUser.interests,
+            onboardingCompleted: true
+          }));
+        }
+      }
+    } catch (_) {
+      // no bloquear flujo por error de red
+    }
+  };
+  maybeShowOnboarding();
   const themes = {
     young: [
       { id: 'gaming', name: 'Video Juegos & Deportes', icon: '🎮' },
