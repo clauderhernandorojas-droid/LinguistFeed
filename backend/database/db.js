@@ -33,6 +33,34 @@ async function initializeDatabase() {
       source TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
+    const articleCols = await all(`PRAGMA table_info(articles)`);
+    const hasExternalId = Array.isArray(articleCols)
+      ? articleCols.some((c) => String(c.name || '').toLowerCase() === 'external_id')
+      : false;
+    const hasAssignedToUserId = Array.isArray(articleCols)
+      ? articleCols.some((c) => String(c.name || '').toLowerCase() === 'assigned_to_user_id')
+      : false;
+    const hasIsManual = Array.isArray(articleCols)
+      ? articleCols.some((c) => String(c.name || '').toLowerCase() === 'is_manual')
+      : false;
+    if (!hasExternalId) {
+      await run('ALTER TABLE articles ADD COLUMN external_id TEXT');
+      console.log("✅ Columna 'articles.external_id' agregada");
+    }
+    if (!hasAssignedToUserId) {
+      await run('ALTER TABLE articles ADD COLUMN assigned_to_user_id INTEGER');
+      console.log("✅ Columna 'articles.assigned_to_user_id' agregada");
+    }
+    if (!hasIsManual) {
+      await run('ALTER TABLE articles ADD COLUMN is_manual INTEGER DEFAULT 0');
+      console.log("✅ Columna 'articles.is_manual' agregada");
+    }
+    await run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_articles_external_id_unique
+      ON articles (external_id)`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_articles_topic_created
+      ON articles (topic, created_at DESC)`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_articles_assigned_user
+      ON articles (assigned_to_user_id, created_at DESC)`);
 
     // 2. Simplified Articles table (AI-generated content)
     await run(`CREATE TABLE IF NOT EXISTS simplified_articles (
@@ -42,6 +70,14 @@ async function initializeDatabase() {
       level TEXT,
       FOREIGN KEY (article_id) REFERENCES articles (id) ON DELETE CASCADE
     )`);
+    await run(`DELETE FROM simplified_articles
+      WHERE id NOT IN (
+        SELECT MAX(id)
+        FROM simplified_articles
+        GROUP BY article_id, level
+      )`);
+    await run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_simplified_articles_article_level
+      ON simplified_articles (article_id, level)`);
 
     // Añade esto en db.js junto a las otras tablas:
     await run(`CREATE TABLE IF NOT EXISTS flashcards (
