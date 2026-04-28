@@ -311,7 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const body = {
         title: title || undefined,
-        topic: topic || undefined,
+        topic: 'classroom',
         content: content || undefined,
         studentId: selectedStudent ? selectedStudent.id : undefined
       };

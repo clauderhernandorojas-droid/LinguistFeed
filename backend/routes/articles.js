@@ -13,18 +13,21 @@ const READ_JSON_FALLBACK = String(process.env.READ_JSON_FALLBACK || 'false').toL
 const DUAL_WRITE_JSON = String(process.env.DUAL_WRITE_JSON || 'true').toLowerCase() === 'true';
 let hasMigratedLegacyJson = false;
 
-function getRequestUserId(req) {
+function getRequestUserContext(req) {
   try {
     const header = req.headers.authorization || '';
     const [scheme, token] = header.split(' ');
     if (scheme === 'Bearer' && token) {
       const decoded = authService.verifyToken(token);
-      return Number(decoded.id || decoded.userId || 0) || null;
+      return {
+        userId: Number(decoded.id || decoded.userId || 0) || null,
+        role: String(decoded.role || '').toLowerCase()
+      };
     }
   } catch (_) {
     // Silent fallback for public calls.
   }
-  return null;
+  return { userId: null, role: '' };
 }
 
 function normalizeLegacyArticle(raw) {
@@ -96,11 +99,14 @@ async function ensureLegacyJsonMigrated() {
   }
 }
 
-function filterClassroomVisibility(rows, requestUserId) {
+function filterClassroomVisibility(rows, requestUserId, role = '') {
   if (!Array.isArray(rows)) return [];
+  const normalizedRole = String(role || '').toLowerCase();
+  const canSeeAllClassroom = normalizedRole === 'teacher' || normalizedRole === 'admin';
   return rows.filter((a) => {
     const topic = String(a.topic || '').toLowerCase();
     if (topic !== 'classroom') return true;
+    if (canSeeAllClassroom) return true;
     if (a.assigned_to_user_id == null) return true;
     if (requestUserId == null) return false;
     return Number(a.assigned_to_user_id) === Number(requestUserId);
@@ -183,7 +189,7 @@ router.get('/', async (req, res) => {
     const { topic } = req.query;
     if (!topic) return res.json({ articles: [] });
     const normalizedTopic = String(topic).toLowerCase().trim();
-    const requestUserId = getRequestUserId(req);
+    const requestUser = getRequestUserContext(req);
 
     const rows = await db.all(
       `SELECT id, title, content, url, topic, source, created_at, external_id, assigned_to_user_id, is_manual
@@ -193,10 +199,10 @@ router.get('/', async (req, res) => {
        LIMIT 120`,
       [normalizedTopic]
     );
-    let articles = filterClassroomVisibility(rows, requestUserId);
+    let articles = filterClassroomVisibility(rows, requestUser.userId, requestUser.role);
 
     if (articles.length === 0) {
-      const legacy = await readLegacyJsonByTopic(normalizedTopic, requestUserId);
+      const legacy = await readLegacyJsonByTopic(normalizedTopic, requestUser.userId);
       if (legacy.length > 0) articles = legacy;
     }
 
@@ -210,20 +216,20 @@ router.get('/', async (req, res) => {
 router.get('/daily-articles', async (req, res) => {
   try {
     await ensureLegacyJsonMigrated();
-    const requestUserId = getRequestUserId(req);
+    const requestUser = getRequestUserContext(req);
     const rows = await db.all(
       `SELECT id, title, content, url, topic, source, created_at, external_id, assigned_to_user_id, is_manual
        FROM articles
        ORDER BY datetime(created_at) DESC
        LIMIT 200`
     );
-    let articles = filterClassroomVisibility(rows, requestUserId);
+    let articles = filterClassroomVisibility(rows, requestUser.userId, requestUser.role);
 
     if (articles.length === 0 && READ_JSON_FALLBACK && fs.existsSync(LEGACY_JSON_PATH)) {
       const raw = fs.readFileSync(LEGACY_JSON_PATH, 'utf8');
       const list = JSON.parse(raw || '[]');
       if (Array.isArray(list)) {
-        articles = filterClassroomVisibility(list, requestUserId);
+        articles = filterClassroomVisibility(list, requestUser.userId, requestUser.role);
       }
     }
 
@@ -318,7 +324,8 @@ router.post('/manual-upload', authenticate, async (req, res) => {
     await ensureLegacyJsonMigrated();
     const hasTargetStudent =
       studentId !== undefined && studentId !== null && String(studentId).trim() !== '';
-    const normalizedTopic = hasTargetStudent ? 'classroom' : String(topic || 'classroom').toLowerCase();
+    // Publicación general siempre cae en classroom para evitar pérdidas por topic libre.
+    const normalizedTopic = 'classroom';
 
     const article = {
       externalId: `manual-${Date.now()}`,
