@@ -1,5 +1,29 @@
 [
   {
+    "id": "manual-1777414360045",
+    "title": "último ninguno",
+    "topic": "classroom",
+    "content": "ninguno",
+    "date": "2026-04-28T22:12:40.045Z",
+    "assigned_to_user_id": null
+  },
+  {
+    "id": "manual-1777408750203",
+    "title": "Ninguno mismo",
+    "topic": "ninguno mismo",
+    "content": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "date": "2026-04-28T20:39:10.203Z",
+    "assigned_to_user_id": null
+  },
+  {
+    "id": "manual-1777408579121",
+    "title": "Ninguno",
+    "topic": "este mismo",
+    "content": "nonsense xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "date": "2026-04-28T20:36:19.121Z",
+    "assigned_to_user_id": null
+  },
+  {
     "id": "manual-1777340205338",
     "title": "Otro artículo solo para Alice",
     "topic": "classroom",
