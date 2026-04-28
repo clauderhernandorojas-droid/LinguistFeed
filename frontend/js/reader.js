@@ -1437,7 +1437,7 @@ window.toggleTranscript = () => {
     }
 };
 
-function handleLogout(logoutFn) {
+export function handleLogout(logoutFn) {
     const link = document.getElementById('logout-link');
     if (link) {
         link.onclick = (e) => {
@@ -1556,7 +1556,7 @@ window.initReader = initReader;
 window.loadFullArticle = loadFullArticle;
 window.handleLogout = handleLogout;
 
-export { initReader, loadFullArticle, saveFlashcardToStorage, showFlashcardPopup, closeFlashcardPopup, handleLogout };
+export { initReader, loadFullArticle, saveFlashcardToStorage, showFlashcardPopup, closeFlashcardPopup };
 
 // ESCUCHAR CAMBIOS DE NAVEGACIÓN
 window.addEventListener('hashchange', initReader);

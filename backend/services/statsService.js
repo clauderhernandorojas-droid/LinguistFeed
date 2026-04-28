@@ -67,12 +67,36 @@ async function buildStatsV2(userId, options = {}) {
     [userId]
   );
 
+  const pref = await db.get(
+    'SELECT weekly_reading_goal_minutes FROM user_preferences WHERE user_id = ?',
+    [userId]
+  );
+  const readingGoalMinutesRaw = parseInt(String(pref?.weekly_reading_goal_minutes ?? 60), 10);
+  const readingGoalMinutes = Number.isInteger(readingGoalMinutesRaw)
+    ? Math.min(Math.max(readingGoalMinutesRaw, 15), 600)
+    : 60;
+
+  const weeklyReadingRow = await db.get(
+    `SELECT COALESCE(SUM(response_time_ms), 0) AS total_ms
+     FROM answer_events
+     WHERE user_id = ?
+       AND counted_for_stats = 1
+       AND response_time_ms IS NOT NULL
+       AND datetime(answered_at) >= datetime('now', '-7 days')`,
+    [userId]
+  );
+
   const totalAnswers = Number(base?.total_answers || 0);
   const correctAnswers = Number(base?.correct_answers || 0);
   const articlesCompleted = Number(base?.articles_completed || 0);
   const activeDaysWindow = Number(base?.active_days_window || 0);
   const vocabularyLearned = Number(vocab?.count || 0);
   const streak = maxConsecutiveDaysFromDates(streakRows);
+  const weeklyReadingMinutes = round1((Number(weeklyReadingRow?.total_ms || 0) / 60000));
+  const weeklyProgressPctRaw =
+    readingGoalMinutes > 0 ? (weeklyReadingMinutes / readingGoalMinutes) * 100 : 0;
+  const weeklyProgressPct = round1(Math.min(Math.max(weeklyProgressPctRaw, 0), 100));
+  const weeklyRemainingMinutes = Math.max(round1(readingGoalMinutes - weeklyReadingMinutes), 0);
 
   const accuracy = totalAnswers > 0 ? (correctAnswers / totalAnswers) * 100 : 0;
   const consistencyScore = Math.min(activeDaysWindow / 20, 1) * 100;
@@ -100,6 +124,14 @@ async function buildStatsV2(userId, options = {}) {
       quizzesTaken: totalAnswers,
       vocabularyLearned,
       streak
+    },
+    weeklyGoals: {
+      readingMinutes: {
+        goal: readingGoalMinutes,
+        current: weeklyReadingMinutes,
+        progressPct: weeklyProgressPct,
+        remaining: weeklyRemainingMinutes
+      }
     },
     updatedAt: new Date().toISOString()
   };

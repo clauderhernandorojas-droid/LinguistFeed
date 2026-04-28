@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
+const { authenticate } = require('../middleware/auth');
 
 // GET /api/users
 router.get('/', async (req, res) => {
@@ -112,6 +113,39 @@ router.put('/:id/role', async (req, res) => {
     res.json({ success: true, id, role });
   } catch (err) {
     res.status(500).json({ error: 'Error al actualizar rol' });
+  }
+});
+
+// PUT /api/users/me/preferences
+router.put('/me/preferences', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId ?? req.user.id;
+    const raw = req.body?.weeklyReadingGoalMinutes;
+    const goal = parseInt(String(raw), 10);
+    if (!Number.isInteger(goal) || goal < 15 || goal > 600) {
+      return res.status(400).json({
+        error: 'weeklyReadingGoalMinutes debe ser un entero entre 15 y 600'
+      });
+    }
+
+    await db.run(
+      `INSERT INTO user_preferences (user_id, weekly_reading_goal_minutes, updated_at)
+       VALUES (?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(user_id) DO UPDATE SET
+         weekly_reading_goal_minutes = excluded.weekly_reading_goal_minutes,
+         updated_at = CURRENT_TIMESTAMP`,
+      [userId, goal]
+    );
+
+    res.json({
+      ok: true,
+      preferences: {
+        weeklyReadingGoalMinutes: goal
+      }
+    });
+  } catch (err) {
+    console.error('❌ Error updating user preferences:', err.message);
+    res.status(500).json({ error: 'Error al actualizar preferencias' });
   }
 });
 

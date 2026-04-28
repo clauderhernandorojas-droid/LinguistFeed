@@ -92,19 +92,31 @@ async function handleOnboarding(event) {
 
   const age = document.getElementById('user-age').value;
   const level = document.getElementById('user-level').value;
+  const weeklyGoalSelect = document.getElementById('weekly-goal-select');
+  const weeklyGoalCustom = document.getElementById('weekly-goal-custom');
 
   const selectedInterests = Array.from(document.querySelectorAll('input[name="interest"]:checked'))
     .map(cb => cb.value);
 
+  const selectedGoal = weeklyGoalSelect ? weeklyGoalSelect.value : '60';
+  const goalRaw = selectedGoal === 'custom'
+    ? (weeklyGoalCustom ? weeklyGoalCustom.value : '')
+    : selectedGoal;
+  const weeklyReadingGoalMinutes = parseInt(String(goalRaw), 10);
+
   if (selectedInterests.length < 2) {
     alert("Por favor, elige al menos 2 temas de tu interés.");
+    return;
+  }
+  if (!Number.isInteger(weeklyReadingGoalMinutes) || weeklyReadingGoalMinutes < 15 || weeklyReadingGoalMinutes > 600) {
+    alert("La meta semanal debe ser un número entre 15 y 600 minutos.");
     return;
   }
 
   const token = localStorage.getItem('token');
 
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/update-profile`, {
+    const profileResponse = await fetch(`${API_BASE_URL}/auth/update-profile`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -113,14 +125,26 @@ async function handleOnboarding(event) {
       body: JSON.stringify({ age, level, interests: selectedInterests.join(',') })
     });
 
-    if (response.ok) {
+    if (profileResponse.ok) {
+      await fetch(`${API_BASE_URL}/users/me/preferences`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ weeklyReadingGoalMinutes })
+      }).catch((err) => {
+        console.warn('No se pudo guardar la meta semanal:', err?.message || err);
+      });
+
       localStorage.setItem('userLevel', level);
       localStorage.setItem('userAge', age);
       localStorage.setItem('user-interests', selectedInterests.join(','));
+      localStorage.setItem('weeklyReadingGoalMinutes', String(weeklyReadingGoalMinutes));
       document.getElementById('onboarding-modal').style.display = 'none';
       alert('¡Perfil actualizado!');
     } else {
-      const errorData = await response.json();
+      const errorData = await profileResponse.json();
       console.error("❌ Error del servidor:", errorData);
     }
   } catch (error) {
@@ -132,6 +156,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const modal = document.getElementById('onboarding-modal');
   const form = document.getElementById('onboarding-form');
   const ageInput = document.getElementById('user-age');
+  const weeklyGoalSelect = document.getElementById('weekly-goal-select');
+  const weeklyGoalCustom = document.getElementById('weekly-goal-custom');
   const interestsSection = document.getElementById('interests-section');
   const interestsGrid = document.getElementById('interests-grid');
 
@@ -192,4 +218,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const age = parseInt(e.target.value, 10);
     updateInterests(age);
   });
+
+  if (weeklyGoalSelect && weeklyGoalCustom) {
+    const toggleCustomGoalInput = () => {
+      const isCustom = weeklyGoalSelect.value === 'custom';
+      weeklyGoalCustom.style.display = isCustom ? 'block' : 'none';
+      if (!isCustom) {
+        weeklyGoalCustom.value = '';
+      }
+    };
+    weeklyGoalSelect.addEventListener('change', toggleCustomGoalInput);
+    toggleCustomGoalInput();
+  }
 });

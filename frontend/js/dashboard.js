@@ -48,6 +48,31 @@ function displayUserProgress(progressData) {
         const n = progressData.overallScore;
         overallScoreElement.textContent = n != null ? String(Number(n).toFixed(1)) : '0.0';
     }
+
+    const weeklyCard = document.getElementById('weekly-goal-card');
+    const weeklyLabel = document.getElementById('weekly-goal-label');
+    const weeklyFill = document.getElementById('weekly-goal-fill');
+    const weeklyNote = document.getElementById('weekly-goal-note');
+    const weeklyGoal = progressData.weeklyGoal || {
+        goal: 60,
+        current: 0,
+        progressPct: 0,
+        remaining: 60
+    };
+    if (weeklyCard && weeklyLabel && weeklyFill && weeklyNote) {
+        const goal = Number(weeklyGoal.goal || 60);
+        const current = Number(weeklyGoal.current || 0);
+        const progressPct = Math.max(0, Math.min(Number(weeklyGoal.progressPct || 0), 100));
+        const remainingBase = weeklyGoal.remaining ?? (goal - current) ?? 0;
+        const remaining = Math.max(Number(remainingBase), 0);
+
+        weeklyCard.style.display = 'block';
+        weeklyLabel.textContent = `${current.toFixed(1)} / ${goal} min`;
+        weeklyFill.style.width = `${progressPct}%`;
+        weeklyNote.textContent = remaining > 0
+            ? `Te faltan ${remaining.toFixed(1)} min para cumplir tu meta semanal.`
+            : 'Meta semanal cumplida. ¡Excelente trabajo!';
+    }
 }
 
 /**
@@ -58,6 +83,78 @@ function displayUserInfo(user) {
     if (userNameElement && user) {
         userNameElement.textContent = user.username || user.name || '';
     }
+}
+
+function renderStudentClasses(classes) {
+    const list = document.getElementById('student-classes-list');
+    if (!list) return;
+    if (!Array.isArray(classes) || classes.length === 0) {
+        list.innerHTML = '<p style="margin:0;">Aún no estás en ninguna clase.</p>';
+        return;
+    }
+
+    const items = classes.map((c) => {
+        const teacher = c.teacherName ? ` · Profesor: ${c.teacherName}` : '';
+        return `<li><strong>${c.name || 'Clase'}</strong> (${c.inviteCode || '-'})${teacher}</li>`;
+    }).join('');
+    list.innerHTML = `<ul style="margin:0; padding-left:18px;">${items}</ul>`;
+}
+
+async function loadStudentClasses(headers) {
+    try {
+        const res = await fetch(`${API_BASE_URL}/classes/my`, { headers });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        renderStudentClasses(Array.isArray(data?.classes) ? data.classes : []);
+    } catch (error) {
+        const list = document.getElementById('student-classes-list');
+        if (list) list.textContent = 'No se pudieron cargar tus clases.';
+    }
+}
+
+function bindJoinClass(sessionUser, headers) {
+    const card = document.getElementById('student-classes-card');
+    const codeInput = document.getElementById('join-class-code');
+    const joinBtn = document.getElementById('join-class-btn');
+    const status = document.getElementById('join-class-status');
+
+    if (!card || !codeInput || !joinBtn || !status) return;
+
+    const role = String(sessionUser?.role || '').toLowerCase();
+    if (role && role !== 'student') {
+        card.style.display = 'none';
+        return;
+    }
+
+    joinBtn.addEventListener('click', async () => {
+        const code = String(codeInput.value || '').trim().toUpperCase();
+        status.textContent = '';
+        if (!code) {
+            status.style.color = '#c00';
+            status.textContent = 'Escribe un código de clase.';
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API_BASE_URL}/classes/join`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...headers
+                },
+                body: JSON.stringify({ code })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+            status.style.color = 'green';
+            status.textContent = `Te uniste a la clase: ${data?.class?.name || 'OK'}.`;
+            codeInput.value = '';
+            await loadStudentClasses(headers);
+        } catch (error) {
+            status.style.color = '#c00';
+            status.textContent = `No se pudo unir a la clase: ${error.message || 'error'}`;
+        }
+    });
 }
 
 /**
@@ -82,6 +179,10 @@ async function initDashboard() {
         if (!userRes.ok) throw new Error(`HTTP ${userRes.status}`);
 
         const user = await userRes.json();
+        const roleUser = {
+            ...sessionUser,
+            role: user?.role || sessionUser?.role || 'student'
+        };
         let statsV2 = null;
         if (statsRes.ok) statsV2 = await statsRes.json();
 
@@ -91,11 +192,19 @@ async function initDashboard() {
             vocabularyLearned: statsV2?.dashboard?.vocabularyLearned ?? user.vocabularyLearned ?? 0,
             streak: user.streak ?? 0,
             accuracy: statsV2?.scores?.accuracy ?? 0,
-            overallScore: statsV2?.scores?.overallScore ?? 0
+            overallScore: statsV2?.scores?.overallScore ?? 0,
+            weeklyGoal: statsV2?.weeklyGoals?.readingMinutes ?? {
+                goal: 60,
+                current: 0,
+                progressPct: 0,
+                remaining: 60
+            }
         };
 
         displayUserInfo(user);
         displayUserProgress(progressData);
+        bindJoinClass(roleUser, headers);
+        await loadStudentClasses(headers);
 
         await loadPersonalizedFeed();
     } catch (error) {
@@ -116,11 +225,26 @@ export function bindEditProfileButton() {
             const age = localStorage.getItem('userAge') || '';
             const level = localStorage.getItem('userLevel') || '';
             const interests = (localStorage.getItem('user-interests') || '').split(',');
+            const weeklyGoal = localStorage.getItem('weeklyReadingGoalMinutes') || '60';
 
             const ageInput = document.getElementById('user-age');
             const levelSelect = document.getElementById('user-level');
+            const weeklyGoalSelect = document.getElementById('weekly-goal-select');
+            const weeklyGoalCustom = document.getElementById('weekly-goal-custom');
             if (ageInput) ageInput.value = age;
             if (levelSelect) levelSelect.value = level;
+            if (weeklyGoalSelect && weeklyGoalCustom) {
+                const allowed = ['30', '45', '60', '90', '120', '180'];
+                if (allowed.includes(weeklyGoal)) {
+                    weeklyGoalSelect.value = weeklyGoal;
+                    weeklyGoalCustom.style.display = 'none';
+                    weeklyGoalCustom.value = '';
+                } else {
+                    weeklyGoalSelect.value = 'custom';
+                    weeklyGoalCustom.style.display = 'block';
+                    weeklyGoalCustom.value = weeklyGoal;
+                }
+            }
 
             document.querySelectorAll('input[name="interest"]').forEach(cb => {
                 cb.checked = interests.includes(cb.value);

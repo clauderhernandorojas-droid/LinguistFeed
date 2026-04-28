@@ -77,6 +77,45 @@
             margin-top: 15px;
             font-size: 14px;
         }
+
+        .weekly-goal-card {
+            margin-top: 18px;
+            padding: 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            background: #f8fafc;
+        }
+
+        .weekly-goal-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            color: #334155;
+            margin-bottom: 8px;
+        }
+
+        .weekly-goal-bar {
+            width: 100%;
+            height: 10px;
+            border-radius: 999px;
+            background: #dbeafe;
+            overflow: hidden;
+        }
+
+        .weekly-goal-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #3b82f6, #2563eb);
+            transition: width 0.25s ease;
+        }
+
+        .weekly-goal-note {
+            margin-top: 8px;
+            font-size: 13px;
+            color: #475569;
+        }
     </style>
 </head>
 <body>
@@ -94,6 +133,23 @@
                 <a href="my-flashcards.html" class="btn" style="margin-left: 10px;">My Flashcards</a>
                 <button id="edit-profile-btn" class="btn" style="margin-left: 10px;">Edit Profile</button>
             </div>
+        </div>
+
+        <div class="card mt-3" id="student-classes-card">
+            <h2>Mis Clases</h2>
+            <p>Únete con el código que te comparte tu profesor.</p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                <input
+                    type="text"
+                    id="join-class-code"
+                    placeholder="Código de clase (ej: AB12CD34)"
+                    style="flex:1; min-width:220px; text-transform:uppercase;"
+                    maxlength="20"
+                >
+                <button id="join-class-btn" class="btn" type="button">Unirme</button>
+            </div>
+            <p id="join-class-status" style="margin-top:10px;"></p>
+            <div id="student-classes-list" style="margin-top:10px; color:#334155;"></div>
         </div>
         
         <div class="card mt-3">
@@ -124,6 +180,17 @@
                     <p id="overall-score">0.0</p>
                 </div>
             </div>
+
+            <div id="weekly-goal-card" class="weekly-goal-card" style="display:none;">
+                <div class="weekly-goal-head">
+                    <strong>Weekly Reading Goal</strong>
+                    <span id="weekly-goal-label">0 / 60 min</span>
+                </div>
+                <div class="weekly-goal-bar" aria-hidden="true">
+                    <div id="weekly-goal-fill" class="weekly-goal-fill"></div>
+                </div>
+                <p id="weekly-goal-note" class="weekly-goal-note">Let's build your streak this week.</p>
+            </div>
         </div>
 
         <div class="card mt-3">
@@ -146,14 +213,19 @@
     <script type="module">
         import { requireAuth, logout } from './js/auth.js';
         import { bindEditProfileButton } from './js/dashboard.js';
-        import { handleLogout } from './js/reader.js';
         import { mountNavbarForCurrentUser } from './js/navbar.js';
         
         document.addEventListener('DOMContentLoaded', function() {
             requireAuth();
             mountNavbarForCurrentUser('');
             bindEditProfileButton();
-            handleLogout(logout);
+            const logoutLink = document.getElementById('logout-link');
+            if (logoutLink) {
+                logoutLink.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    logout();
+                });
+            }
         });
     </script>
 
@@ -176,6 +248,28 @@
                 <option value="B2">B2 - Intermedio Alto</option>
                 <option value="C1">C1 - Avanzado</option>
               </select>
+            </div>
+
+            <div class="form-group">
+              <label for="weekly-goal-select">¿Cuál es tu meta semanal de lectura?</label>
+              <select id="weekly-goal-select" required>
+                <option value="30">30 minutos</option>
+                <option value="45">45 minutos</option>
+                <option value="60" selected>60 minutos</option>
+                <option value="90">90 minutos</option>
+                <option value="120">120 minutos</option>
+                <option value="180">180 minutos</option>
+                <option value="custom">Personalizada</option>
+              </select>
+              <input
+                type="number"
+                id="weekly-goal-custom"
+                min="15"
+                max="600"
+                step="5"
+                placeholder="Escribe minutos por semana (15-600)"
+                style="display:none; margin-top: 10px;"
+              >
             </div>
       
             <div id="interests-section" class="form-group" style="display: none;">

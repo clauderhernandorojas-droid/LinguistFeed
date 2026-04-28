@@ -148,6 +148,44 @@ async function initializeDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
     console.log("✅ Tabla 'users' verificada/creada");
+
+    await run(`CREATE TABLE IF NOT EXISTS user_preferences (
+      user_id INTEGER PRIMARY KEY,
+      weekly_reading_goal_minutes INTEGER NOT NULL DEFAULT 60,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`);
+    console.log("✅ Tabla 'user_preferences' verificada/creada");
+
+    await run(`CREATE TABLE IF NOT EXISTS classes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      teacher_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      invite_code TEXT NOT NULL UNIQUE,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(teacher_id) REFERENCES users(id) ON DELETE CASCADE
+    )`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_classes_teacher
+      ON classes (teacher_id, created_at)`);
+    console.log("✅ Tabla 'classes' verificada/creada");
+
+    await run(`CREATE TABLE IF NOT EXISTS class_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      class_id INTEGER NOT NULL,
+      student_id INTEGER NOT NULL,
+      joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(class_id, student_id),
+      FOREIGN KEY(class_id) REFERENCES classes(id) ON DELETE CASCADE,
+      FOREIGN KEY(student_id) REFERENCES users(id) ON DELETE CASCADE
+    )`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_class_members_class
+      ON class_members (class_id, joined_at)`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_class_members_student
+      ON class_members (student_id, joined_at)`);
+    console.log("✅ Tabla 'class_members' verificada/creada");
     
     // -------------------------------------------
 
