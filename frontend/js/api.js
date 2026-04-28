@@ -12,8 +12,10 @@ export const API_BASE_URL = 'http://localhost:3001/api';
 /** Obtener los artículos diarios (Conectado a la ruta de fusión) */
 export async function fetchDailyArticles(topic = 'news') {
     try {
+        const token = localStorage.getItem('token');
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
         // Llamamos a la ruta que fusiona DB + JSON pasando el tópico
-        const response = await fetch(`${API_BASE_URL}/articles?topic=${topic}`); 
+        const response = await fetch(`${API_BASE_URL}/articles?topic=${topic}`, { headers }); 
         if (!response.ok) throw new Error(`Error en API: ${response.status}`);
         
         const data = await response.json();

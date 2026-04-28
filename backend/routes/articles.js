@@ -3,8 +3,23 @@ const router = express.Router();
 const db = require('../database/db');
 const { authenticate } = require('../middleware/auth');
 const aiService = require('../services/aiService');
+const authService = require('../services/authService');
 const fs = require('fs');
 const path = require('path');
+
+function getRequestUserId(req) {
+    try {
+        const header = req.headers.authorization || '';
+        const [scheme, token] = header.split(' ');
+        if (scheme === 'Bearer' && token) {
+            const decoded = authService.verifyToken(token);
+            return Number(decoded.id || decoded.userId || 0) || null;
+        }
+    } catch (e) {
+        // Silent fallback for public calls.
+    }
+    return null;
+}
 
 // --- 1. RUTA: FEED PERSONALIZADO (La que ya tenías bien) ---
 router.get('/personalized-feed', authenticate, async (req, res) => {
@@ -38,12 +53,14 @@ router.get('/', async (req, res) => {
     try {
         const { topic } = req.query;
         if (!topic) return res.json({ articles: [] });
+        const normalizedTopic = String(topic).toLowerCase().trim();
+        const requestUserId = getRequestUserId(req);
 
         // --- PARTE A: Tu código original (Base de Datos) ---
         // Seguimos usando tu variable 'db' y tu consulta SQL exacta
         const dbArticles = await db.all(
             "SELECT * FROM articles WHERE topic = ? ORDER BY created_at DESC LIMIT 60",
-            [topic]
+            [normalizedTopic]
         );
 
         // --- PARTE B: El nuevo almacén (JSON) ---
@@ -55,9 +72,14 @@ router.get('/', async (req, res) => {
             const rawData = fs.readFileSync(filePath, 'utf8');
             const allManual = JSON.parse(rawData || "[]");
             // Filtramos para que solo veas lo de 'classroom' (o el tema que elijas)
-            manualArticles = allManual.filter(a => 
-                a.topic && a.topic.toLowerCase() === topic.toLowerCase()
-            );
+            manualArticles = allManual.filter((a) => {
+                if (!a.topic || a.topic.toLowerCase() !== normalizedTopic) return false;
+                // Classroom: show global assignments and user-targeted ones only.
+                if (normalizedTopic !== 'classroom') return true;
+                if (a.assigned_to_user_id == null || a.assigned_to_user_id === '') return true;
+                if (requestUserId == null) return false;
+                return Number(a.assigned_to_user_id) === Number(requestUserId);
+            });
         }
 
         // --- PARTE C: La Fusión ---
@@ -207,8 +229,12 @@ router.post('/generate-quiz-only', async (req, res) => {
 // Ruta para recibir los artículos del Teacher's Portal
 
 // Esta es la ruta que tu Teacher's Portal está llamando
-router.post('/manual-upload', async (req, res) => {
-    const { title, topic, content } = req.body;
+router.post('/manual-upload', authenticate, async (req, res) => {
+    const { title, topic, content, studentId } = req.body;
+    const role = String(req.user?.role || '').toLowerCase();
+    if (role !== 'teacher' && role !== 'admin') {
+        return res.status(403).json({ error: "Solo teacher/admin puede publicar artículos manuales" });
+    }
     
     // 🎯 LOCALIZACIÓN EXACTA
     // Esta línea construye la ruta hacia backend/data/simplified_articles.json
@@ -230,12 +256,22 @@ router.post('/manual-upload', async (req, res) => {
         }
 
         // 3. ✨ Creamos el nuevo artículo
+        const hasTargetStudent =
+            studentId !== undefined && studentId !== null && String(studentId).trim() !== '';
+        const normalizedTopic = hasTargetStudent
+            ? 'classroom'
+            : (topic || "classroom").toLowerCase();
+
         const newArticle = {
             id: `manual-${Date.now()}`,
             title: title || "Sin título",
-            topic: (topic || "classroom").toLowerCase(),
+            topic: normalizedTopic,
             content: content || "",
-            date: new Date().toISOString()
+            date: new Date().toISOString(),
+            assigned_to_user_id:
+                hasTargetStudent
+                    ? Number(studentId)
+                    : null
         };
 
         // 4. 🚀 Guardamos

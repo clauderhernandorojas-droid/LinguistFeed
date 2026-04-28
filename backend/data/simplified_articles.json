@@ -1,5 +1,69 @@
 [
   {
+    "id": "manual-1777340205338",
+    "title": "Otro artículo solo para Alice",
+    "topic": "classroom",
+    "content": "Estadísticas de alice_student\nBasado en actividad del lector (answer_events), últimos 30 días.\n\nArtículos completados: 0\nRespuestas / intentos contados: 0\nPrecisión: 0%\nPuntuación general: 0\nVocabulario guardado (total): 6\nRacha (días seguidos con actividad): 0",
+    "date": "2026-04-28T01:36:45.338Z",
+    "assigned_to_user_id": 5
+  },
+  {
+    "id": "manual-1777340173762",
+    "title": "Otro artículo solo para cesar",
+    "topic": "classroom",
+    "content": "Estadísticas de Cesar Forero\nBasado en actividad del lector (answer_events), últimos 30 días.\n\nArtículos completados: 1\nRespuestas / intentos contados: 5\nPrecisión: 60%\nPuntuación general: 43.8\nVocabulario guardado (total): 20\nRacha (días seguidos con actividad): 1",
+    "date": "2026-04-28T01:36:13.762Z",
+    "assigned_to_user_id": 13
+  },
+  {
+    "id": "manual-1777339515150",
+    "title": "Estadísticas César desde Teacher Portal",
+    "topic": "classroom",
+    "content": "Estadísticas de Cesar Forero\nArtículos leídos: 0\nQuizzes realizados: 0\nVocabulario aprendido: 20\nRacha: 0",
+    "date": "2026-04-28T01:25:15.150Z",
+    "assigned_to_user_id": 13
+  },
+  {
+    "id": "manual-1777339255374",
+    "title": "Artículo para Alice",
+    "topic": "classroom",
+    "content": "Estadísticas de alice_student\nArtículos leídos: 1\nQuizzes realizados: 1\nVocabulario aprendido: 6\nRacha: 1",
+    "date": "2026-04-28T01:20:55.374Z",
+    "assigned_to_user_id": 5
+  },
+  {
+    "id": "manual-1777259006308",
+    "title": "Bug Publicación de artículos",
+    "topic": "classroom",
+    "content": "Estadísticas de Cesar Forero\nArtículos leídos: 0\nQuizzes realizados: 0\nVocabulario aprendido: 18\nRacha: 0",
+    "date": "2026-04-27T03:03:26.308Z",
+    "assigned_to_user_id": 13
+  },
+  {
+    "id": "manual-1777258869250",
+    "title": "Estadisticas César",
+    "topic": "bug",
+    "content": "Artículos leídos: 0\nQuizzes realizados: 0\nVocabulario aprendido: 18\nRacha: 0",
+    "date": "2026-04-27T03:01:09.250Z",
+    "assigned_to_user_id": 13
+  },
+  {
+    "id": "manual-1777257061333",
+    "title": "Implementación",
+    "topic": "estadísticas cesar",
+    "content": "Estadísticas de Cesar Forero\nArtículos leídos: 0\nQuizzes realizados: 0\nVocabulario aprendido: 18\nRacha: 0",
+    "date": "2026-04-27T02:31:01.333Z",
+    "assigned_to_user_id": 13
+  },
+  {
+    "id": "manual-1777255273071",
+    "title": "Implementación",
+    "topic": "coding",
+    "content": "Artículos leídos: 0\nQuizzes realizados: 0\nVocabulario aprendido: 0\nRacha: 0",
+    "date": "2026-04-27T02:01:13.071Z",
+    "assigned_to_user_id": 11
+  },
+  {
     "id": "manual-1776815543419",
     "title": "Ninguno",
     "topic": "ninguno",
