@@ -11,7 +11,7 @@ export function mountNavbar(role, basePath) {
 
   const teacherExtra =
     role === 'teacher'
-      ? `<li class="nav-item"><a href="${p('upload.html')}" class="nav-link">Teacher Portal</a></li>`
+      ? `<li class="nav-item"><a href="${p('features/teacher/teacher.html')}" class="nav-link">Teacher Portal</a></li>`
       : '';
 
   nav.innerHTML = `
@@ -38,4 +38,26 @@ export function mountNavbar(role, basePath) {
       }
     });
   }
+}
+
+/**
+ * Monta el navbar según el rol guardado en sesión.
+ * Si el usuario es teacher/admin, muestra acceso a Teacher Portal.
+ * @param {string} basePath
+ */
+export function mountNavbarForCurrentUser(basePath) {
+  let role = 'student';
+  try {
+    const raw = localStorage.getItem('linguistfeed_user');
+    if (raw) {
+      const user = JSON.parse(raw);
+      const r = String(user?.role || '').toLowerCase();
+      if (r === 'teacher' || r === 'admin') {
+        role = 'teacher';
+      }
+    }
+  } catch (_) {
+    // Fallback a student si hay JSON inválido.
+  }
+  mountNavbar(role, basePath);
 }

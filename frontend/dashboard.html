@@ -147,11 +147,11 @@
         import { requireAuth, logout } from './js/auth.js';
         import { bindEditProfileButton } from './js/dashboard.js';
         import { handleLogout } from './js/reader.js';
-        import { mountNavbar } from './js/navbar.js';
+        import { mountNavbarForCurrentUser } from './js/navbar.js';
         
         document.addEventListener('DOMContentLoaded', function() {
             requireAuth();
-            mountNavbar('student', '');
+            mountNavbarForCurrentUser('');
             bindEditProfileButton();
             handleLogout(logout);
         });

@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Control Profesor</title>
+    <link rel="stylesheet" href="../../css/styles.css">
     <link rel="stylesheet" href="css/teacher.css">
 </head>
-<body>
+<body class="teacher-page">
     <!-- Navbar -->
     <nav class="navbar">
         <div class="container">
@@ -38,6 +39,7 @@
         <!-- Asignar artículo -->
         <section id="article-upload" class="card">
             <h2>Asignar Artículo</h2>
+            <p id="selected-student-msg" style="margin-bottom: 10px; color: #2d3748;">Sin estudiante seleccionado (publicación general).</p>
             <input type="text" id="title" placeholder="Título del artículo">
             <input type="text" id="topic" placeholder="Tema">
             <textarea id="content" placeholder="Texto del artículo"></textarea>

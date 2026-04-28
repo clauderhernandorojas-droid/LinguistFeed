@@ -4,16 +4,33 @@ require('dotenv').config();
 
 /**
  * Service for interacting with AI models via OpenRouter API
+ * and optionally LM Studio (OpenAI-compatible) for reader analyze/translate.
  */
 class AiService {
     constructor() {
         this.apiKey = process.env.OPENROUTER_API_KEY;
         this.apiUrl = "https://openrouter.ai/api/v1/chat/completions";
 
+        if (this.useLmStudioForAnalyze()) {
+            const cfg = this.getLmStudioAnalyzeConfig();
+            console.log(
+                `✅ AiService: LM Studio para analyze/translate → ${cfg.url} (model=${cfg.model})`
+            );
+        }
+
         if (!this.apiKey) {
-            console.error('❌ OpenRouter API key not configured.');
+            const okDev = this.useLmStudioForAnalyze() && this.isMockSchedulerQuiz();
+            if (okDev) {
+                console.log(
+                    'ℹ️ AiService: sin OPENROUTER_API_KEY (OK: LM Studio analyze + MOCK_SCHEDULER_QUIZ)'
+                );
+            } else {
+                console.warn(
+                    '⚠️ OPENROUTER_API_KEY no configurada (necesaria si no usas LM Studio para analyze o desactivas mock del scheduler)'
+                );
+            }
         } else {
-            console.log('✅ AiService initialized correctly');
+            console.log('✅ AiService: OpenRouter API key presente');
         }
 
         // Definimos las reglas de niveles como una propiedad de la clase
@@ -25,6 +42,78 @@ class AiService {
             'C1': "- Use advanced/academic vocabulary and sophisticated structures.\n- Use professional idioms and nuanced expressions.",
             'C2': "- Use near-native, complex vocabulary and highly sophisticated stylistic devices."
         };
+    }
+
+    /**
+     * Traducción/análisis de palabras en el reader vía LM Studio (local).
+     * Activar con USE_LMSTUDIO_FOR_ANALYZE=true en backend/.env
+     */
+    useLmStudioForAnalyze() {
+        const v = String(process.env.USE_LMSTUDIO_FOR_ANALYZE || '').toLowerCase();
+        return v === 'true' || v === '1' || v === 'yes';
+    }
+
+    getLmStudioAnalyzeConfig() {
+        const url =
+            (process.env.LMSTUDIO_CHAT_URL || 'http://127.0.0.1:1234/v1/chat/completions').trim();
+        const model = (process.env.LMSTUDIO_MODEL || 'qwen2.5-3b-instruct').trim();
+        return { url, model };
+    }
+
+    /**
+     * Quiz automático en el scheduler (RSS): desactivar IA en dev con MOCK_SCHEDULER_QUIZ=true
+     */
+    isMockSchedulerQuiz() {
+        const v = String(process.env.MOCK_SCHEDULER_QUIZ ?? 'true').toLowerCase();
+        return v === 'true' || v === '1' || v === 'yes';
+    }
+
+    /**
+     * LLM local OpenAI-compatible (LM Studio). Sin Authorization.
+     */
+    async askLmStudio(prompt, systemRole = 'You are a helpful language learning assistant.', opts = {}) {
+        const { url, model } = this.getLmStudioAnalyzeConfig();
+        const max_tokens = opts.max_tokens != null ? opts.max_tokens : 512;
+        const timeout = opts.timeout != null ? opts.timeout : 120000;
+
+        const response = await axios.post(
+            url,
+            {
+                model,
+                messages: [
+                    { role: 'system', content: systemRole },
+                    { role: 'user', content: prompt }
+                ],
+                temperature: 0.3,
+                max_tokens
+            },
+            {
+                headers: { 'Content-Type': 'application/json' },
+                timeout,
+                validateStatus: (status) => status >= 200 && status < 300
+            }
+        );
+
+        const content = response.data?.choices?.[0]?.message?.content;
+        if (content == null || String(content).trim() === '') {
+            throw new Error('LM Studio devolvió respuesta vacía');
+        }
+        return String(content);
+    }
+
+    /**
+     * Elige LM Studio solo para analyze/translate del reader.
+     */
+    async askForAnalyze(prompt, systemRole = 'You are a helpful language learning assistant.', opts = {}) {
+        if (this.useLmStudioForAnalyze()) {
+            return this.askLmStudio(prompt, systemRole, opts);
+        }
+        if (!this.apiKey) {
+            throw new Error(
+                'OPENROUTER_API_KEY no configurada y USE_LMSTUDIO_FOR_ANALYZE no está activo'
+            );
+        }
+        return this.ask(prompt, systemRole);
     }
 
     /**
@@ -119,7 +208,7 @@ class AiService {
             const parsed = JSON.parse(cleanResponse);
             return parsed.quizzes;
         } catch (error) {
-            console.error("❌ Error generating quiz:", error);
+            console.error("❌ Error generating quiz:", summarizeError(error));
             return [];
         }
     }
@@ -243,6 +332,9 @@ Rules:
     }
     async generateQuiz(articleId, text, level) {
         try {
+            if (this.isMockSchedulerQuiz()) {
+                return true;
+            }
             // 1. Generamos las preguntas usando la IA
             const questions = await this.generateQuizFromText(text, level);
             
@@ -256,7 +348,7 @@ Rules:
             }
             return true;
         } catch (error) {
-            console.error("Error en generateQuiz:", error);
+            console.error("Error en generateQuiz:", summarizeError(error));
             throw error;
         }
     }
@@ -268,14 +360,18 @@ Rules:
         if (type === 'translate') {
             try {
                 console.log("🎯 Procesando como TÍTULO (Traducción simple):", text.substring(0, 20));
-                const translation = await this.ask(text, "Translate this English title to natural Spanish. Return ONLY the translation.");
+                const translation = await this.askForAnalyze(
+                    text,
+                    'Translate this English title to natural Spanish. Return ONLY the translation.',
+                    { max_tokens: 128 }
+                );
                 return {
                     translation: translation.trim(),
                     definition: "Article Title", // Evita el "No definition found"
                     example: "Context: News Headline"
                 };
             } catch (error) {
-                console.error("❌ Error en traducción de título:", error);
+                console.error("❌ Error en traducción de título:", summarizeError(error));
                 throw error;
             }
         }
@@ -291,7 +387,7 @@ Rules:
         }`;
     
         try {
-            const response = await this.ask(text, systemRole);
+            const response = await this.askForAnalyze(text, systemRole, { max_tokens: 512 });
             const cleanJSON = response.replace(/```json/g, "").replace(/```/g, "").trim();
             const data = JSON.parse(cleanJSON);
     
@@ -309,6 +405,25 @@ Rules:
             };
         }
     }
+}
+
+function summarizeError(error) {
+    const summary = {
+        message: error?.message || 'Unknown error'
+    };
+
+    if (error?.response?.status != null) {
+        summary.status = error.response.status;
+    }
+    if (error?.code) {
+        summary.code = error.code;
+    }
+    const apiMessage = error?.response?.data?.error?.message || error?.response?.data?.message;
+    if (apiMessage) {
+        summary.apiMessage = apiMessage;
+    }
+
+    return summary;
 }
 
 // Exportamos una INSTANCIA de la clase para que articles.js pueda usarla

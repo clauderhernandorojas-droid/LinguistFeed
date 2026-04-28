@@ -76,12 +76,14 @@ export async function register(email, password, name) {
 
 export function logout() {
   localStorage.removeItem(USER_STORAGE_KEY);
-  window.location.href = 'index.html';
+  localStorage.removeItem('token');
+  window.location.href = '/login.html';
 }
 
 export function requireAuth() {
   if (!isLoggedIn()) {
-    window.location.href = 'login.html?redirect=' + encodeURIComponent(window.location.href);
+    window.location.href =
+      '/login.html?redirect=' + encodeURIComponent(window.location.href);
   }
 }
 

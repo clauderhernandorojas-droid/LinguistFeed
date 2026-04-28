@@ -339,7 +339,7 @@ async function loadDailyArticlesList(filterTopic = null) {
                     <div class="card" style="border: 1px solid #ddd; padding: 15px; border-radius: 10px;">
                         <div>
                             <span class="badge" style="background:#eee; padding:2px 5px; font-size:0.7rem;">Subtopic: ${article.topic}</span>
-                            <h3 style="cursor:pointer;">${article.title}</h3>
+                            <h3 style="cursor:pointer;" class="article-title">${article.title}</h3>
                             <p style="font-size: 0.85rem;">${article.content.substring(0, 80)}...</p>
                         </div>
                         <div class="level-selector-inline" style="display: flex; gap: 4px; margin: 10px 0; justify-content: center;">

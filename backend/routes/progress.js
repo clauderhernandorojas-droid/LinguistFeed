@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const quizService = require('../services/quizService');
+const statsService = require('../services/statsService');
 const { authenticate } = require('../middleware/auth');
 const db = require('../database/db');
 
@@ -204,7 +205,7 @@ router.post('/answer-event', authenticate, async (req, res) => {
       ]
     );
 
-    const snapshot = await buildStatsV2(userId);
+    const snapshot = await statsService.buildStatsV2(userId);
     res.json({
       ok: true,
       counted: countedForStats === 1,
@@ -226,7 +227,7 @@ router.post('/answer-event', authenticate, async (req, res) => {
 router.get('/stats-v2', authenticate, async (req, res) => {
   try {
     const userId = req.user.userId ?? req.user.id;
-    const stats = await buildStatsV2(userId);
+    const stats = await statsService.buildStatsV2(userId);
     res.json(stats);
   } catch (error) {
     console.error('Get stats-v2 error:', error.message);
@@ -234,53 +235,41 @@ router.get('/stats-v2', authenticate, async (req, res) => {
   }
 });
 
-async function buildStatsV2(userId) {
-  const base = await db.get(
-    `SELECT
-       COUNT(*) AS total_answers,
-       COALESCE(SUM(is_correct), 0) AS correct_answers,
-       COUNT(DISTINCT article_id) AS articles_completed,
-       COUNT(DISTINCT DATE(answered_at)) AS active_days_30
-     FROM answer_events
-     WHERE user_id = ?
-       AND counted_for_stats = 1
-       AND datetime(answered_at) >= datetime('now', '-30 days')`,
-    [userId]
-  );
+/**
+ * Misma métrica que /stats-v2 pero para un estudiante visto por profesor/admin.
+ * GET /api/progress/teacher/student/:studentId/stats-v2?windowDays=30
+ */
+router.get('/teacher/student/:studentId/stats-v2', authenticate, async (req, res) => {
+  try {
+    const role = String(req.user.role || '').toLowerCase();
+    if (role !== 'teacher' && role !== 'admin') {
+      return res.status(403).json({ error: 'Acceso denegado' });
+    }
 
-  const vocab = await db.get('SELECT COUNT(*) AS count FROM user_flashcards WHERE user_id = ?', [userId]);
-  const totalAnswers = Number(base?.total_answers || 0);
-  const correctAnswers = Number(base?.correct_answers || 0);
-  const articlesCompleted = Number(base?.articles_completed || 0);
-  const activeDays30 = Number(base?.active_days_30 || 0);
-  const vocabularyLearned = Number(vocab?.count || 0);
+    const studentId = parseInt(req.params.studentId, 10);
+    if (!Number.isInteger(studentId) || studentId <= 0) {
+      return res.status(400).json({ error: 'ID de estudiante inválido' });
+    }
 
-  const accuracy = totalAnswers > 0 ? (correctAnswers / totalAnswers) * 100 : 0;
-  const consistencyScore = Math.min(activeDays30 / 20, 1) * 100;
-  const completionScore = Math.min(articlesCompleted / 12, 1) * 100;
-  const overallScore = (accuracy * 0.7) + (consistencyScore * 0.2) + (completionScore * 0.1);
+    const target = await db.get('SELECT id, role FROM users WHERE id = ?', [studentId]);
+    if (!target) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+    if (role === 'teacher' && String(target.role || '').toLowerCase() !== 'student') {
+      return res.status(403).json({ error: 'Solo se pueden consultar estudiantes' });
+    }
 
-  return {
-    userId,
-    activity: { totalAnswers, correctAnswers, articlesCompleted, activeDays30 },
-    scores: {
-      accuracy: round1(accuracy),
-      consistencyScore: round1(consistencyScore),
-      completionScore: round1(completionScore),
-      overallScore: round1(overallScore)
-    },
-    dashboard: {
-      articlesRead: articlesCompleted,
-      quizzesTaken: totalAnswers,
-      vocabularyLearned,
-      streak: 0
-    },
-    updatedAt: new Date().toISOString()
-  };
-}
-
-function round1(n) {
-  return Math.round((Number(n) || 0) * 10) / 10;
-}
+    const wd = req.query.windowDays;
+    const windowDays =
+      wd !== undefined && wd !== '' ? parseInt(String(wd), 10) : undefined;
+    const stats = await statsService.buildStatsV2(studentId, {
+      windowDays: Number.isFinite(windowDays) ? windowDays : 30
+    });
+    res.json(stats);
+  } catch (error) {
+    console.error('Get teacher student stats-v2 error:', error.message);
+    res.status(400).json({ error: error.message });
+  }
+});
 
 module.exports = router;

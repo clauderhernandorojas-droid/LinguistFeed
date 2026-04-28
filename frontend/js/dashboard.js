@@ -185,7 +185,7 @@ function renderArticles(articles) {
         const articleCard = `
             <div class="article-card">
                 <span class="topic-tag">${article.topic || 'General'}</span>
-                <h3 style="font-size: 16px; margin: 0 0 10px 0;">${article.title}</h3>
+                <h3 style="font-size: 16px; margin: 0 0 10px 0;" class="article-title">${article.title}</h3>
                 <p style="font-size: 14px; color: #666; font-weight: normal; margin-bottom: 15px;">
                     ${preview}
                 </p>

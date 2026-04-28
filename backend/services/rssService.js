@@ -24,6 +24,9 @@ class RssService {
       // --- GAMING Y CULTURA POP (Para el grupo de Jóvenes) ---
       { url: 'https://www.gamespot.com/feeds/reviews/', name: 'GameSpot', category: 'gaming' },
       { url: 'https://www.rollingstone.com/results.rss', name: 'Rolling Stone', category: 'trends' },
+      { url: 'https://www.edsurge.com/news.rss', name: 'EdSurge', category: 'edu' },
+      { url: 'https://www.cntraveler.com/feed/rss', name: 'Condé Nast Traveler', category: 'travel' },
+      { url: 'https://www.hollywoodreporter.com/t/movies/feed/', name: 'Hollywood Reporter Movies', category: 'movies' },
   
       // --- ESTILO DE VIDA Y SALUD ---
       { url: 'https://feeds.bbci.co.uk/news/health/rss.xml', name: 'BBC Health', category: 'health' },

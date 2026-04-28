@@ -49,12 +49,12 @@
         import { handleLogout } from './js/reader.js';
         // Importamos la lógica interna de tus flashcards
         import { initFlashcards } from './js/flashcards.js';
-        import { mountNavbar } from './js/navbar.js';
+        import { mountNavbarForCurrentUser } from './js/navbar.js';
 
         document.addEventListener('DOMContentLoaded', () => {
             // Verificamos sesión
             requireAuth();
-            mountNavbar('student', '');
+            mountNavbarForCurrentUser('');
             
             // Inicializamos el mazo de cartas
             initFlashcards();

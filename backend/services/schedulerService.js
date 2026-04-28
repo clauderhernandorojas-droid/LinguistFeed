@@ -149,13 +149,16 @@ class SchedulerService {
           );
 
           if (!existingQuiz && articleContent) {
-            console.log(`🧠 Generando Quiz IA para artículo ${articleId} (Nivel ${level})...`);
-            try {
-              // Asegúrate de que aiService tenga el método 'generateQuiz' que creamos antes
-              await aiService.generateQuiz(articleId, articleContent, level);
-              console.log(`✨ Quiz guardado con éxito.`);
-            } catch (aiError) {
-              console.error(`❌ Error en IA (Quiz):`, aiError.message);
+            if (aiService.isMockSchedulerQuiz()) {
+              // Dev: sin OpenRouter; evita 402 y ruido en logs
+            } else {
+              console.log(`🧠 Generando Quiz IA para artículo ${articleId} (Nivel ${level})...`);
+              try {
+                await aiService.generateQuiz(articleId, articleContent, level);
+                console.log(`✨ Quiz guardado con éxito.`);
+              } catch (aiError) {
+                console.error(`❌ Error en IA (Quiz):`, aiError.message);
+              }
             }
           }
           

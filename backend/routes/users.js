@@ -5,9 +5,22 @@ const db = require('../database/db');
 // GET /api/users
 router.get('/', async (req, res) => {
   try {
-    const users = await db.all(
-      'SELECT id, username, email, role FROM users'
-    );
+    const q = String(req.query.username || req.query.q || '').trim().toLowerCase();
+    let users;
+    if (q) {
+      users = await db.all(
+        `SELECT id, username, email, role
+         FROM users
+         WHERE LOWER(username) LIKE ? OR LOWER(email) LIKE ?
+         ORDER BY username ASC
+         LIMIT 50`,
+        [`%${q}%`, `%${q}%`]
+      );
+    } else {
+      users = await db.all(
+        'SELECT id, username, email, role FROM users ORDER BY username ASC LIMIT 50'
+      );
+    }
     res.json(users);
   } catch (error) {
     console.error('❌ Error fetching users:', error.message);
@@ -16,6 +29,8 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/users/:id
+// Nota: métricas articlesRead/quizzesTaken/streak aquí siguen tabla `attempts` (legado).
+// Para la misma fuente que el dashboard del lector, usar GET /api/progress/teacher/student/:id/stats-v2 (teacher).
 router.get('/:id', async (req, res) => {
   const { id } = req.params;
   try {

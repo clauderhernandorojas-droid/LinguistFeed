@@ -1,5 +1,6 @@
 import { API_BASE_URL } from './config.js';
 import { mountNavbar } from './navbar.js';
+import { requireAuth, logout } from './auth.js';
 
 function escHtml(s) {
   if (s == null) return '';
@@ -9,7 +10,20 @@ function escHtml(s) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  requireAuth();
   mountNavbar('teacher', '../../');
+  const logoutLink = document.getElementById('logout-link');
+  if (logoutLink) {
+    logoutLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      localStorage.removeItem('token');
+      logout();
+    });
+  }
+  let selectedStudent = null;
+  const selectedStudentMsg = document.getElementById('selected-student-msg');
+  const token = localStorage.getItem('token');
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
   const searchBtn = document.getElementById('searchButton');
   const resultsDiv = document.getElementById('results');
@@ -25,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       try {
         const url = `${API_BASE_URL}/users?username=${encodeURIComponent(q)}`;
-        const response = await fetch(url);
+        const response = await fetch(url, { headers: authHeaders });
         if (!response.ok) {
           resultsDiv.textContent = 'Error al obtener usuarios.';
           return;
@@ -57,21 +71,37 @@ document.addEventListener('DOMContentLoaded', () => {
           statsBtn.textContent = 'Ver Estadísticas';
           statsBtn.className = 'btn-search';
           statsBtn.addEventListener('click', async () => {
+            selectedStudent = student;
+            if (selectedStudentMsg) {
+              selectedStudentMsg.textContent = `Asignando a: ${student.username} (id ${student.id})`;
+            }
             try {
-              const res = await fetch(`${API_BASE_URL}/users/${student.id}`);
+              const res = await fetch(
+                `${API_BASE_URL}/progress/teacher/student/${student.id}/stats-v2`,
+                { headers: authHeaders }
+              );
               if (!res.ok) throw new Error(`HTTP ${res.status}`);
               const stats = await res.json();
 
               const statsDiv = document.getElementById('student-stats');
               if (!statsDiv) return;
 
+              const d = stats.dashboard || {};
+              const sc = stats.scores || {};
+              const win = stats.windowDays != null ? stats.windowDays : 30;
+
               statsDiv.innerHTML = `
                 <h4>Estadísticas de ${escHtml(student.username)}</h4>
+                <p style="font-size:0.9rem;color:#4a5568;margin:8px 0;">
+                  Basado en actividad del lector (answer_events), últimos <strong>${escHtml(win)}</strong> días.
+                </p>
                 <ul>
-                  <li>Artículos leídos: ${escHtml(stats.articlesRead)}</li>
-                  <li>Quizzes realizados: ${escHtml(stats.quizzesTaken)}</li>
-                  <li>Vocabulario aprendido: ${escHtml(stats.vocabularyLearned)}</li>
-                  <li>Racha: ${escHtml(stats.streak)}</li>
+                  <li>Artículos completados: ${escHtml(d.articlesRead)}</li>
+                  <li>Respuestas / intentos contados: ${escHtml(d.quizzesTaken)}</li>
+                  <li>Precisión: ${escHtml(sc.accuracy)}%</li>
+                  <li>Puntuación general: ${escHtml(sc.overallScore)}</li>
+                  <li>Vocabulario guardado (total): ${escHtml(d.vocabularyLearned)}</li>
+                  <li>Racha (días seguidos con actividad): ${escHtml(d.streak)}</li>
                 </ul>
               `;
             } catch (err) {
@@ -103,16 +133,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const topic = document.getElementById('topic')?.value.trim() || '';
       const content = document.getElementById('content')?.value.trim() || '';
 
-      const token = localStorage.getItem('token');
       const headers = {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
+        ...authHeaders
       };
 
       const body = {
         title: title || undefined,
         topic: topic || undefined,
-        content: content || undefined
+        content: content || undefined,
+        studentId: selectedStudent ? selectedStudent.id : undefined
       };
 
       try {
@@ -126,7 +156,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (res.ok) {
           statusMsg.style.color = 'green';
-          statusMsg.textContent = data.message || '✅ Artículo publicado correctamente.';
+          if (selectedStudent) {
+            statusMsg.textContent = (data.message || '✅ Artículo publicado correctamente.') + ` → ${selectedStudent.username}`;
+          } else {
+            statusMsg.textContent = (data.message || '✅ Artículo publicado correctamente.') + ' (Classroom general)';
+          }
         } else {
           statusMsg.style.color = 'red';
           statusMsg.textContent = data.error || '❌ Error al publicar.';

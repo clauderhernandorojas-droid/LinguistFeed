@@ -95,12 +95,12 @@
     <script type="module">
         import { logout, requireAuth } from './js/auth.js';
         import { handleLogout } from './js/reader.js';
-        import { mountNavbar } from './js/navbar.js';
+        import { mountNavbarForCurrentUser } from './js/navbar.js';
 
         document.addEventListener('DOMContentLoaded', function () {
             // Protección de ruta
             requireAuth();
-            mountNavbar('student', '');
+            mountNavbarForCurrentUser('');
 
             const container = document.getElementById('articles-container');
             const loading = document.getElementById('loading');
