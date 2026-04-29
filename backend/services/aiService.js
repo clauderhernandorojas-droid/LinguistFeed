@@ -18,6 +18,13 @@ class AiService {
             );
         }
 
+        if (this.useLmStudioForLeveling()) {
+            const cfg = this.getLmStudioAnalyzeConfig();
+            console.log(
+                `✅ AiService: LM Studio para generateLeveledArticle → ${cfg.url} (model=${cfg.model})`
+            );
+        }
+
         if (!this.apiKey) {
             const okDev = this.useLmStudioForAnalyze() && this.isMockSchedulerQuiz();
             if (okDev) {
@@ -50,6 +57,15 @@ class AiService {
      */
     useLmStudioForAnalyze() {
         const v = String(process.env.USE_LMSTUDIO_FOR_ANALYZE || '').toLowerCase();
+        return v === 'true' || v === '1' || v === 'yes';
+    }
+
+    /**
+     * Reescritura por nivel CEFR vía LM Studio (batch / migrate).
+     * Activar con USE_LMSTUDIO_FOR_LEVELING=true
+     */
+    useLmStudioForLeveling() {
+        const v = String(process.env.USE_LMSTUDIO_FOR_LEVELING || '').toLowerCase();
         return v === 'true' || v === '1' || v === 'yes';
     }
 
@@ -136,24 +152,49 @@ class AiService {
         ${text}
         `;
 
+        const systemRole = 'You are an expert English teacher specialized in CEFR levels. Output only the adapted article text, no preamble.';
+
         try {
             console.log(`✨ Generando versión nivel ${level}...`);
+
+            if (this.useLmStudioForLeveling()) {
+                const maxTokens = parseInt(String(process.env.LMSTUDIO_LEVELING_MAX_TOKENS || '8192'), 10) || 8192;
+                const timeoutMs = parseInt(String(process.env.LMSTUDIO_LEVELING_TIMEOUT_MS || '180000'), 10) || 180000;
+                return await this.askLmStudio(prompt, systemRole, {
+                    max_tokens: maxTokens,
+                    timeout: timeoutMs
+                });
+            }
+
+            if (!this.apiKey) {
+                if (this.useLmStudioForAnalyze()) {
+                    console.warn('ℹ️ generateLeveledArticle: sin OPENROUTER_API_KEY; usando LM Studio (USE_LMSTUDIO_FOR_ANALYZE)');
+                    return await this.askLmStudio(prompt, systemRole, {
+                        max_tokens: parseInt(String(process.env.LMSTUDIO_LEVELING_MAX_TOKENS || '8192'), 10) || 8192,
+                        timeout: parseInt(String(process.env.LMSTUDIO_LEVELING_TIMEOUT_MS || '180000'), 10) || 180000
+                    });
+                }
+                throw new Error(
+                    'OPENROUTER_API_KEY no configurada: define USE_LMSTUDIO_FOR_LEVELING=true o USE_LMSTUDIO_FOR_ANALYZE=true con LM Studio en marcha'
+                );
+            }
+
             const response = await axios.post(this.apiUrl, {
-                model: "openai/gpt-4o-mini",
+                model: 'openai/gpt-4o-mini',
                 messages: [
-                    { role: "system", content: "You are an expert English teacher specialized in CEFR levels." },
-                    { role: "user", content: prompt }
+                    { role: 'system', content: systemRole },
+                    { role: 'user', content: prompt }
                 ]
             }, {
                 headers: {
-                    'Authorization': `Bearer ${this.apiKey}`,
+                    Authorization: `Bearer ${this.apiKey}`,
                     'Content-Type': 'application/json'
                 }
             });
 
             return response.data.choices[0].message.content;
         } catch (error) {
-            console.error("❌ Error en generateLeveledArticle:", error.message);
+            console.error('❌ Error en generateLeveledArticle:', error.message);
             throw error;
         }
     }

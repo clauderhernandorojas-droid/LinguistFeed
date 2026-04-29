@@ -11,6 +11,7 @@ const DATA_DIR = path.join(__dirname, '..', 'data');
 const LEGACY_JSON_PATH = path.join(DATA_DIR, 'simplified_articles.json');
 const READ_JSON_FALLBACK = String(process.env.READ_JSON_FALLBACK || 'false').toLowerCase() === 'true';
 const DUAL_WRITE_JSON = String(process.env.DUAL_WRITE_JSON || 'true').toLowerCase() === 'true';
+const CEFR_LEVELS = new Set(['A1', 'A2', 'B1', 'B2', 'C1', 'C2']);
 let hasMigratedLegacyJson = false;
 
 function getRequestUserContext(req) {
@@ -363,6 +364,23 @@ router.get('/:id', async (req, res) => {
       article = await readLegacyJsonById(articleId);
     }
     if (!article) return res.status(404).json({ error: 'Artículo no encontrado' });
+
+    const rawLevel = req.query.level != null ? String(req.query.level).trim().toUpperCase() : '';
+    const numericArticleId = article.id != null ? Number(article.id) : null;
+    if (rawLevel && CEFR_LEVELS.has(rawLevel) && numericArticleId != null && !Number.isNaN(numericArticleId)) {
+      const simplified = await db.get(
+        `SELECT text FROM simplified_articles WHERE article_id = ? AND level = ?`,
+        [numericArticleId, rawLevel]
+      );
+      if (simplified && simplified.text) {
+        article = {
+          ...article,
+          content: simplified.text,
+          reading_level: rawLevel
+        };
+      }
+    }
+
     res.json(article);
   } catch (error) {
     console.error('❌ Error al buscar artículo:', error.message);
