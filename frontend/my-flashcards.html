@@ -13,6 +13,11 @@
     <div class="container">
         <h1>My Flashcards</h1>
 
+        <div id="flashcard-page-actions" class="flashcard-page-actions" hidden>
+            <button type="button" id="export-csv-btn" class="btn">Export CSV (Lexispelling)</button>
+            <button type="button" id="export-json-btn" class="btn">Export JSON</button>
+        </div>
+
         <div id="no-flashcards" class="text-center" style="display:none;">
             <p>No flashcards saved yet. Go to <a href="reader.html">Topics</a> to start learning!</p>
         </div>
@@ -21,13 +26,14 @@
             <div id="flashcard-inner" class="flashcard-inner">
                 <div class="flashcard-front">
                     <h2 id="flashcard-word"></h2>
-                    <p style="font-size: 0.8rem; color: #888;">(Click to flip)</p>
+                    <button type="button" id="flashcard-speak-btn" class="btn-audio" title="Listen to word" aria-label="Listen to word">Listen</button>
+                    <p class="flashcard-hint">(Click to flip)</p>
                 </div>
             
                 <div class="flashcard-back">
-                    <p id="flashcard-definition" style="font-weight: bold;"></p>
-                    <p id="flashcard-translation" style="color: #28a745;"></p>
-                    <p id="flashcard-example" style="font-style: italic;"></p>
+                    <p id="flashcard-definition"></p>
+                    <p id="flashcard-translation"></p>
+                    <p id="flashcard-example"></p>
                 </div>
             </div>
         </div>

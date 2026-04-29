@@ -435,12 +435,64 @@ h1 {
     border-radius: 15px;
     top: 0;
     left: 0;
+    box-sizing: border-box;
+    padding: 1.25rem 1.35rem;
+    background: linear-gradient(180deg, rgba(36, 47, 98, 0.98), rgba(23, 32, 72, 0.98));
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
 }
 
 /* 5. LA CARA DE ATRÁS (Debe estar rotada de inicio) */
 .flashcard-back {
     transform: rotateY(180deg); /* Para que al girar el padre, esta quede de frente */
+    gap: 0.55rem;
+    align-items: stretch;
 }
+
+/* My Flashcards — texto legible sobre las caras (el #flashcard-word global es oscuro y contrasta mal con el tema) */
+.flashcard-front #flashcard-word {
+    color: #f3f6ff !important;
+    margin-bottom: 0.35rem;
+    line-height: 1.15;
+}
+
+.flashcard-front .flashcard-hint {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.flashcard-back #flashcard-definition {
+    color: #f3f6ff !important;
+    font-weight: 700;
+    text-align: center;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
+.flashcard-back #flashcard-translation {
+    color: #9ae6b4 !important;
+    font-weight: 600;
+}
+
+.flashcard-back #flashcard-example {
+    color: var(--text-muted) !important;
+    font-style: italic;
+    text-align: center;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    margin-bottom: 0;
+}
+/* Barra de export en My Flashcards */
+.flashcard-page-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-end;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
 .btn-audio {
     background: #4a5568;
     color: white;
@@ -451,6 +503,12 @@ h1 {
     font-size: 0.9rem;
 }
 .btn-audio:hover { background: #2d3748; }
+
+.flashcard-front .btn-audio {
+    margin-top: 0.25rem;
+    margin-bottom: 0.15rem;
+    flex-shrink: 0;
+}
 
 /* Estilos para el Modal de Bienvenida */
 .modal-overlay {

@@ -1,47 +1,99 @@
 let flashcards = JSON.parse(localStorage.getItem("linguistfeed_flashcards")) || [];
 let currentIndex = 0;
 
-// 1. Esta función configura el clic en la tarjeta
-function setupFlashcardInteractions() {
-    const cardInner = document.getElementById("flashcard-inner");
-
-    if (cardInner) {
-        cardInner.onclick = function() {
-            this.classList.toggle("is-flipped");
-        };
+function speakCurrentWord() {
+    if (flashcards.length === 0) return;
+    const w = (flashcards[currentIndex].word || "").trim();
+    if (!w) return;
+    if (typeof window.speechSynthesis === "undefined") {
+        return;
     }
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(w);
+    u.lang = "en-US";
+    u.rate = 0.95;
+    window.speechSynthesis.speak(u);
+}
+
+/** Lexispelling import CSV: un mazo por archivo; cabeceras fijas. */
+function exportLexispellingCsv() {
+    if (flashcards.length === 0) return;
+    const headers = ["Palabra", "Frase", "Nota", "Traducción", "Traducción frase"];
+    const lines = [headers.map(escapeCsvField).join(",")];
+    for (const c of flashcards) {
+        const def = c.definition && c.definition !== "Saved from reader" ? c.definition : "";
+        const row = [
+            c.word || "",
+            c.example || "",
+            def,
+            c.translation || "",
+            "",
+        ];
+        lines.push(row.map(escapeCsvField).join(","));
+    }
+    const blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    downloadBlob(blob, `linguistfeed-flashcards-${todayStamp()}.csv`);
+}
+
+function exportJsonBackup() {
+    if (flashcards.length === 0) return;
+    const json = JSON.stringify(flashcards, null, 2);
+    const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+    downloadBlob(blob, `linguistfeed-flashcards-${todayStamp()}.json`);
+}
+
+function escapeCsvField(value) {
+    if (value == null) return '""';
+    const s = String(value);
+    if (/[",\n\r]/.test(s)) {
+        return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+}
+
+function todayStamp() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function downloadBlob(blob, filename) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
+function setPageActionsVisible(visible) {
+    const bar = document.getElementById("flashcard-page-actions");
+    if (bar) bar.hidden = !visible;
 }
 
 // 2. Esta es tu función principal de inicio
 export function initFlashcards() {
-    console.log("🎴 Iniciando Flashcards...");
-
-    // 1. Cargar datos del LocalStorage
     const storedData = localStorage.getItem("linguistfeed_flashcards");
     flashcards = JSON.parse(storedData) || [];
-    console.log("Datos cargados:", flashcards.length);
 
-    // 2. Mostrar la primera tarjeta
-    if (typeof loadFlashcards === 'function') loadFlashcards();
+    if (typeof loadFlashcards === "function") loadFlashcards();
 
-    // 3. --- EL "SÚPER" ESCUCHADOR DE CLICS ---
-    // Buscamos el contenedor por ID
     const card = document.getElementById("flashcard-inner");
-    
     if (card) {
-        console.log("✅ Elemento 'flashcard-inner' encontrado. Asignando clic...");
-        
-        // Usamos addEventListener que es más robusto que .onclick
-        card.addEventListener('click', function(e) {
-            console.log("🎯 ¡Clic detectado en la tarjeta!");
+        card.addEventListener("click", function (e) {
+            if (e.target.closest("button")) return;
             this.classList.toggle("is-flipped");
         });
-    } else {
-        console.error("❌ ERROR: No se encontró el elemento con ID 'flashcard-inner'. Revisa tu HTML.");
     }
 
-    // 4. Configurar botones
-    if (typeof setupEventListeners === 'function') setupEventListeners();
+    const speakBtn = document.getElementById("flashcard-speak-btn");
+    if (speakBtn) {
+        speakBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            speakCurrentWord();
+        });
+    }
+
+    if (typeof setupEventListeners === "function") setupEventListeners();
 }
 
 function loadFlashcards() {
@@ -51,11 +103,13 @@ function loadFlashcards() {
     if (flashcards.length === 0) {
         if (noFlashcards) noFlashcards.style.display = "block";
         if (container) container.style.display = "none";
+        setPageActionsVisible(false);
         return;
     }
 
     if (noFlashcards) noFlashcards.style.display = "none";
     if (container) container.style.display = "block";
+    setPageActionsVisible(true);
 
     showFlashcard();
 }
@@ -64,7 +118,6 @@ function showFlashcard() {
     if (flashcards.length === 0) return;
     const card = flashcards[currentIndex];
 
-    // Usamos una función auxiliar para evitar el error de "null"
     const setText = (id, text) => {
         const el = document.getElementById(id);
         if (el) el.textContent = text || "";
@@ -75,17 +128,21 @@ function showFlashcard() {
     setText("flashcard-translation", card.translation);
     setText("flashcard-example", card.example);
 
-    // RESET DEL GIRO: Cada vez que cambias de carta, vuelve al frente
+    if (typeof window.speechSynthesis !== "undefined") {
+        window.speechSynthesis.cancel();
+    }
+
     const inner = document.getElementById("flashcard-inner");
     if (inner) inner.classList.remove("is-flipped");
 }
 
 function setupEventListeners() {
-    // Evitamos duplicar eventos limpiando el botón antes de asignar
     const nextBtn = document.getElementById("next-button");
     const prevBtn = document.getElementById("prev-button");
     const flipBtn = document.getElementById("flip-button");
     const deleteBtn = document.getElementById("delete-button");
+    const exportCsv = document.getElementById("export-csv-btn");
+    const exportJson = document.getElementById("export-json-btn");
 
     if (nextBtn) {
         nextBtn.onclick = () => {
@@ -102,15 +159,10 @@ function setupEventListeners() {
     }
 
     if (flipBtn) {
-        flipBtn.onclick = function() {
+        flipBtn.onclick = function () {
             const inner = document.getElementById("flashcard-inner");
-            if (inner) {
-                console.log("Btn: Girando tarjeta...");
-                inner.classList.toggle("is-flipped");
-            }
+            if (inner) inner.classList.toggle("is-flipped");
         };
-    } else {
-        console.error("❌ No se encontró el botón con ID 'flip-button'");
     }
 
     if (deleteBtn) {
@@ -122,5 +174,12 @@ function setupEventListeners() {
                 loadFlashcards();
             }
         };
+    }
+
+    if (exportCsv) {
+        exportCsv.onclick = () => exportLexispellingCsv();
+    }
+    if (exportJson) {
+        exportJson.onclick = () => exportJsonBackup();
     }
 }
