@@ -3,11 +3,10 @@
  */
 // En js/api.js
 import { MOCK_ARTICLES } from './mockData.js';
+import { API_BASE_URL } from './config.js';
 
 // Variable global temporal para la simulación
 window.currentSimulationArticle = null;
-
-export const API_BASE_URL = 'http://localhost:3001/api';
 
 /** Obtener los artículos diarios (Conectado a la ruta de fusión) */
 export async function fetchDailyArticles(topic = 'news') {

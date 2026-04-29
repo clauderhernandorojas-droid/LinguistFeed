@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: linguistfeed-api
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install
+    startCommand: npm run backend
+    healthCheckPath: /api/articles
+    envVars:
+      - key: NODE_VERSION
+        value: 20

@@ -8,8 +8,37 @@ const schedulerService = require('./services/schedulerService');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+function buildCorsOrigins() {
+  const defaultOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:3001',
+    'https://clauderhernandorojas-droid.github.io',
+  ];
+
+  const extraOrigins = (process.env.CORS_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  return new Set([...defaultOrigins, ...extraOrigins]);
+}
+
+const allowedOrigins = buildCorsOrigins();
+
 // 2. Configuración de Seguridad (CORS)
-app.use(cors()); // Corregido: sin paréntesis extra ni errores de sintaxis
+app.use(cors({
+  origin: (origin, callback) => {
+    // Permitir herramientas sin origin (Postman/curl) y requests same-origin.
+    if (!origin || allowedOrigins.has(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true,
+})); // Corregido: sin paréntesis extra ni errores de sintaxis
 
 // 3. Middlewares Esenciales
 app.use(express.json()); 
