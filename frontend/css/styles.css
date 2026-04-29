@@ -579,6 +579,12 @@ h1 {
     flex-wrap: wrap;
 }
 
+#study-deck-context {
+    margin-top: -8px;
+    margin-bottom: 10px;
+    color: var(--text-muted);
+}
+
 .simple-modal {
     position: fixed;
     inset: 0;

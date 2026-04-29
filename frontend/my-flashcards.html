@@ -17,7 +17,7 @@
             <div class="decks-toolbar">
                 <input id="deck-search-input" type="search" placeholder="Search deck..." />
                 <button type="button" id="new-deck-btn" class="btn">New deck</button>
-                <button type="button" id="toggle-select-mode-btn" class="btn">Select</button>
+                <button type="button" id="toggle-select-mode-btn" class="btn">Select decks</button>
                 <button type="button" id="export-all-json-btn" class="btn">Export all JSON</button>
             </div>
 
@@ -29,6 +29,7 @@
 
             <div id="multi-select-bar" class="multi-select-bar" hidden>
                 <span id="multi-select-count">0 selected</span>
+                <button type="button" id="review-selected-btn" class="btn">Review selected</button>
                 <button type="button" id="export-selected-xlsx-btn" class="btn">Export selected (XLSX-ready CSV)</button>
                 <button type="button" id="cancel-select-mode-btn" class="btn">Cancel</button>
             </div>
@@ -44,6 +45,7 @@
             </div>
 
             <h2 id="study-deck-title" class="text-center"></h2>
+            <p id="study-deck-context" class="text-center"></p>
 
             <div id="no-flashcards" class="text-center" style="display:none;">
                 <p>This deck has no flashcards yet.</p>

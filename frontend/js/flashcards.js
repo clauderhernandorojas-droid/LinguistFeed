@@ -10,6 +10,8 @@ let currentIndex = 0;
 let selectionMode = false;
 let selectedDeckIds = new Set();
 let pendingConfirmAction = null;
+let studyMode = "single";
+let activeStudyCards = [];
 
 export function initFlashcards() {
     migrateLegacyDataIfNeeded();
@@ -62,12 +64,13 @@ function bindEvents() {
     on("deck-search-input", "input", renderDecksView);
     on("toggle-select-mode-btn", "click", () => setSelectionMode(!selectionMode));
     on("cancel-select-mode-btn", "click", () => setSelectionMode(false));
+    on("review-selected-btn", "click", openSelectedDecksStudyView);
     on("export-selected-xlsx-btn", "click", exportSelectedDecksCsvWithDeckColumn);
     on("export-all-json-btn", "click", exportAllJsonBackup);
     on("back-to-decks-btn", "click", showDecksOnly);
     on("rename-deck-btn", "click", renameActiveDeck);
     on("delete-all-in-deck-btn", "click", () => {
-        if (!activeDeckId) return;
+        if (studyMode !== "single" || !activeDeckId) return;
         const count = cardsForDeck(activeDeckId).length;
         openConfirmModal(
             "Delete all cards",
@@ -81,15 +84,15 @@ function bindEvents() {
     });
 
     on("prev-button", "click", () => {
-        const activeCards = cardsForDeck(activeDeckId);
-        if (!activeCards.length) return;
-        currentIndex = (currentIndex - 1 + activeCards.length) % activeCards.length;
+        const workingCards = getWorkingStudyCards();
+        if (!workingCards.length) return;
+        currentIndex = (currentIndex - 1 + workingCards.length) % workingCards.length;
         renderStudyCard();
     });
     on("next-button", "click", () => {
-        const activeCards = cardsForDeck(activeDeckId);
-        if (!activeCards.length) return;
-        currentIndex = (currentIndex + 1) % activeCards.length;
+        const workingCards = getWorkingStudyCards();
+        if (!workingCards.length) return;
+        currentIndex = (currentIndex + 1) % workingCards.length;
         renderStudyCard();
     });
     on("flip-button", "click", () => {
@@ -204,36 +207,84 @@ function renderDecksView() {
 }
 
 function openStudyView(deckId) {
+    studyMode = "single";
     activeDeckId = deckId;
     currentIndex = 0;
+    activeStudyCards = cardsForDeck(deckId).map((c) => ({ ...c }));
+    renderStudyView();
+}
+
+function openSelectedDecksStudyView() {
+    if (!selectedDeckIds.size) {
+        alert("Select at least one deck.");
+        return;
+    }
+    const selectedDecks = decks.filter((d) => selectedDeckIds.has(d.id));
+    const merged = [];
+    selectedDecks.forEach((deck) => {
+        cardsForDeck(deck.id).forEach((card) => {
+            merged.push({
+                ...card,
+                _sourceDeckName: deck.name
+            });
+        });
+    });
+    if (!merged.length) {
+        alert("Selected decks have no flashcards.");
+        return;
+    }
+    studyMode = "multi";
+    activeDeckId = null;
+    currentIndex = 0;
+    activeStudyCards = shuffleArray(merged);
     renderStudyView();
 }
 
 function renderStudyView() {
     showOnly("study-view");
-    const deck = decks.find((d) => d.id === activeDeckId);
-    if (!deck) {
-        showDecksOnly();
-        return;
-    }
     const title = el("study-deck-title");
-    if (title) title.textContent = deck.name;
+    const context = el("study-deck-context");
 
-    const activeCards = cardsForDeck(activeDeckId);
+    if (studyMode === "single") {
+        const deck = decks.find((d) => d.id === activeDeckId);
+        if (!deck) {
+            showDecksOnly();
+            return;
+        }
+        if (title) title.textContent = deck.name;
+        if (context) context.textContent = "Reviewing one deck";
+    } else {
+        if (title) title.textContent = "Selected decks review";
+        if (context) context.textContent = `${selectedDeckIds.size} deck(s) combined`;
+    }
+
+    const workingCards = getWorkingStudyCards();
     const noFlashcards = el("no-flashcards");
     const container = el("flashcard-container");
-    if (noFlashcards) noFlashcards.style.display = activeCards.length ? "none" : "block";
-    if (container) container.style.display = activeCards.length ? "block" : "none";
+    if (noFlashcards) noFlashcards.style.display = workingCards.length ? "none" : "block";
+    if (container) container.style.display = workingCards.length ? "block" : "none";
 
-    if (!activeCards.length) return;
-    if (currentIndex >= activeCards.length) currentIndex = 0;
+    if (!workingCards.length) return;
+    if (currentIndex >= workingCards.length) currentIndex = 0;
     renderStudyCard();
 }
 
+function getWorkingStudyCards() {
+    if (studyMode === "multi") return activeStudyCards;
+    return cardsForDeck(activeDeckId);
+}
+
 function renderStudyCard() {
-    const activeCards = cardsForDeck(activeDeckId);
-    const card = activeCards[currentIndex];
+    const workingCards = getWorkingStudyCards();
+    const card = workingCards[currentIndex];
     if (!card) return;
+
+    const title = el("study-deck-title");
+    const context = el("study-deck-context");
+    if (studyMode === "multi") {
+        if (title) title.textContent = "Selected decks review";
+        if (context) context.textContent = `Current deck: ${card._sourceDeckName || "Unknown"}`;
+    }
 
     setText("flashcard-word", card.word);
     setText("flashcard-definition", card.definition || "No definition");
@@ -246,11 +297,17 @@ function renderStudyCard() {
 }
 
 function showDecksOnly() {
+    studyMode = "single";
+    activeStudyCards = [];
     activeDeckId = null;
     renderDecksView();
 }
 
 function renameActiveDeck() {
+    if (studyMode !== "single") {
+        alert("Rename is available only when reviewing one deck.");
+        return;
+    }
     const deck = decks.find((d) => d.id === activeDeckId);
     if (!deck) return;
     const name = (prompt("New deck name:", deck.name) || "").trim();
@@ -266,13 +323,16 @@ function renameActiveDeck() {
 }
 
 function deleteCurrentCard() {
-    const activeCards = cardsForDeck(activeDeckId);
-    if (!activeCards.length) return;
-    const card = activeCards[currentIndex];
+    const workingCards = getWorkingStudyCards();
+    if (!workingCards.length) return;
+    const card = workingCards[currentIndex];
     openConfirmModal("Delete card", "Delete this flashcard?", () => {
         cards = cards.filter((c) => c.id !== card.id);
         saveCards();
-        if (currentIndex >= cardsForDeck(activeDeckId).length) currentIndex = 0;
+        if (studyMode === "multi") {
+            activeStudyCards = activeStudyCards.filter((c) => c.id !== card.id);
+        }
+        if (currentIndex >= getWorkingStudyCards().length) currentIndex = 0;
         renderStudyView();
     });
 }
@@ -288,9 +348,14 @@ function requestDeleteDeck(deckId) {
             decks = decks.filter((d) => d.id !== deckId);
             cards = cards.filter((c) => c.deckId !== deckId);
             selectedDeckIds.delete(deckId);
+            activeStudyCards = activeStudyCards.filter((c) => c.deckId !== deckId);
             if (!decks.length) decks = [createDeckObject("General")];
             saveDecks();
             saveCards();
+            if (studyMode === "single" && activeDeckId === deckId) {
+                showDecksOnly();
+                return;
+            }
             renderDecksView();
         }
     );
@@ -304,21 +369,26 @@ function setSelectionMode(enabled) {
     selectionMode = enabled;
     if (!enabled) selectedDeckIds = new Set();
     const toggleBtn = el("toggle-select-mode-btn");
-    if (toggleBtn) toggleBtn.textContent = enabled ? "Selecting..." : "Select";
+    if (toggleBtn) toggleBtn.textContent = enabled ? "Cancel selection" : "Select decks";
     renderDecksView();
 }
 
 function updateMultiSelectBar() {
     const bar = el("multi-select-bar");
     const countLabel = el("multi-select-count");
+    const reviewBtn = el("review-selected-btn");
+    const exportBtn = el("export-selected-xlsx-btn");
+    const selectedCount = selectedDeckIds.size;
     if (bar) bar.hidden = !selectionMode;
-    if (countLabel) countLabel.textContent = `${selectedDeckIds.size} selected`;
+    if (countLabel) countLabel.textContent = `${selectedCount} selected`;
+    if (reviewBtn) reviewBtn.disabled = selectedCount === 0;
+    if (exportBtn) exportBtn.disabled = selectedCount === 0;
 }
 
 function speakCurrentWord() {
-    const activeCards = cardsForDeck(activeDeckId);
-    if (!activeCards.length) return;
-    const word = (activeCards[currentIndex].word || "").trim();
+    const workingCards = getWorkingStudyCards();
+    if (!workingCards.length) return;
+    const word = (workingCards[currentIndex].word || "").trim();
     if (!word || typeof window.speechSynthesis === "undefined") return;
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(word);
@@ -328,7 +398,7 @@ function speakCurrentWord() {
 }
 
 function exportActiveDeckCsv() {
-    if (!activeDeckId) return;
+    if (studyMode !== "single" || !activeDeckId) return;
     exportDeckCsvById(activeDeckId);
 }
 
@@ -349,7 +419,7 @@ function exportDeckCsvById(deckId) {
 }
 
 function exportActiveDeckJson() {
-    if (!activeDeckId) return;
+    if (studyMode !== "single" || !activeDeckId) return;
     const deck = decks.find((d) => d.id === activeDeckId);
     if (!deck) return;
     const deckCards = cardsForDeck(activeDeckId);
@@ -466,4 +536,13 @@ function escapeHtml(text) {
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
+}
+
+function shuffleArray(input) {
+    const arr = [...input];
+    for (let i = arr.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
 }

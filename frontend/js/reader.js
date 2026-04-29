@@ -6,6 +6,10 @@
 import { fetchDailyArticles, fetchArticleById } from './api.js';
 import { API_BASE_URL } from './config.js';
 
+const DECKS_KEY = "linguistfeed_decks_v1";
+const CARDS_KEY = "linguistfeed_cards_v1";
+const MAX_DECKS = 10;
+
 function getStoredUserId() {
     try {
         const raw = localStorage.getItem('linguistfeed_user');
@@ -15,6 +19,82 @@ function getStoredUserId() {
     } catch {
         return null;
     }
+}
+
+function safeParseJson(raw, fallback) {
+    try {
+        return raw ? JSON.parse(raw) : fallback;
+    } catch {
+        return fallback;
+    }
+}
+
+function makeId(prefix) {
+    return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeWord(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function getCurrentArticleContextForDeck() {
+    const params = new URLSearchParams(window.location.hash.substring(1));
+    const articleIdRaw = params.get('id');
+    const articleId = articleIdRaw ? String(articleIdRaw).replace(/id|[:"{}\s]/g, '') : '';
+    const titleEl = document.getElementById('interactive-title');
+    const title = (titleEl?.innerText || titleEl?.textContent || 'Article deck').trim();
+    const shortTitle = title.length > 60 ? `${title.slice(0, 60).trim()}...` : title;
+    return { articleId, title: shortTitle || 'Article deck' };
+}
+
+function upsertDeckAndCardFromReader(newCard) {
+    const decks = safeParseJson(localStorage.getItem(DECKS_KEY), []);
+    const cards = safeParseJson(localStorage.getItem(CARDS_KEY), []);
+    const { articleId, title } = getCurrentArticleContextForDeck();
+
+    let deck = null;
+    if (articleId) {
+        deck = decks.find((d) => String(d.sourceArticleId || '') === articleId);
+    }
+    if (!deck) {
+        deck = decks.find((d) => String(d.name || '').toLowerCase() === title.toLowerCase());
+    }
+
+    if (!deck) {
+        if (decks.length >= MAX_DECKS) {
+            return { ok: false, reason: 'deck_limit' };
+        }
+        const now = new Date().toISOString();
+        deck = {
+            id: makeId('deck'),
+            name: title,
+            sourceType: 'article',
+            sourceArticleId: articleId || null,
+            createdAt: now,
+            updatedAt: now
+        };
+        decks.unshift(deck);
+        localStorage.setItem(DECKS_KEY, JSON.stringify(decks));
+    }
+
+    const key = normalizeWord(newCard.word);
+    const exists = cards.some((c) => c.deckId === deck.id && normalizeWord(c.word) === key);
+    if (exists) {
+        return { ok: true, reason: 'duplicate', deckName: deck.name };
+    }
+
+    cards.push({
+        id: makeId('card'),
+        deckId: deck.id,
+        word: newCard.word,
+        translation: newCard.translation || '',
+        example: newCard.example || '',
+        definition: newCard.definition || 'Saved from reader',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    });
+    localStorage.setItem(CARDS_KEY, JSON.stringify(cards));
+    return { ok: true, reason: 'saved', deckName: deck.name };
 }
 
 // "Guardaespaldas" de navegación: 
@@ -780,9 +860,17 @@ async function saveFlashcardToStorage() {
                 date: new Date().toISOString()
             };
 
-            localFlashcards.push(newCard);
-            localStorage.setItem("linguistfeed_flashcards", JSON.stringify(localFlashcards));
-            console.log("✅ Sincronizado con LocalStorage para Repaso");
+            const deckSaveResult = upsertDeckAndCardFromReader(newCard);
+            if (!deckSaveResult.ok && deckSaveResult.reason === 'deck_limit') {
+                alert('You reached the deck limit (10). Delete another deck before saving this word.');
+                return;
+            }
+
+            if (deckSaveResult.reason !== 'duplicate') {
+                localFlashcards.push(newCard);
+                localStorage.setItem("linguistfeed_flashcards", JSON.stringify(localFlashcards));
+                console.log("✅ Sincronizado con LocalStorage para Repaso");
+            }
             // ACTUALIZACIÓN CRÍTICA: Añadimos la palabra al Set para que se resalte de inmediato
             if (typeof savedWordsSet !== 'undefined') {
                 savedWordsSet.add(word.toLowerCase().trim());
@@ -794,7 +882,11 @@ async function saveFlashcardToStorage() {
             // Feedback visual para el usuario
             const btn = document.getElementById('save-flashcard-btn');
             if (btn) {
-                btn.innerHTML = "✅ Saved!";
+                if (deckSaveResult.reason === 'duplicate') {
+                    btn.innerHTML = "ℹ️ Already saved";
+                } else {
+                    btn.innerHTML = "✅ Saved!";
+                }
                 btn.classList.replace('btn-primary', 'btn-success');
                 setTimeout(() => {
                     btn.innerHTML = "Save to Flashcards";
