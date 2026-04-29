@@ -510,6 +510,111 @@ h1 {
     flex-shrink: 0;
 }
 
+.btn-danger {
+    background: #dc3545 !important;
+    border-color: #c72b3b !important;
+    color: #ffffff !important;
+}
+
+.flashcard-controls {
+    margin-top: 30px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.decks-toolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.decks-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 14px;
+}
+
+.deck-card {
+    background: linear-gradient(180deg, rgba(36, 47, 98, 0.95), rgba(23, 32, 72, 0.95));
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: var(--shadow);
+}
+
+.deck-card.is-selected {
+    outline: 2px solid #8ea0ff;
+}
+
+.deck-card-header {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.deck-card-header h3 {
+    margin: 0;
+    color: #f3f6ff;
+    overflow-wrap: anywhere;
+}
+
+.deck-card-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.multi-select-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: 16px;
+    flex-wrap: wrap;
+}
+
+.simple-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(7, 11, 43, 0.72);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1200;
+    padding: 16px;
+}
+
+/* Hard guard: hidden modal must never block UI */
+.simple-modal[hidden] {
+    display: none !important;
+}
+
+.simple-modal-content {
+    width: min(460px, 100%);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--bg-elev);
+    box-shadow: var(--shadow);
+    padding: 16px;
+}
+
+.simple-modal-content h3 {
+    margin-top: 0;
+}
+
+.simple-modal-actions {
+    margin-top: 14px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
 /* Estilos para el Modal de Bienvenida */
 .modal-overlay {
     position: fixed;
