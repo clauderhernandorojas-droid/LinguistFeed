@@ -261,12 +261,36 @@ function renderStudyView() {
     const workingCards = getWorkingStudyCards();
     const noFlashcards = el("no-flashcards");
     const container = el("flashcard-container");
+    updateSingleDeckActionButtons();
     if (noFlashcards) noFlashcards.style.display = workingCards.length ? "none" : "block";
     if (container) container.style.display = workingCards.length ? "block" : "none";
+    updateStudyCardCounter(workingCards.length);
 
     if (!workingCards.length) return;
     if (currentIndex >= workingCards.length) currentIndex = 0;
     renderStudyCard();
+}
+
+function updateSingleDeckActionButtons() {
+    const singleDeckOnlyIds = [
+        "rename-deck-btn",
+        "export-csv-btn",
+        "export-json-btn",
+        "delete-all-in-deck-btn",
+    ];
+    const disabledInMulti = studyMode !== "single";
+    const tooltip = disabledInMulti
+        ? "Available only when reviewing one deck."
+        : "";
+    const note = el("single-deck-actions-note");
+    if (note) note.hidden = !disabledInMulti;
+
+    singleDeckOnlyIds.forEach((id) => {
+        const btn = el(id);
+        if (!btn) return;
+        btn.disabled = disabledInMulti;
+        btn.title = tooltip;
+    });
 }
 
 function getWorkingStudyCards() {
@@ -285,6 +309,7 @@ function renderStudyCard() {
         if (title) title.textContent = "Selected decks review";
         if (context) context.textContent = `Current deck: ${card._sourceDeckName || "Unknown"}`;
     }
+    updateStudyCardCounter(workingCards.length);
 
     setText("flashcard-word", card.word);
     setText("flashcard-definition", card.definition || "No definition");
@@ -294,6 +319,16 @@ function renderStudyCard() {
     if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel();
     const inner = el("flashcard-inner");
     if (inner) inner.classList.remove("is-flipped");
+}
+
+function updateStudyCardCounter(totalCards) {
+    const counter = el("study-card-counter");
+    if (!counter) return;
+    if (!totalCards) {
+        counter.textContent = "Card 0/0";
+        return;
+    }
+    counter.textContent = `Card ${currentIndex + 1}/${totalCards}`;
 }
 
 function showDecksOnly() {

@@ -581,8 +581,22 @@ h1 {
 
 #study-deck-context {
     margin-top: -8px;
-    margin-bottom: 10px;
+    margin-bottom: 4px;
     color: var(--text-muted);
+}
+
+#study-card-counter {
+    margin-top: 0;
+    margin-bottom: 12px;
+    color: #e7eeff;
+    font-weight: 600;
+}
+
+#single-deck-actions-note {
+    margin-top: -4px;
+    margin-bottom: 12px;
+    color: #ffd166;
+    font-size: 0.9rem;
 }
 
 .simple-modal {
@@ -1029,6 +1043,21 @@ p, label, small {
 .btn:hover, .btn-search:hover, .btn-submit:hover, .btn-read:hover, button:hover {
   filter: brightness(1.05);
   transform: translateY(-1px);
+}
+
+.btn:disabled,
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  filter: grayscale(0.25);
+  box-shadow: none !important;
+}
+
+.btn:disabled:hover,
+button:disabled:hover {
+  transform: none !important;
+  filter: grayscale(0.25);
 }
 
 input[type="text"],
