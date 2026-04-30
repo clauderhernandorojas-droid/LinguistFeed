@@ -20,6 +20,11 @@ class RssService {
       { url: 'https://www.smithsonianmag.com/rss/history/', name: 'Smithsonian History', category: 'history' },
       { url: 'https://www.historyextra.com/feed/', name: 'HistoryExtra (BBC History Mag)', category: 'history' },
       { url: 'https://historyguild.org/feed/', name: 'History Guild', category: 'history' },
+      { url: 'https://www.historytoday.com/feed/rss.xml', name: 'History Today', category: 'history' },
+      { url: 'https://feeds.feedburner.com/AncientOrigins', name: 'Ancient Origins', category: 'history' },
+      { url: 'https://ancientpages.com/feed', name: 'Ancient Pages', category: 'history' },
+      { url: 'https://www.thehistoryblog.com/feed', name: 'The History Blog', category: 'history' },
+      { url: 'https://feeds.feedburner.com/Activehistory', name: 'Active History', category: 'history' },
       { url: 'https://www.newyorker.com/feed/culture', name: 'The New Yorker', category: 'culture' },
       { url: 'https://philosophyforlife.org/blog?format=rss', name: 'Philosophy for Life', category: 'history' }, // Lo mapeamos a historia/filo
   
@@ -31,6 +36,11 @@ class RssService {
       { url: 'https://learnenglish.britishcouncil.org/rss.xml', name: 'British Council LearnEnglish', category: 'edu' },
       { url: 'https://www.edutopia.org/rss.xml', name: 'Edutopia', category: 'edu' },
       { url: 'https://www.nationalgeographic.org/education/rss/', name: 'National Geographic Education', category: 'edu' },
+      { url: 'https://hechingerreport.org/feed', name: 'The Hechinger Report', category: 'edu' },
+      { url: 'https://www.insidehighered.com/news/rss.xml', name: 'Inside Higher Ed (news)', category: 'edu' },
+      { url: 'https://ww2.kqed.org/mindshift/feed', name: 'MindShift (KQED)', category: 'edu' },
+      { url: 'https://www.nytimes.com/section/learning/rss.xml', name: 'NYT Learning Network', category: 'edu' },
+      { url: 'https://edsource.org/feed/atom', name: 'EdSource', category: 'edu' },
       { url: 'https://www.cntraveler.com/feed/rss', name: 'Condé Nast Traveler', category: 'travel' },
       { url: 'https://www.hollywoodreporter.com/t/movies/feed/', name: 'Hollywood Reporter Movies', category: 'movies' },
   
