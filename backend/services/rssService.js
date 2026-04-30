@@ -18,6 +18,8 @@ class RssService {
   
       // --- CULTURA, HISTORIA Y FILO (Para el grupo de Adultos) ---
       { url: 'https://www.smithsonianmag.com/rss/history/', name: 'Smithsonian History', category: 'history' },
+      { url: 'https://www.historyextra.com/feed/', name: 'HistoryExtra (BBC History Mag)', category: 'history' },
+      { url: 'https://historyguild.org/feed/', name: 'History Guild', category: 'history' },
       { url: 'https://www.newyorker.com/feed/culture', name: 'The New Yorker', category: 'culture' },
       { url: 'https://philosophyforlife.org/blog?format=rss', name: 'Philosophy for Life', category: 'history' }, // Lo mapeamos a historia/filo
   
@@ -25,6 +27,10 @@ class RssService {
       { url: 'https://www.gamespot.com/feeds/reviews/', name: 'GameSpot', category: 'gaming' },
       { url: 'https://www.rollingstone.com/results.rss', name: 'Rolling Stone', category: 'trends' },
       { url: 'https://www.edsurge.com/news.rss', name: 'EdSurge', category: 'edu' },
+      { url: 'https://feeds.bbci.co.uk/learningenglish/rss.xml', name: 'BBC Learning English', category: 'edu' },
+      { url: 'https://learnenglish.britishcouncil.org/rss.xml', name: 'British Council LearnEnglish', category: 'edu' },
+      { url: 'https://www.edutopia.org/rss.xml', name: 'Edutopia', category: 'edu' },
+      { url: 'https://www.nationalgeographic.org/education/rss/', name: 'National Geographic Education', category: 'edu' },
       { url: 'https://www.cntraveler.com/feed/rss', name: 'Condé Nast Traveler', category: 'travel' },
       { url: 'https://www.hollywoodreporter.com/t/movies/feed/', name: 'Hollywood Reporter Movies', category: 'movies' },
   
