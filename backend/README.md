@@ -73,7 +73,7 @@ npm install
 3. Create a `.env` file with your OpenRouter API key:
 
 ```
-***REDACTED***=your_api_key_here
+OPENROUTER_API_KEY=your_api_key_here
 ```
 
 4. Start the server:

@@ -49,10 +49,10 @@
     <script type="module">
         import { requireAuth, logout } from './js/auth.js';
         import { handleLogout } from './js/reader.js';
-        import { mountNavbar } from './js/navbar.js';
+        import { mountNavbarForCurrentUser } from './js/navbar.js';
         document.addEventListener('DOMContentLoaded', () => {
             requireAuth();
-            mountNavbar('student', '');
+            mountNavbarForCurrentUser('');
             const form = document.getElementById('uploadForm');
             const msg = document.getElementById('status-msg');
 

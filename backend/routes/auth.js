@@ -18,11 +18,11 @@ router.post('/register', async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await db.run(
-      `INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)`,
+      `INSERT INTO users (username, email, password_hash, onboarding_completed) VALUES (?, ?, ?, 0)`,
       [username, email, hashedPassword]
     );
     
-    const user = { id: result.id, username, email };
+    const user = { id: result.id, username, email, onboardingCompleted: false };
     const token = jwt.sign(user, JWT_SECRET, { expiresIn: '24h' });
     
     res.status(201).json({ token, user });
@@ -45,7 +45,16 @@ router.post('/login', async (req, res) => {
       const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
       res.json({ 
         token, 
-        user: { id: user.id, username: user.username, email: user.email, level: user.level, role: user.role } 
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          level: user.level,
+          role: user.role,
+          age: user.age,
+          interests: user.interests,
+          onboardingCompleted: Number(user.onboarding_completed || 0) === 1
+        }
       });
     } else {
       res.status(401).json({ error: "Credenciales inválidas" });
@@ -152,7 +161,9 @@ router.put('/update-profile', authenticate, async (req, res) => {
 
   try {
     await db.run(
-      `UPDATE users SET age = ?, level = ?, interests = ? WHERE id = ?`,
+      `UPDATE users
+       SET age = ?, level = ?, interests = ?, onboarding_completed = 1
+       WHERE id = ?`,
       [age, level, interests, userId]
     );
     

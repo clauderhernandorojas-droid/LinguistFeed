@@ -27,7 +27,11 @@ class ArticleService {
       gaming: 'https://feeds.feedburner.com/ign/all',
       trends: 'https://www.wired.com/feed/rss',
       health: 'https://feeds.bbci.co.uk/news/health/rss.xml',
-      lifestyle: 'https://www.lifehacker.com/rss'
+      lifestyle: 'https://www.lifehacker.com/rss',
+      // Topics present in onboarding (young) that previously had no dedicated feed.
+      edu: 'https://www.edsurge.com/news.rss',
+      travel: 'https://www.cntraveler.com/feed/rss',
+      movies: 'https://www.hollywoodreporter.com/t/movies/feed/'
     };
 
     const articlesToProcess = [];

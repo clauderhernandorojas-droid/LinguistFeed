@@ -13,30 +13,79 @@
     <div class="container">
         <h1>My Flashcards</h1>
 
-        <div id="no-flashcards" class="text-center" style="display:none;">
-            <p>No flashcards saved yet. Go to <a href="reader.html">Topics</a> to start learning!</p>
-        </div>
+        <section id="decks-view">
+            <div class="decks-toolbar">
+                <input id="deck-search-input" type="search" placeholder="Search deck..." />
+                <button type="button" id="new-deck-btn" class="btn">New deck</button>
+                <button type="button" id="toggle-select-mode-btn" class="btn">Select decks</button>
+                <button type="button" id="export-all-json-btn" class="btn">Export all JSON</button>
+            </div>
 
-        <div id="flashcard-container" class="flashcard-container">
-            <div id="flashcard-inner" class="flashcard-inner">
-                <div class="flashcard-front">
-                    <h2 id="flashcard-word"></h2>
-                    <p style="font-size: 0.8rem; color: #888;">(Click to flip)</p>
-                </div>
-            
-                <div class="flashcard-back">
-                    <p id="flashcard-definition" style="font-weight: bold;"></p>
-                    <p id="flashcard-translation" style="color: #28a745;"></p>
-                    <p id="flashcard-example" style="font-style: italic;"></p>
+            <div id="deck-empty-state" class="text-center" hidden>
+                <p>No decks yet. Create one to start reviewing.</p>
+            </div>
+
+            <div id="decks-grid" class="decks-grid"></div>
+
+            <div id="multi-select-bar" class="multi-select-bar" hidden>
+                <span id="multi-select-count">0 selected</span>
+                <button type="button" id="review-selected-btn" class="btn">Review selected</button>
+                <button type="button" id="export-selected-xlsx-btn" class="btn">Export selected (XLSX-ready CSV)</button>
+                <button type="button" id="cancel-select-mode-btn" class="btn">Cancel</button>
+            </div>
+        </section>
+
+        <section id="study-view" hidden>
+            <div class="flashcard-page-actions">
+                <button type="button" id="back-to-decks-btn" class="btn">Back to decks</button>
+                <button type="button" id="rename-deck-btn" class="btn">Rename deck</button>
+                <button type="button" id="export-csv-btn" class="btn">Export CSV (Lexispelling)</button>
+                <button type="button" id="export-json-btn" class="btn">Export JSON</button>
+                <button type="button" id="delete-all-in-deck-btn" class="btn btn-danger">Delete all cards in this deck</button>
+            </div>
+
+            <h2 id="study-deck-title" class="text-center"></h2>
+            <p id="study-deck-context" class="text-center"></p>
+            <p id="study-card-counter" class="text-center"></p>
+            <p id="single-deck-actions-note" class="text-center" hidden>Single-deck actions are disabled while reviewing multiple decks.</p>
+
+            <div id="no-flashcards" class="text-center" style="display:none;">
+                <p>This deck has no flashcards yet.</p>
+            </div>
+
+            <div id="flashcard-container" class="flashcard-container">
+                <div id="flashcard-inner" class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <h2 id="flashcard-word"></h2>
+                        <button type="button" id="flashcard-speak-btn" class="btn-audio" title="Listen to word" aria-label="Listen to word">Listen</button>
+                        <p class="flashcard-hint">(Click to flip)</p>
+                    </div>
+                
+                    <div class="flashcard-back">
+                        <p id="flashcard-definition"></p>
+                        <p id="flashcard-translation"></p>
+                        <p id="flashcard-example"></p>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div class="flashcard-controls" style="margin-top: 30px; display: flex; justify-content: center; gap: 10px;">
-            <button id="prev-button" class="btn">Previous</button>
-            <button id="flip-button" class="btn">Flip Card</button>
-            <button id="next-button" class="btn">Next</button>
-            <button id="delete-button" class="btn" style="background:#dc3545; color: white; border: none;">Delete</button>
+            <div class="flashcard-controls">
+                <button id="prev-button" class="btn">Previous</button>
+                <button id="flip-button" class="btn">Flip Card</button>
+                <button id="next-button" class="btn">Next</button>
+                <button id="delete-button" class="btn btn-danger">Delete</button>
+            </div>
+        </section>
+    </div>
+
+    <div id="confirm-modal" class="simple-modal" hidden>
+        <div class="simple-modal-content">
+            <h3 id="confirm-modal-title">Confirm action</h3>
+            <p id="confirm-modal-message">Are you sure?</p>
+            <div class="simple-modal-actions">
+                <button type="button" id="confirm-modal-cancel" class="btn">Cancel</button>
+                <button type="button" id="confirm-modal-confirm" class="btn btn-danger">Confirm</button>
+            </div>
         </div>
     </div>
 
@@ -49,12 +98,12 @@
         import { handleLogout } from './js/reader.js';
         // Importamos la lógica interna de tus flashcards
         import { initFlashcards } from './js/flashcards.js';
-        import { mountNavbar } from './js/navbar.js';
+        import { mountNavbarForCurrentUser } from './js/navbar.js';
 
         document.addEventListener('DOMContentLoaded', () => {
             // Verificamos sesión
             requireAuth();
-            mountNavbar('student', '');
+            mountNavbarForCurrentUser('');
             
             // Inicializamos el mazo de cartas
             initFlashcards();

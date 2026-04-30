@@ -33,6 +33,34 @@ async function initializeDatabase() {
       source TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
+    const articleCols = await all(`PRAGMA table_info(articles)`);
+    const hasExternalId = Array.isArray(articleCols)
+      ? articleCols.some((c) => String(c.name || '').toLowerCase() === 'external_id')
+      : false;
+    const hasAssignedToUserId = Array.isArray(articleCols)
+      ? articleCols.some((c) => String(c.name || '').toLowerCase() === 'assigned_to_user_id')
+      : false;
+    const hasIsManual = Array.isArray(articleCols)
+      ? articleCols.some((c) => String(c.name || '').toLowerCase() === 'is_manual')
+      : false;
+    if (!hasExternalId) {
+      await run('ALTER TABLE articles ADD COLUMN external_id TEXT');
+      console.log("✅ Columna 'articles.external_id' agregada");
+    }
+    if (!hasAssignedToUserId) {
+      await run('ALTER TABLE articles ADD COLUMN assigned_to_user_id INTEGER');
+      console.log("✅ Columna 'articles.assigned_to_user_id' agregada");
+    }
+    if (!hasIsManual) {
+      await run('ALTER TABLE articles ADD COLUMN is_manual INTEGER DEFAULT 0');
+      console.log("✅ Columna 'articles.is_manual' agregada");
+    }
+    await run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_articles_external_id_unique
+      ON articles (external_id)`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_articles_topic_created
+      ON articles (topic, created_at DESC)`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_articles_assigned_user
+      ON articles (assigned_to_user_id, created_at DESC)`);
 
     // 2. Simplified Articles table (AI-generated content)
     await run(`CREATE TABLE IF NOT EXISTS simplified_articles (
@@ -42,6 +70,14 @@ async function initializeDatabase() {
       level TEXT,
       FOREIGN KEY (article_id) REFERENCES articles (id) ON DELETE CASCADE
     )`);
+    await run(`DELETE FROM simplified_articles
+      WHERE id NOT IN (
+        SELECT MAX(id)
+        FROM simplified_articles
+        GROUP BY article_id, level
+      )`);
+    await run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_simplified_articles_article_level
+      ON simplified_articles (article_id, level)`);
 
     // Añade esto en db.js junto a las otras tablas:
     await run(`CREATE TABLE IF NOT EXISTS flashcards (
@@ -90,6 +126,31 @@ async function initializeDatabase() {
     )`);
     console.log("✅ Tabla 'attempts' verificada/creada");
 
+    await run(`CREATE TABLE IF NOT EXISTS answer_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      session_id TEXT,
+      article_id INTEGER NOT NULL,
+      question_id TEXT NOT NULL,
+      question_type TEXT NOT NULL,
+      quiz_source TEXT DEFAULT 'reader_ai',
+      selected_value TEXT,
+      is_correct INTEGER NOT NULL,
+      response_time_ms INTEGER,
+      attempt_index INTEGER DEFAULT 1,
+      counted_for_stats INTEGER DEFAULT 1,
+      level TEXT,
+      answered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+      UNIQUE(user_id, article_id, question_id, attempt_index)
+    )`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_answer_events_user_date
+      ON answer_events (user_id, answered_at)`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_answer_events_user_article
+      ON answer_events (user_id, article_id)`);
+    console.log("✅ Tabla 'answer_events' verificada/creada");
+
     // 4. Vocabulary table
     await run(`CREATE TABLE IF NOT EXISTS vocabulary (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -119,10 +180,57 @@ async function initializeDatabase() {
       level TEXT DEFAULT 'B1',
       age INTEGER,
       interests TEXT,  -- ⬅️ Agrégala aquí directamente
+      onboarding_completed INTEGER DEFAULT 0,
       role TEXT DEFAULT 'student',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
     console.log("✅ Tabla 'users' verificada/creada");
+    const userCols = await all(`PRAGMA table_info(users)`);
+    const hasOnboardingCompleted = Array.isArray(userCols)
+      ? userCols.some((c) => String(c.name || '').toLowerCase() === 'onboarding_completed')
+      : false;
+    if (!hasOnboardingCompleted) {
+      await run('ALTER TABLE users ADD COLUMN onboarding_completed INTEGER DEFAULT 0');
+      console.log("✅ Columna 'users.onboarding_completed' agregada");
+    }
+
+    await run(`CREATE TABLE IF NOT EXISTS user_preferences (
+      user_id INTEGER PRIMARY KEY,
+      weekly_reading_goal_minutes INTEGER NOT NULL DEFAULT 60,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`);
+    console.log("✅ Tabla 'user_preferences' verificada/creada");
+
+    await run(`CREATE TABLE IF NOT EXISTS classes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      teacher_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      invite_code TEXT NOT NULL UNIQUE,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(teacher_id) REFERENCES users(id) ON DELETE CASCADE
+    )`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_classes_teacher
+      ON classes (teacher_id, created_at)`);
+    console.log("✅ Tabla 'classes' verificada/creada");
+
+    await run(`CREATE TABLE IF NOT EXISTS class_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      class_id INTEGER NOT NULL,
+      student_id INTEGER NOT NULL,
+      joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(class_id, student_id),
+      FOREIGN KEY(class_id) REFERENCES classes(id) ON DELETE CASCADE,
+      FOREIGN KEY(student_id) REFERENCES users(id) ON DELETE CASCADE
+    )`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_class_members_class
+      ON class_members (class_id, joined_at)`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_class_members_student
+      ON class_members (student_id, joined_at)`);
+    console.log("✅ Tabla 'class_members' verificada/creada");
     
     // -------------------------------------------
 

@@ -6,7 +6,8 @@
   "scripts": {
     "backend": "node server.js",
     "frontend": "npx serve ../frontend",
-    "dev": "npx concurrently \"npm run backend\" \"npm run frontend\""
+    "dev": "npx concurrently \"npm run backend\" \"npm run frontend\"",
+    "batch-simplify": "node scripts/batch-simplify-top-per-topic.js"
   },
   "dependencies": {
     "axios": "^1.6.2",

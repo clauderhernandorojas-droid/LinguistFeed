@@ -1,15 +1,16 @@
 /* Estilos CSS para el Panel de Control Profesor */
-body {
-    font-family: Arial, sans-serif; /* Fuente moderna */
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+body.teacher-page {
+    font-family: Arial, sans-serif;
     padding: 20px;
 }
 
-.container {
-    max-width: 800px;
+body.teacher-page.layout-sidebar {
+    padding: 16px 16px 16px 252px;
+    font-family: Inter, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.teacher-page main.container {
+    max-width: 1120px;
     width: 100%;
 }
 

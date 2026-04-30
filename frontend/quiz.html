@@ -42,12 +42,12 @@
         import { requireAuth, logout } from './js/auth.js';
         // Importamos la función que unifica el Logout
         import { handleLogout } from './js/reader.js';
-        import { mountNavbar } from './js/navbar.js';
+        import { mountNavbarForCurrentUser } from './js/navbar.js';
         
         document.addEventListener('DOMContentLoaded', function() {
             // Verificamos que el usuario esté logueado
             requireAuth();
-            mountNavbar('student', '');
+            mountNavbarForCurrentUser('');
             
             // Activamos el botón de salir de forma centralizada
             handleLogout(logout);

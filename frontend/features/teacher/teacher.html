@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Control Profesor</title>
+    <link rel="stylesheet" href="../../css/styles.css">
     <link rel="stylesheet" href="css/teacher.css">
 </head>
-<body>
+<body class="teacher-page">
     <!-- Navbar -->
     <nav class="navbar">
         <div class="container">
@@ -20,13 +21,40 @@
 
     <!-- Contenido principal -->
     <main class="container">
-        <!-- Barra de búsqueda -->
-        <section id="student-search" class="card">
-            <h2>Buscar Estudiante</h2>
-            <input type="text" id="searchInput" placeholder="Nombre del estudiante">
-            <button id="searchButton" class="btn-search">Buscar</button>
-            <div id="results"></div>
+        <section id="classroom-management" class="card">
+            <h2>Clases</h2>
+            <p style="margin: 0 0 10px; color: #4a5568;">
+                Crea una clase, comparte el código con tus estudiantes y selecciónalos por grupo.
+            </p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                <input type="text" id="classNameInput" placeholder="Nombre de la clase (ej: B1 Noche)" style="flex:1; min-width:220px;">
+                <button id="createClassButton" class="btn-search" type="button">Crear clase</button>
+            </div>
+            <p id="class-create-status" style="margin-top:10px; font-size:0.95rem;"></p>
+
+            <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; align-items:center;">
+                <select id="classSelect" style="min-width:260px;">
+                    <option value="">Selecciona una clase</option>
+                </select>
+                <button id="loadClassStudentsButton" class="btn-search" type="button">Cargar alumnos</button>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; align-items:center;">
+                <input type="text" id="classStudentFilter" placeholder="Filtrar alumno dentro de la clase..." style="flex:1; min-width:240px;">
+            </div>
+            <p id="class-meta" style="margin-top:8px; color:#4a5568;"></p>
+            <div id="class-students-results"></div>
         </section>
+
+        <!-- Barra de búsqueda (respaldo) -->
+        <details class="card">
+            <summary style="cursor:pointer; font-weight:600;">Búsqueda manual por nombre (respaldo)</summary>
+            <section id="student-search" style="margin-top: 12px;">
+                <h2 style="margin-top:0;">Buscar Estudiante</h2>
+                <input type="text" id="searchInput" placeholder="Nombre del estudiante">
+                <button id="searchButton" class="btn-search">Buscar</button>
+                <div id="results"></div>
+            </section>
+        </details>
 
         <!-- Dashboard del estudiante -->
         <section class="card">
@@ -38,6 +66,8 @@
         <!-- Asignar artículo -->
         <section id="article-upload" class="card">
             <h2>Asignar Artículo</h2>
+            <p id="active-class-msg" style="margin-bottom: 10px; color: #2d3748;">Clase activa: ninguna</p>
+            <p id="selected-student-msg" style="margin-bottom: 10px; color: #2d3748;">Sin estudiante seleccionado (publicación general).</p>
             <input type="text" id="title" placeholder="Título del artículo">
             <input type="text" id="topic" placeholder="Tema">
             <textarea id="content" placeholder="Texto del artículo"></textarea>

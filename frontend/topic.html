@@ -50,6 +50,17 @@
             color: #666;
             margin: 20px 0;
         }
+
+        #searchBarCategory {
+            width: 100%;
+            max-width: 480px;
+            margin: 8px 0 12px 0;
+            padding: 10px 14px;
+            font-size: 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
     </style>
 </head>
 <body>
@@ -71,6 +82,7 @@
         </div>
 
         <div id="loading">Loading articles...</div>
+        <input type="search" id="searchBarCategory" placeholder="Buscar artículos..." autocomplete="off">
         <div id="articles-container" class="articles-grid"></div>
     </div>
 
@@ -78,15 +90,17 @@
         <p>&copy; 2026 LinguistFeed. All rights reserved.</p>
     </footer>
 
+    <script src="./js/ui-handlers.js"></script>
+    <script src="./js/search.js"></script>
     <script type="module">
         import { logout, requireAuth } from './js/auth.js';
         import { handleLogout } from './js/reader.js';
-        import { mountNavbar } from './js/navbar.js';
+        import { mountNavbarForCurrentUser } from './js/navbar.js';
 
         document.addEventListener('DOMContentLoaded', function () {
             // Protección de ruta
             requireAuth();
-            mountNavbar('student', '');
+            mountNavbarForCurrentUser('');
 
             const container = document.getElementById('articles-container');
             const loading = document.getElementById('loading');
@@ -134,11 +148,20 @@
                         container.appendChild(card);
                     });
 
+                    // --- initSearch for articles list (safe; después de pintar tarjetas) ---
+                    if (typeof window.initSearch === 'function') {
+                        window.initSearch('searchBarCategory', ['#articles-container'], '.article-card');
+                        const sb = document.getElementById('searchBarCategory');
+                        if (sb) sb.dispatchEvent(new Event('input'));
+                    }
+                    // --- end initSearch snippet ---
+
                 } catch (err) {
                     container.innerHTML = '<p class="text-center" style="color:red;">Error connecting to the server.</p>';
                     console.error("Fetch Error:", err);
                 } finally {
                     loading.style.display = 'none';
+                    document.getElementById('searchBarCategory')?.dispatchEvent(new Event('input'));
                 }
             }
 

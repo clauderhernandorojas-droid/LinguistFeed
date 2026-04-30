@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const quizService = require('../services/quizService');
+const statsService = require('../services/statsService');
 const { authenticate } = require('../middleware/auth');
+const db = require('../database/db');
 
 /**
  * @route GET /progress/:userId
@@ -66,7 +68,6 @@ router.get('/progress/history', authenticate, async (req, res) => {
     const { limit = 20 } = req.query;
     
     // Get articles read by the user
-    const db = require('../database/db');
     const articles = await db.all(
       `SELECT DISTINCT a.id, a.title, a.source, a.topic, a.created_at,
               sa.level, MAX(att.submitted_at) as read_at
@@ -98,7 +99,6 @@ router.get('/progress/level-recommendation', authenticate, async (req, res) => {
     const userId = req.user.userId;
     
     // Get user's current level
-    const db = require('../database/db');
     const user = await db.get(
       'SELECT level FROM users WHERE id = ?',
       [userId]
@@ -153,6 +153,121 @@ router.get('/progress/level-recommendation', authenticate, async (req, res) => {
     });
   } catch (error) {
     console.error('Get level recommendation error:', error.message);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/answer-event', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId ?? req.user.id;
+    const {
+      sessionId = null,
+      articleId,
+      quizSource = 'reader_ai',
+      questionId,
+      questionType,
+      attemptIndex = 1,
+      selected,
+      isCorrect,
+      responseTimeMs = null,
+      answeredAt = null,
+      meta = {}
+    } = req.body || {};
+
+    const articleIdNum = parseInt(articleId, 10);
+    const attemptIndexNum = parseInt(attemptIndex, 10);
+    const responseMsNum = responseTimeMs == null ? null : parseInt(responseTimeMs, 10);
+    if (!Number.isInteger(articleIdNum) || articleIdNum <= 0 || !questionId || !questionType) {
+      return res.status(400).json({ ok: false, error: 'articleId, questionId y questionType son obligatorios' });
+    }
+
+    const countedForStats = attemptIndexNum === 1 && (responseMsNum == null || responseMsNum >= 1500) ? 1 : 0;
+    const reason = countedForStats ? 'first_attempt_valid' : (attemptIndexNum !== 1 ? 'not_first_attempt' : 'too_fast');
+
+    await db.run(
+      `INSERT OR IGNORE INTO answer_events
+       (user_id, session_id, article_id, question_id, question_type, quiz_source, selected_value, is_correct, response_time_ms, attempt_index, counted_for_stats, level, answered_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))`,
+      [
+        userId,
+        sessionId,
+        articleIdNum,
+        String(questionId),
+        String(questionType),
+        String(quizSource || 'reader_ai'),
+        selected == null ? '' : JSON.stringify(selected),
+        isCorrect ? 1 : 0,
+        responseMsNum,
+        Number.isInteger(attemptIndexNum) && attemptIndexNum > 0 ? attemptIndexNum : 1,
+        countedForStats,
+        meta && meta.level ? String(meta.level) : null,
+        answeredAt || null
+      ]
+    );
+
+    const snapshot = await statsService.buildStatsV2(userId);
+    res.json({
+      ok: true,
+      counted: countedForStats === 1,
+      reason,
+      normalized: { firstAttemptOnly: true, minAnswerTimeSec: 1.5 },
+      snapshot: {
+        totalAnswers: snapshot.activity.totalAnswers,
+        correctAnswers: snapshot.activity.correctAnswers,
+        accuracy: snapshot.scores.accuracy,
+        overallScore: snapshot.scores.overallScore
+      }
+    });
+  } catch (error) {
+    console.error('Save answer-event error:', error.message);
+    res.status(400).json({ ok: false, error: error.message });
+  }
+});
+
+router.get('/stats-v2', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId ?? req.user.id;
+    const stats = await statsService.buildStatsV2(userId);
+    res.json(stats);
+  } catch (error) {
+    console.error('Get stats-v2 error:', error.message);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+/**
+ * Misma métrica que /stats-v2 pero para un estudiante visto por profesor/admin.
+ * GET /api/progress/teacher/student/:studentId/stats-v2?windowDays=30
+ */
+router.get('/teacher/student/:studentId/stats-v2', authenticate, async (req, res) => {
+  try {
+    const role = String(req.user.role || '').toLowerCase();
+    if (role !== 'teacher' && role !== 'admin') {
+      return res.status(403).json({ error: 'Acceso denegado' });
+    }
+
+    const studentId = parseInt(req.params.studentId, 10);
+    if (!Number.isInteger(studentId) || studentId <= 0) {
+      return res.status(400).json({ error: 'ID de estudiante inválido' });
+    }
+
+    const target = await db.get('SELECT id, role FROM users WHERE id = ?', [studentId]);
+    if (!target) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+    if (role === 'teacher' && String(target.role || '').toLowerCase() !== 'student') {
+      return res.status(403).json({ error: 'Solo se pueden consultar estudiantes' });
+    }
+
+    const wd = req.query.windowDays;
+    const windowDays =
+      wd !== undefined && wd !== '' ? parseInt(String(wd), 10) : undefined;
+    const stats = await statsService.buildStatsV2(studentId, {
+      windowDays: Number.isFinite(windowDays) ? windowDays : 30
+    });
+    res.json(stats);
+  } catch (error) {
+    console.error('Get teacher student stats-v2 error:', error.message);
     res.status(400).json({ error: error.message });
   }
 });
