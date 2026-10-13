@@ -61,6 +61,10 @@ const usersRoutes = require('./routes/users');
 const classesRoutes = require('./routes/classes');
 
 // 5. Registro de Rutas
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'LinguistFeed API running' });
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/articles', articlesRoutes); // <-- Corregido
 app.use('/api/daily-articles', dailyArticlesRoutes);
