@@ -190,7 +190,7 @@ async function handleOnboarding(event) {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+function initOnboarding() {
   const modal = document.getElementById('onboarding-modal');
   const form = document.getElementById('onboarding-form');
   const ageInput = document.getElementById('user-age');
@@ -205,7 +205,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!modal) return;
     const token = localStorage.getItem('token');
     const stored = readStoredUser();
-    if (!token || !stored?.id) return;
+    if (!token) return;
+
+    // Si localmente ya detectamos que no ha completado el onboarding, mostramos el modal inmediatamente
+    if (stored && !hasCompletedOnboarding(stored)) {
+      modal.style.display = 'flex';
+    }
+
+    if (!stored?.id) return;
+
     try {
       const response = await fetch(`${API_BASE_URL}/users/${stored.id}`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -218,6 +226,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!hasCompletedOnboarding(fullUser)) {
         modal.style.display = 'flex';
       } else {
+        modal.style.display = 'none';
         if (fullUser.level) localStorage.setItem('userLevel', String(fullUser.level));
         if (fullUser.age != null) localStorage.setItem('userAge', String(fullUser.age));
         if (fullUser.interests != null) localStorage.setItem('user-interests', String(fullUser.interests));
@@ -301,4 +310,10 @@ document.addEventListener('DOMContentLoaded', () => {
     weeklyGoalSelect.addEventListener('change', toggleCustomGoalInput);
     toggleCustomGoalInput();
   }
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initOnboarding);
+} else {
+  initOnboarding();
+}

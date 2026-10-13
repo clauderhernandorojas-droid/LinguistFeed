@@ -246,8 +246,9 @@ router.post('/analyze-text', async (req, res) => {
   try {
     const result = await aiService.analyzeText(text, type);
     res.json(result);
-  } catch (_) {
-    res.status(500).json({ error: 'Error en IA' });
+  } catch (error) {
+    console.error('❌ Error en analyze-text:', error.message);
+    res.status(500).json({ error: error.message || 'Error en IA' });
   }
 });
 
@@ -347,9 +348,11 @@ router.post('/manual-upload', authenticate, async (req, res) => {
   }
 });
 
-router.get('/:id', async (req, res) => {
-  const articleId = String(req.params.id || '').replace(/['"]+/g, '').trim();
-  if (!articleId) return res.status(400).json({ error: 'ID de artículo inválido' });
+async function getArticleHandler(req, res) {
+  const articleId = String(req.params.id || req.body.id || req.body.articleId || '').replace(/['"]+/g, '').trim();
+  if (!articleId || articleId === 'undefined' || articleId === 'null') {
+    return res.status(400).json({ error: 'ID de artículo inválido o no proporcionado' });
+  }
 
   try {
     await ensureLegacyJsonMigrated();
@@ -365,7 +368,7 @@ router.get('/:id', async (req, res) => {
     }
     if (!article) return res.status(404).json({ error: 'Artículo no encontrado' });
 
-    const rawLevel = req.query.level != null ? String(req.query.level).trim().toUpperCase() : '';
+    const rawLevel = String(req.query.level || req.body.level || '').trim().toUpperCase();
     const numericArticleId = article.id != null ? Number(article.id) : null;
     if (rawLevel && CEFR_LEVELS.has(rawLevel) && numericArticleId != null && !Number.isNaN(numericArticleId)) {
       const simplified = await db.get(
@@ -386,6 +389,11 @@ router.get('/:id', async (req, res) => {
     console.error('❌ Error al buscar artículo:', error.message);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
-});
+}
+
+router.get('/:id', getArticleHandler);
+router.get('/:id/simplify', getArticleHandler);
+router.post('/:id/simplify', getArticleHandler);
+router.post('/simplify', getArticleHandler);
 
 module.exports = router;

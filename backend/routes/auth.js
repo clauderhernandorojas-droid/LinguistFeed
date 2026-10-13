@@ -29,7 +29,8 @@ router.post('/register', async (req, res) => {
       [rawUsername, rawEmail, hashedPassword]
     );
     
-    const user = { id: result.id, username: rawUsername, email: rawEmail, onboardingCompleted: false };
+    const userId = result.lastID || result.id;
+    const user = { id: userId, username: rawUsername, email: rawEmail, onboardingCompleted: false, role: 'student' };
     const token = jwt.sign(user, JWT_SECRET, { expiresIn: '24h' });
     
     res.status(201).json({ token, user });

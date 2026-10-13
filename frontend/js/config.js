@@ -10,5 +10,5 @@ const envApiBase = runtimeApiBase && typeof runtimeApiBase === 'string'
 const productionApiBase = 'https://linguistfeed-api.onrender.com/api';
 
 export const API_BASE_URL = envApiBase || (isLocalhost
-  ? 'http://localhost:3001/api'
+  ? 'http://localhost:10000/api'
   : productionApiBase);

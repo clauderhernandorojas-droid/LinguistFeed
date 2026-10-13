@@ -15,7 +15,7 @@ class AiService {
                 ? 'https://openrouter.ai/api/v1/chat/completions'
                 : 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions')
         ).trim();
-        this.defaultModel = (process.env.GEMINI_MODEL || 'gemini-2.0-flash').trim();
+        this.defaultModel = (process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite').trim();
 
         if (this.useLmStudioForAnalyze()) {
             const cfg = this.getLmStudioAnalyzeConfig();
@@ -73,6 +73,7 @@ class AiService {
      * Activar con USE_LMSTUDIO_FOR_ANALYZE=true en backend/.env
      */
     useLmStudioForAnalyze() {
+        if (process.env.RENDER || process.env.NODE_ENV === 'production') return false;
         const v = String(process.env.USE_LMSTUDIO_FOR_ANALYZE || '').toLowerCase();
         return v === 'true' || v === '1' || v === 'yes';
     }
@@ -82,6 +83,7 @@ class AiService {
      * Activar con USE_LMSTUDIO_FOR_LEVELING=true
      */
     useLmStudioForLeveling() {
+        if (process.env.RENDER || process.env.NODE_ENV === 'production') return false;
         const v = String(process.env.USE_LMSTUDIO_FOR_LEVELING || '').toLowerCase();
         return v === 'true' || v === '1' || v === 'yes';
     }
