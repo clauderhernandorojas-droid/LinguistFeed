@@ -3,13 +3,19 @@ const axios = require('axios');
 require('dotenv').config();
 
 /**
- * Service for interacting with AI models via OpenRouter API
- * and optionally LM Studio (OpenAI-compatible) for reader analyze/translate.
+ * Service for interacting with AI models via Google Gemini (OpenAI-compatible endpoint),
+ * OpenRouter API fallback, or optionally LM Studio (OpenAI-compatible) for local testing.
  */
 class AiService {
     constructor() {
-        this.apiKey = process.env.OPENROUTER_API_KEY;
-        this.apiUrl = "https://openrouter.ai/api/v1/chat/completions";
+        this.apiKey = (process.env.GEMINI_API_KEY || process.env.OPENROUTER_API_KEY || '').trim();
+        this.apiUrl = (
+            process.env.GEMINI_API_URL ||
+            (process.env.OPENROUTER_API_KEY && !process.env.GEMINI_API_KEY
+                ? 'https://openrouter.ai/api/v1/chat/completions'
+                : 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions')
+        ).trim();
+        this.defaultModel = (process.env.GEMINI_MODEL || 'gemini-2.0-flash').trim();
 
         if (this.useLmStudioForAnalyze()) {
             const cfg = this.getLmStudioAnalyzeConfig();
@@ -29,15 +35,16 @@ class AiService {
             const okDev = this.useLmStudioForAnalyze() && this.isMockSchedulerQuiz();
             if (okDev) {
                 console.log(
-                    'ℹ️ AiService: sin OPENROUTER_API_KEY (OK: LM Studio analyze + MOCK_SCHEDULER_QUIZ)'
+                    'ℹ️ AiService: sin GEMINI_API_KEY / OPENROUTER_API_KEY (OK: LM Studio analyze + MOCK_SCHEDULER_QUIZ)'
                 );
             } else {
                 console.warn(
-                    '⚠️ OPENROUTER_API_KEY no configurada (necesaria si no usas LM Studio para analyze o desactivas mock del scheduler)'
+                    '⚠️ GEMINI_API_KEY (o OPENROUTER_API_KEY) no configurada (necesaria si no usas LM Studio para analyze o desactivas mock del scheduler)'
                 );
             }
         } else {
-            console.log('✅ AiService: OpenRouter API key presente');
+            const providerName = this.apiUrl.includes('generativelanguage.googleapis.com') ? 'Google Gemini' : 'OpenRouter';
+            console.log(`✅ AiService: API key presente (${providerName}) - Modelo: ${this.getModel()}`);
         }
 
         // Definimos las reglas de niveles como una propiedad de la clase
@@ -49,6 +56,16 @@ class AiService {
             'C1': "- Use advanced/academic vocabulary and sophisticated structures.\n- Use professional idioms and nuanced expressions.",
             'C2': "- Use near-native, complex vocabulary and highly sophisticated stylistic devices."
         };
+    }
+
+    getModel(preferredModel) {
+        if (preferredModel && !this.apiUrl.includes('generativelanguage.googleapis.com')) {
+            return preferredModel;
+        }
+        if (this.apiUrl.includes('openrouter.ai') && this.defaultModel.startsWith('gemini')) {
+            return `google/${this.defaultModel}`;
+        }
+        return this.defaultModel;
     }
 
     /**
@@ -126,7 +143,7 @@ class AiService {
         }
         if (!this.apiKey) {
             throw new Error(
-                'OPENROUTER_API_KEY no configurada y USE_LMSTUDIO_FOR_ANALYZE no está activo'
+                'GEMINI_API_KEY (o OPENROUTER_API_KEY) no configurada y USE_LMSTUDIO_FOR_ANALYZE no está activo'
             );
         }
         return this.ask(prompt, systemRole);
@@ -168,19 +185,20 @@ class AiService {
 
             if (!this.apiKey) {
                 if (this.useLmStudioForAnalyze()) {
-                    console.warn('ℹ️ generateLeveledArticle: sin OPENROUTER_API_KEY; usando LM Studio (USE_LMSTUDIO_FOR_ANALYZE)');
+                    console.warn('ℹ️ generateLeveledArticle: sin API key; usando LM Studio (USE_LMSTUDIO_FOR_ANALYZE)');
                     return await this.askLmStudio(prompt, systemRole, {
                         max_tokens: parseInt(String(process.env.LMSTUDIO_LEVELING_MAX_TOKENS || '8192'), 10) || 8192,
                         timeout: parseInt(String(process.env.LMSTUDIO_LEVELING_TIMEOUT_MS || '180000'), 10) || 180000
                     });
                 }
                 throw new Error(
-                    'OPENROUTER_API_KEY no configurada: define USE_LMSTUDIO_FOR_LEVELING=true o USE_LMSTUDIO_FOR_ANALYZE=true con LM Studio en marcha'
+                    'GEMINI_API_KEY (o OPENROUTER_API_KEY) no configurada: define USE_LMSTUDIO_FOR_LEVELING=true o USE_LMSTUDIO_FOR_ANALYZE=true con LM Studio en marcha'
                 );
             }
 
+            const model = this.getModel('openai/gpt-4o-mini');
             const response = await axios.post(this.apiUrl, {
-                model: 'openai/gpt-4o-mini',
+                model,
                 messages: [
                     { role: 'system', content: systemRole },
                     { role: 'user', content: prompt }
@@ -204,8 +222,9 @@ class AiService {
      */
     async ask(prompt, systemRole = "You are a helpful language learning assistant.") {
         try {
+            const model = this.getModel('google/gemini-2.0-flash-001');
             const response = await axios.post(this.apiUrl, {
-                model: 'google/gemini-2.0-flash-001',
+                model,
                 messages: [
                     { role: 'system', content: systemRole },
                     { role: 'user', content: prompt }
@@ -298,7 +317,7 @@ class AiService {
             return this.mockRichQuizForReader(level);
         }
         if (!this.apiKey) {
-            throw new Error('OPENROUTER_API_KEY no está configurada en backend/.env');
+            throw new Error('GEMINI_API_KEY (o OPENROUTER_API_KEY) no está configurada en backend/.env');
         }
         const excerpt = String(text || '').trim().slice(0, 14000);
         if (!excerpt) throw new Error('Texto del artículo vacío');
