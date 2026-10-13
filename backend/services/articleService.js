@@ -23,7 +23,7 @@ class ArticleService {
       news: 'http://feeds.bbci.co.uk/news/world/rss.xml',
       culture: 'https://www.theguardian.com/culture/rss',
       business: 'https://feeds.bbci.co.uk/news/business/rss.xml',
-      history: 'https://www.smithsonianmag.com/rss/history/',
+      history: 'https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml',
       gaming: 'https://feeds.feedburner.com/ign/all',
       trends: 'https://www.wired.com/feed/rss',
       health: 'https://feeds.bbci.co.uk/news/health/rss.xml',

@@ -17,7 +17,7 @@ class RssService {
       { url: 'https://www.wired.com/feed/rss', name: 'Wired', category: 'tech' },
   
       // --- CULTURA, HISTORIA Y FILO (Para el grupo de Adultos) ---
-      { url: 'https://www.smithsonianmag.com/rss/history/', name: 'Smithsonian History', category: 'history' },
+      { url: 'https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml', name: 'BBC Entertainment & Arts', category: 'history' },
       { url: 'https://www.historyextra.com/feed/', name: 'HistoryExtra (BBC History Mag)', category: 'history' },
       { url: 'https://historyguild.org/feed/', name: 'History Guild', category: 'history' },
       { url: 'https://www.historytoday.com/feed/rss.xml', name: 'History Today', category: 'history' },
