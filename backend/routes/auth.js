@@ -6,7 +6,7 @@ const db = require('../database/db');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs'); // Necesitarás instalarlo: npm install bcryptjs
 
-const JWT_SECRET = 'LinguistFeed_Master_Key_2026'; // <--- Usa esta frase exacta
+const JWT_SECRET = process.env.JWT_SECRET || 'LinguistFeed_Master_Key_2026';
 
 /**
  * @route POST /register
@@ -14,19 +14,27 @@ const JWT_SECRET = 'LinguistFeed_Master_Key_2026'; // <--- Usa esta frase exacta
  * @access Public
  */
 router.post('/register', async (req, res) => {
-  const { username, email, password } = req.body;
+  const rawEmail = (req.body.email || '').trim().toLowerCase();
+  const rawUsername = (req.body.username || req.body.name || rawEmail.split('@')[0] || '').trim();
+  const password = req.body.password || req.body.pass || '';
+
+  if (!rawEmail || !password) {
+    return res.status(400).json({ error: "Email y contraseña requeridos" });
+  }
+
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await db.run(
       `INSERT INTO users (username, email, password_hash, onboarding_completed) VALUES (?, ?, ?, 0)`,
-      [username, email, hashedPassword]
+      [rawUsername, rawEmail, hashedPassword]
     );
     
-    const user = { id: result.id, username, email, onboardingCompleted: false };
+    const user = { id: result.id, username: rawUsername, email: rawEmail, onboardingCompleted: false };
     const token = jwt.sign(user, JWT_SECRET, { expiresIn: '24h' });
     
     res.status(201).json({ token, user });
   } catch (error) {
+    console.error("❌ Error en register:", error.message);
     res.status(400).json({ error: "El usuario o email ya existe" });
   }
 });
@@ -37,12 +45,32 @@ router.post('/register', async (req, res) => {
  * @access Public
  */
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
+  const emailInput = (req.body.email || req.body.username || '').trim();
+  const passwordInput = req.body.password || req.body.pass || '';
+
+  console.log(`Intento de login para email: ${emailInput}`);
+
   try {
-    const user = await db.get(`SELECT * FROM users WHERE email = ?`, [email]);
-    
-    if (user && await bcrypt.compare(password, user.password_hash)) {
-      const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
+    const user = await db.get(
+      `SELECT * FROM users WHERE LOWER(TRIM(email)) = LOWER(?) OR LOWER(TRIM(username)) = LOWER(?)`,
+      [emailInput, emailInput]
+    );
+
+    const userFound = !!user;
+    console.log(`Usuario encontrado: ${userFound}`);
+
+    let passwordMatch = false;
+    if (userFound && user.password_hash) {
+      passwordMatch = await bcrypt.compare(passwordInput, user.password_hash);
+    }
+    console.log(`Resultado de comparación de password: ${passwordMatch}`);
+
+    if (userFound && passwordMatch) {
+      const token = jwt.sign(
+        { id: user.id, username: user.username, role: user.role },
+        JWT_SECRET,
+        { expiresIn: '24h' }
+      );
       res.json({ 
         token, 
         user: {
@@ -60,6 +88,7 @@ router.post('/login', async (req, res) => {
       res.status(401).json({ error: "Credenciales inválidas" });
     }
   } catch (error) {
+    console.error("❌ Error en login:", error.message);
     res.status(500).json({ error: "Error en el servidor" });
   }
 });
