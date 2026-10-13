@@ -15,11 +15,12 @@ function buildCorsOrigins() {
     'http://127.0.0.1:3000',
     'http://127.0.0.1:3001',
     'https://clauderhernandorojas-droid.github.io',
+    'https://linguistfeed.onrender.com',
   ];
 
   const extraOrigins = (process.env.CORS_ORIGINS || '')
     .split(',')
-    .map((origin) => origin.trim())
+    .map((origin) => origin.trim().replace(/\/+$/, ''))
     .filter(Boolean);
 
   return new Set([...defaultOrigins, ...extraOrigins]);
@@ -31,7 +32,12 @@ const allowedOrigins = buildCorsOrigins();
 app.use(cors({
   origin: (origin, callback) => {
     // Permitir herramientas sin origin (Postman/curl) y requests same-origin.
-    if (!origin || allowedOrigins.has(origin)) {
+    if (
+      !origin ||
+      allowedOrigins.has('*') ||
+      allowedOrigins.has(origin) ||
+      origin.endsWith('.onrender.com')
+    ) {
       return callback(null, true);
     }
 
