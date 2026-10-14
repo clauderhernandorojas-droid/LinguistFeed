@@ -549,6 +549,11 @@ async function loadFullArticle(id, level = null) {
         // --- PASO 4: PINTAR TODO EL CONTENIDO ---
         const safeArticleId = String(id).replace(/[^a-zA-Z0-9_-]/g, '_');
         const selectorContainerId = `level-selector-container-${safeArticleId}`;
+        const articleText = article.simplified_content || article.content || '';
+        const completeTitle = (article.title && String(article.title).trim().length > 0)
+            ? String(article.title).trim()
+            : 'Untitled Article';
+
         container.innerHTML = `
             <div class="article-full">
                 <div id="nav-and-title-area" style="margin-bottom: 20px;">
@@ -556,14 +561,14 @@ async function loadFullArticle(id, level = null) {
                             style="background:none; border:none; color:#007bff; font-weight:bold; cursor:pointer; padding:0;">
                         ← Back to Articles
                     </button>
-                    <h1 id="interactive-title" style="margin-top:10px;">${article.title}</h1>
+                    <h1 id="interactive-title" style="margin-top:10px;">${completeTitle}</h1>
                 </div>
 
-                <div id="audio-controls-panel" style="background: rgba(16, 23, 58, 0.35); padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 15px; border: 1px solid #2a356a;">
-                    <div style="flex: 1;">
+                <div id="audio-controls-panel" class="audio-controls-panel">
+                    <div class="audio-controls-main" style="flex: 1;">
                         <span style="font-weight: bold; color: #eef2ff; display: block; margin-bottom: 5px;">Audio Mode 🎧</span>
                         <div style="display: flex; flex-direction: column; gap: 10px;">
-                            <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                            <div class="audio-buttons-row">
                                 <button type="button" id="btn-play-article" class="audio-toolbar-btn audio-toolbar-btn--primary">Listen / Play</button>
                                 <button type="button" id="btn-pause" class="audio-toolbar-btn">Pause</button>
                                 <button type="button" id="btn-resume" class="audio-toolbar-btn">Resume</button>
@@ -580,15 +585,15 @@ async function loadFullArticle(id, level = null) {
                     </button>
                 </div>
 
-                <div id="${selectorContainerId}" style="margin-bottom: 25px; padding: 10px; background: rgba(16, 23, 58, 0.35); border: 1px solid #2a356a; border-radius: 10px;">
+                <div id="${selectorContainerId}" class="level-selector" style="margin-bottom: 25px; padding: 10px; background: rgba(16, 23, 58, 0.35); border: 1px solid #2a356a; border-radius: 10px;">
                     </div>
 
                 <div id="article-body-wrapper">
-                    <div class="article-meta mb-3" style="color: #666; font-size: 0.9rem;">
-                        <span class="badge bg-primary" style="padding: 5px 10px;">Current Level: ${activeLevel}</span>
+                    <div class="article-meta mb-3" style="color: #94a3b8; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
+                        <span class="badge-level-indicator">Current Level: <strong>${activeLevel}</strong></span>
                     </div>
                     <div id="interactive-text" class="article-body-text" style="line-height: 1.8; font-size: 1.1rem;">
-                        ${formatArticleIntoParagraphs(article.content)}
+                        ${formatArticleIntoParagraphs(articleText)}
                     </div>
                 </div>
             </div>
@@ -602,7 +607,7 @@ async function loadFullArticle(id, level = null) {
             titleEl.onclick = (e) => {
                 // Usamos tu función global que ya definiste arriba en reader.js
                 if (window.handleWordClick) {
-                    window.handleWordClick(article.title, e);
+                    window.handleWordClick(completeTitle, e);
                 }
             };
         }
@@ -613,7 +618,7 @@ async function loadFullArticle(id, level = null) {
                     <h4>Ready to test your knowledge?</h4>
                     <p class="text-muted mb-3">Based on what you just read or heard.</p>
                     <button id="generate-quiz-btn" class="btn btn-primary btn-lg shadow-sm">
-                        🧠 Generate AI Quiz
+                        🧠 Generate AI Quiz for Level ${activeLevel}
                     </button>
                     <div id="quiz-results-area" class="mt-4 text-start" style="display:none;"></div>
                 </div>
@@ -631,82 +636,11 @@ async function loadFullArticle(id, level = null) {
 
         attachReadModeArticleAudio();
 
-        // Lógica del Quiz... (se mantiene igual que tu código)
+        // Lógica del Quiz
         const quizBtn = document.getElementById('generate-quiz-btn');
         if (quizBtn) {
-            quizBtn.onclick = async () => {
-                const resultsArea = document.getElementById('quiz-results-area');
-                quizBtn.disabled = true;
-                quizBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Loading...';
-                resultsArea.style.display = 'none';
-                resultsArea.innerHTML = '';
-                try {
-                    const res = await fetch(`${API_BASE_URL}/articles/generate-quiz-only`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            text: article.content,
-                            level: article.level || activeLevel,
-                            articleId: String(id)
-                        })
-                    });
-                    let data = {};
-                    try {
-                        data = await res.json();
-                    } catch {
-                        data = {};
-                    }
-
-                    if (!res.ok) {
-                        const msg = data.message || data.error || `Error ${res.status}`;
-                        resultsArea.style.display = 'block';
-                        resultsArea.innerHTML = `<p class="text-danger">${msg}</p>`;
-                        quizBtn.disabled = false;
-                        quizBtn.innerHTML = '🧠 Generate AI Quiz';
-                        return;
-                    }
-
-                    if (data.quizzes && data.quizzes.length > 0) {
-                        quizBtn.style.display = 'none';
-                        resultsArea.style.display = 'block';
-                        const baseQuiz = mergeQuizWithMatching(data.quizzes);
-                        const sessionId = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                        const enrichedQuiz = baseQuiz.map((q, idx) => ({
-                            ...q,
-                            _lfQuestionId: `${id}_${idx}_${String(q.type || 'q').toLowerCase()}`,
-                            _lfArticleId: String(id),
-                            _lfLevel: article.level || activeLevel,
-                            _lfSource: data.mock ? 'reader_mock' : 'reader_ai',
-                            _lfSessionId: sessionId
-                        }));
-                        displayQuiz(enrichedQuiz, 'quiz-results-area');
-                        if (data.cached) {
-                            const note = document.createElement('p');
-                            note.className = 'small text-muted text-center mb-2';
-                            note.textContent = 'Quiz recuperado de caché (sin nueva llamada a la IA).';
-                            const h3 = resultsArea.querySelector('h3');
-                            if (h3) h3.insertAdjacentElement('afterend', note);
-                            else resultsArea.prepend(note);
-                        } else if (data.mock) {
-                            const note = document.createElement('p');
-                            note.className = 'small text-info text-center mb-2';
-                            note.textContent =
-                                'Modo demo: quiz fijo en el servidor (MOCK_READER_QUIZ). Desactívalo y añade créditos para usar la IA.';
-                            const h3 = resultsArea.querySelector('h3');
-                            if (h3) h3.insertAdjacentElement('afterend', note);
-                            else resultsArea.prepend(note);
-                        }
-                    } else {
-                        resultsArea.style.display = 'block';
-                        resultsArea.innerHTML = '<p class="text-warning">No se recibieron preguntas. Inténtalo de nuevo.</p>';
-                        quizBtn.disabled = false;
-                        quizBtn.innerHTML = '🧠 Generate AI Quiz';
-                    }
-                } catch (e) {
-                    console.error(e);
-                    quizBtn.disabled = false;
-                    quizBtn.innerHTML = '❌ Error — reintentar';
-                }
+            quizBtn.onclick = () => {
+                executeGenerateQuiz(String(id), article.reading_level || article.level || activeLevel, articleText);
             };
         }
 
@@ -757,7 +691,7 @@ function renderLevelSelector(containerOrArticleId, maybeArticleId, maybeActiveLe
         <button 
             class="level-btn ${isThisActive ? 'active' : ''}" 
             onclick="changeArticleLevel('${currentArticleId}', '${level}')"
-            style="margin-right: 8px; padding: 5px 15px; cursor: pointer; border-radius: 15px; 
+            style="cursor: pointer; border-radius: 22px; 
                    border: 1px solid #007bff; 
                    background: ${isThisActive ? '#007bff' : 'white'}; 
                    color: ${isThisActive ? 'white' : '#007bff'};"
@@ -1129,21 +1063,25 @@ function shuffleArray(arr) {
     return a;
 }
 
-function renderMcqCard(cardBody, q, index) {
+function renderMcqCard(cardBody, q, index, onAnswered) {
     const renderTs = Date.now();
     const questionText = document.createElement('p');
     questionText.className = 'fw-bold mb-3';
     questionText.style.color = '#2d3748';
-    questionText.textContent = `${index + 1}. ${q.question}`;
+
+    const categoryBadge = q.category
+        ? `<span class="badge bg-secondary me-2 text-uppercase" style="font-size:0.68rem;letter-spacing:0.5px;">${String(q.category).replace(/_/g, ' ')}</span>`
+        : '';
+    questionText.innerHTML = `${categoryBadge}${index + 1}. ${q.question}`;
     cardBody.appendChild(questionText);
 
     const optionsDiv = document.createElement('div');
-    optionsDiv.className = 'd-grid gap-2';
+    optionsDiv.className = 'd-grid gap-2 quiz-options';
 
     q.options.forEach((opt, optIndex) => {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'btn btn-outline-primary text-start btn-sm py-2 px-3';
+        btn.className = 'btn btn-outline-primary text-start btn-sm py-2 px-3 quiz-option-btn';
         btn.style.borderRadius = '6px';
         btn.textContent = opt;
 
@@ -1161,12 +1099,21 @@ function renderMcqCard(cardBody, q, index) {
                 btn.className = 'btn btn-danger text-start btn-sm py-2 px-3 text-white';
                 showFeedback(cardBody, `❌ Incorrect. Right answer: ${q.options[q.correct_index]}`, 'text-danger');
             }
+            if (q.hint) {
+                const hintEl = document.createElement('div');
+                hintEl.className = 'small text-muted mt-2 fst-italic';
+                hintEl.textContent = `💡 Hint: ${q.hint}`;
+                cardBody.appendChild(hintEl);
+            }
             trackQuizAnswerEvent(q, {
                 selected: { optionIndex: optIndex, value: opt },
                 isCorrect,
                 attemptIndex,
                 responseTimeMs
             });
+            if (typeof onAnswered === 'function') {
+                onAnswered(q, isCorrect);
+            }
         };
         optionsDiv.appendChild(btn);
     });
@@ -1174,21 +1121,25 @@ function renderMcqCard(cardBody, q, index) {
     cardBody.appendChild(optionsDiv);
 }
 
-function renderTfCard(cardBody, q, index) {
+function renderTfCard(cardBody, q, index, onAnswered) {
     const renderTs = Date.now();
     const p = document.createElement('p');
     p.className = 'fw-bold mb-3';
     p.style.color = '#2d3748';
-    p.textContent = `${index + 1}. True or false: ${q.statement}`;
+
+    const categoryBadge = q.category
+        ? `<span class="badge bg-secondary me-2 text-uppercase" style="font-size:0.68rem;letter-spacing:0.5px;">${String(q.category).replace(/_/g, ' ')}</span>`
+        : '';
+    p.innerHTML = `${categoryBadge}${index + 1}. True or false: ${q.statement}`;
     cardBody.appendChild(p);
 
     const row = document.createElement('div');
-    row.className = 'd-flex gap-2 flex-wrap';
+    row.className = 'd-flex gap-2 flex-wrap quiz-options quiz-tf-options';
 
     [true, false].forEach((val) => {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'btn btn-outline-primary btn-sm px-4';
+        btn.className = 'btn btn-outline-primary btn-sm px-4 quiz-option-btn quiz-tf-btn';
         btn.textContent = val ? 'True' : 'False';
         btn.onclick = () => {
             row.querySelectorAll('button').forEach((b) => { b.disabled = true; });
@@ -1202,19 +1153,28 @@ function renderTfCard(cardBody, q, index) {
                 btn.className = 'btn btn-danger btn-sm px-4 text-white';
                 showFeedback(cardBody, `❌ Incorrect. Answer: ${q.correct ? 'True' : 'False'}`, 'text-danger');
             }
+            if (q.hint) {
+                const hintEl = document.createElement('div');
+                hintEl.className = 'small text-muted mt-2 fst-italic';
+                hintEl.textContent = `💡 Hint: ${q.hint}`;
+                cardBody.appendChild(hintEl);
+            }
             trackQuizAnswerEvent(q, {
                 selected: { value: val ? 'True' : 'False' },
                 isCorrect: ok,
                 attemptIndex,
                 responseTimeMs
             });
+            if (typeof onAnswered === 'function') {
+                onAnswered(q, ok);
+            }
         };
         row.appendChild(btn);
     });
     cardBody.appendChild(row);
 }
 
-function renderMatchingCard(cardBody, q, index) {
+function renderMatchingCard(cardBody, q, index, onAnswered) {
     const renderTs = Date.now();
     const pairs = q.pairs || [];
     if (pairs.length < 2) return;
@@ -1240,7 +1200,7 @@ function renderMatchingCard(cardBody, q, index) {
     grid.style.display = 'grid';
     grid.style.gridTemplateColumns = '1fr 1fr';
     grid.style.gap = '12px';
-    grid.className = 'mt-3';
+    grid.className = 'mt-3 quiz-matching-grid';
 
     const left = document.createElement('div');
     const right = document.createElement('div');
@@ -1299,6 +1259,9 @@ function renderMatchingCard(cardBody, q, index) {
                 selectedWordBtn = null;
                 if (matched === pairs.length) {
                     showFeedback(cardBody, '✅ All pairs matched!', 'text-success');
+                    if (typeof onAnswered === 'function') {
+                        onAnswered(q, true);
+                    }
                 }
                 trackQuizAnswerEvent(q, {
                     selected: { word: chosenWord, definition: defText },
@@ -1328,12 +1291,84 @@ function renderMatchingCard(cardBody, q, index) {
     cardBody.appendChild(grid);
 }
 
-function displayQuiz(questions, targetId = 'quiz-container') {
+function renderQuizSummary(container, { total, correct, bankSize, unseenCount, onRetake }) {
+    const existing = document.getElementById('quiz-summary-panel');
+    if (existing) existing.remove();
+
+    const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
+    const isPerfect = pct === 100;
+    const isPassing = pct >= 65;
+
+    const emoji = isPerfect ? '🏆' : (isPassing ? '🎉' : '💪');
+    const badgeColor = isPerfect ? '#15803d' : (isPassing ? '#0369a1' : '#b45309');
+    const titleText = isPerfect ? 'Outstanding! Perfect Score!' : (isPassing ? 'Great Job!' : 'Keep Practicing!');
+
+    const summaryCard = document.createElement('div');
+    summaryCard.id = 'quiz-summary-panel';
+    summaryCard.className = 'card mt-4 shadow-sm border-0';
+    summaryCard.style.background = isPerfect ? '#f0fdf4' : (isPassing ? '#f0f9ff' : '#fffbeb');
+    summaryCard.style.border = `1px solid ${isPerfect ? '#bbf7d0' : (isPassing ? '#bae6fd' : '#fde68a')}`;
+    summaryCard.style.borderRadius = '12px';
+
+    const infoText = unseenCount > 0
+        ? `💡 You have <strong>${unseenCount}</strong> fresh questions left in the bank for this article.`
+        : `✨ You have practiced all questions in this bank! Retaking will shuffle answer choices.`;
+
+    summaryCard.innerHTML = `
+        <div class="card-body text-center p-4">
+            <div style="font-size: 2.5rem; margin-bottom: 6px;">${emoji}</div>
+            <h4 class="fw-bold mb-1" style="color: ${badgeColor};">${titleText}</h4>
+            <p class="fs-5 mb-2" style="color: #334155;">
+                You answered <strong>${correct} / ${total}</strong> correctly (${pct}%)
+            </p>
+            <p class="small text-muted mb-3">Retake this quiz to practice again with shuffled options.</p>
+            <div class="mt-2">
+                <button id="retake-quiz-btn" class="btn btn-primary btn-lg px-4 shadow-sm" style="border-radius: 8px; font-weight: 600;">
+                    🔄 Retake Quiz
+                </button>
+            </div>
+        </div>
+    `;
+
+    container.appendChild(summaryCard);
+
+    setTimeout(() => {
+        summaryCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 120);
+
+    const retakeBtn = summaryCard.querySelector('#retake-quiz-btn');
+    if (retakeBtn && typeof onRetake === 'function') {
+        retakeBtn.onclick = () => {
+            onRetake();
+        };
+    }
+}
+
+function displayQuiz(questions, targetId = 'quiz-container', options = {}) {
     const container = document.getElementById(targetId);
     if (!container) return;
 
     container.innerHTML = '<h3 class="mt-4 mb-3 text-center">Reading Comprehension</h3>';
     container.style.display = 'block';
+
+    const totalQuestions = (questions || []).length;
+    let answeredQuestions = 0;
+    let correctAnswers = 0;
+
+    const handleAnswer = (q, isCorrect) => {
+        answeredQuestions++;
+        if (isCorrect) correctAnswers++;
+
+        if (answeredQuestions >= totalQuestions) {
+            renderQuizSummary(container, {
+                total: totalQuestions,
+                correct: correctAnswers,
+                bankSize: options.bankSize || totalQuestions,
+                unseenCount: options.unseenCount || 0,
+                onRetake: options.onRetake
+            });
+        }
+    };
 
     (questions || []).forEach((q, index) => {
         const t = (q.type || '').toLowerCase();
@@ -1349,16 +1384,17 @@ function displayQuiz(questions, targetId = 'quiz-container') {
         cardBody.className = 'card-body';
 
         if (t === 'matching' && Array.isArray(q.pairs) && q.pairs.length >= 2) {
-            renderMatchingCard(cardBody, q, index);
+            renderMatchingCard(cardBody, q, index, handleAnswer);
         } else if (t === 'tf' || t === 'true_false') {
-            renderTfCard(cardBody, q, index);
+            renderTfCard(cardBody, q, index, handleAnswer);
         } else if (isMcq && q.options && q.options.length >= 3) {
-            renderMcqCard(cardBody, q, index);
+            renderMcqCard(cardBody, q, index, handleAnswer);
         } else {
             const skip = document.createElement('p');
             skip.className = 'text-muted small';
             skip.textContent = `(${index + 1}) Skipped unsupported question format.`;
             cardBody.appendChild(skip);
+            handleAnswer(q, false);
         }
 
         card.appendChild(cardBody);
@@ -1513,28 +1549,289 @@ function attachReadModeArticleAudio() {
     };
 }
 
+let isChangingArticleLevel = false;
+
 window.changeArticleLevel = async function(id, newLevel) {
-    window.speechSynthesis.cancel();
-    console.log(`🎯 Nivel ${newLevel} solicitado para el artículo ${id}`);
+    if (isChangingArticleLevel) return;
+    isChangingArticleLevel = true;
 
-    // 1. UI: Poner el botón azul inmediatamente (Feedback visual instantáneo)
-    renderLevelSelector(id, newLevel);
+    try {
+        window.speechSynthesis.cancel();
+        console.log(`🎯 Nivel ${newLevel} solicitado para el artículo ${id}`);
 
-    // 2. UI: Hacer desaparecer el artículo actual y mostrar el Loading
-    const container = document.getElementById('articles-container');
-    const loadingDiv = document.getElementById('loading');
+        // 1. Guardar preferencias
+        localStorage.setItem('user-level', newLevel);
+        localStorage.setItem(`temp-level-${id}`, newLevel);
 
-    if (container) container.innerHTML = ""; // Borramos el texto viejo para no confundir
-    if (loadingDiv) loadingDiv.style.display = 'block'; // Mostramos el cargando
+        // 2. Feedback visual instantáneo en el selector de botones
+        renderLevelSelector(id, newLevel);
 
-    // 3. Actualizar la URL (Hash) para que si el usuario refresca, se quede en este nivel
-    const params = new URLSearchParams(window.location.hash.substring(1));
-    params.set('level', newLevel);
-    window.location.hash = params.toString();
+        // 3. Feedback visual instantáneo en el indicador de nivel (alto contraste)
+        const indicator = document.querySelector('.badge-level-indicator') || document.querySelector('.article-meta .badge');
+        if (indicator) {
+            indicator.innerHTML = `Current Level: <strong>${newLevel}</strong>`;
+        }
 
-    // 4. Ahora sí, llamar al servidor para traer el nuevo texto
-    await loadFullArticle(id, newLevel);
+        // 4. Mostrar estado de carga en el texto sin destruir la cabecera
+        const textContainer = document.getElementById('interactive-text');
+        const loadingDiv = document.getElementById('loading');
+        if (textContainer) {
+            textContainer.style.opacity = '0.35';
+            textContainer.style.transition = 'opacity 0.2s ease';
+        }
+        if (loadingDiv) loadingDiv.style.display = 'block';
+
+        // 5. Actualizar la URL sin provocar recarga destructiva
+        const params = new URLSearchParams(window.location.hash.substring(1));
+        params.set('id', id);
+        params.set('level', newLevel);
+        const newHash = params.toString();
+        if (window.location.hash.substring(1) !== newHash) {
+            history.replaceState(null, '', `#${newHash}`);
+        }
+
+        // 6. Consultar al servidor el artículo en el nuevo nivel
+        const article = await fetchArticleById(id, newLevel);
+        if (!article) throw new Error('No se pudo cargar el artículo en el nivel solicitado');
+
+        // 7. Texto adaptado (simplified_content o content)
+        const adaptedText = article.simplified_content || article.content || '';
+
+        // 8. Asegurar que el título siempre use article.title completo
+        const titleEl = document.getElementById('interactive-title');
+        const completeTitle = (article.title && String(article.title).trim().length > 0)
+            ? String(article.title).trim()
+            : (titleEl?.textContent?.trim() || 'Untitled Article');
+
+        if (titleEl) {
+            titleEl.textContent = completeTitle;
+            titleEl.onclick = (e) => {
+                if (window.handleWordClick) {
+                    window.handleWordClick(completeTitle, e);
+                }
+            };
+        }
+
+        // 9. Actualizar el cuerpo del artículo con el contenido adaptado
+        if (textContainer) {
+            textContainer.innerHTML = formatArticleIntoParagraphs(adaptedText);
+            textContainer.style.opacity = '1';
+
+            if (typeof applyHighlights === 'function') {
+                applyHighlights(textContainer);
+            }
+            if (typeof setupTextInteractivity === 'function') {
+                setupTextInteractivity();
+            }
+            attachReadModeArticleAudio();
+        } else {
+            // Si por alguna razón el contenedor no existía, renderizar completo
+            await loadFullArticle(id, newLevel);
+        }
+
+        // 10. Invalidar y resetear el Quiz para el nuevo nivel
+        const resultsArea = document.getElementById('quiz-results-area');
+        if (resultsArea) {
+            resultsArea.innerHTML = '';
+            resultsArea.style.display = 'none';
+        }
+        let quizBtn = document.getElementById('generate-quiz-btn');
+        if (!quizBtn) {
+            const quizContainer = document.getElementById('quiz-container');
+            if (quizContainer) {
+                quizContainer.style.display = 'block';
+                quizContainer.innerHTML = `
+                    <div id="quiz-section" class="text-center mt-5 p-4 border-top" style="background: white; border-radius: 10px; border: 1px solid #eaeaea;">
+                        <h4>Ready to test your knowledge?</h4>
+                        <p class="text-muted mb-3">Based on what you just read or heard.</p>
+                        <button id="generate-quiz-btn" class="btn btn-primary btn-lg shadow-sm">
+                            🧠 Generate AI Quiz for Level ${newLevel}
+                        </button>
+                        <div id="quiz-results-area" class="mt-4 text-start" style="display:none;"></div>
+                    </div>
+                `;
+                quizBtn = document.getElementById('generate-quiz-btn');
+            }
+        }
+        if (quizBtn) {
+            quizBtn.style.display = 'inline-block';
+            quizBtn.disabled = false;
+            quizBtn.innerHTML = `🧠 Generate AI Quiz for Level ${newLevel}`;
+            quizBtn.onclick = () => {
+                executeGenerateQuiz(String(id), newLevel, adaptedText);
+            };
+        }
+    } catch (err) {
+        console.error('❌ Error al cambiar nivel de artículo:', err);
+        const textContainer = document.getElementById('interactive-text');
+        if (textContainer) textContainer.style.opacity = '1';
+    } finally {
+        const loadingDiv = document.getElementById('loading');
+        if (loadingDiv) loadingDiv.style.display = 'none';
+        isChangingArticleLevel = false;
+    }
 };
+
+/**
+ * Ejecuta la generación y renderizado del Quiz para un artículo y nivel dado
+ */
+// Memoria de bancos de preguntas cargados por artículo y nivel
+const currentArticleQuizBanks = new Map();
+
+/**
+ * Baraja las opciones de respuesta de una pregunta MCQ y actualiza correct_index
+ * para permitir reintentar sin memorizar letras o posiciones.
+ */
+function shuffleQuestionOptions(q) {
+    if (!q) return q;
+    const cloned = { ...q };
+    if (cloned.type === 'mcq' && Array.isArray(cloned.options) && cloned.options.length >= 2) {
+        const originalIndex = cloned.correct_index != null ? Number(cloned.correct_index) : 0;
+        const correctText = cloned.options[originalIndex];
+        const shuffled = shuffleArray(cloned.options);
+        const newIndex = shuffled.indexOf(correctText);
+        cloned.options = shuffled;
+        cloned.correct_index = newIndex !== -1 ? newIndex : 0;
+    }
+    return cloned;
+}
+
+/**
+ * Lanza el quiz completo de preguntas adaptadas al nivel actual.
+ * Al terminar de calificar, el botón '🔄 Retake Quiz' permite reintentar con las opciones barajadas.
+ */
+function launchQuizForLevel(articleId, level, questions, resultsAreaId = 'quiz-results-area') {
+    const safeArticleId = String(articleId);
+    const sessionId = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const enriched = questions.map((q, idx) => ({
+        ...q,
+        _lfQuestionId: q.id || `${safeArticleId}_${idx}_${String(q.type || 'q').toLowerCase()}`,
+        _lfArticleId: safeArticleId,
+        _lfLevel: level || 'B1',
+        _lfSource: 'reader_ai',
+        _lfSessionId: sessionId
+    }));
+
+    displayQuiz(enriched, resultsAreaId, {
+        total: enriched.length,
+        onRetake: () => {
+            const shuffledRound = questions.map(shuffleQuestionOptions);
+            launchQuizForLevel(articleId, level, shuffledRound, resultsAreaId);
+            const container = document.getElementById(resultsAreaId);
+            if (container) {
+                container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+    });
+}
+
+/**
+ * Ejecuta la generación y renderizado del Quiz para un artículo y nivel dado
+ */
+async function executeGenerateQuiz(articleId, level, text) {
+    const quizBtn = document.getElementById('generate-quiz-btn');
+    const resultsArea = document.getElementById('quiz-results-area');
+    if (!quizBtn) return;
+
+    const currentLevel = String(level || 'B1').toUpperCase();
+    const bankKey = `${String(articleId)}_${currentLevel}`;
+
+    // Si ya tenemos el quiz generado en memoria para este nivel específico, lanzamos directamente
+    if (currentArticleQuizBanks.has(bankKey) && currentArticleQuizBanks.get(bankKey).length >= 4) {
+        quizBtn.style.display = 'none';
+        if (resultsArea) {
+            resultsArea.style.display = 'block';
+            resultsArea.innerHTML = '';
+        }
+        launchQuizForLevel(articleId, currentLevel, currentArticleQuizBanks.get(bankKey), 'quiz-results-area');
+        return;
+    }
+
+    quizBtn.disabled = true;
+    quizBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Generating Level ${currentLevel} Quiz with AI...`;
+    if (resultsArea) {
+        resultsArea.style.display = 'none';
+        resultsArea.innerHTML = '';
+    }
+
+    try {
+        const textToSend = (text && text.trim().length > 0)
+            ? text.trim()
+            : (document.getElementById('interactive-text')?.innerText || '');
+
+        const res = await fetch(`${API_BASE_URL}/articles/generate-quiz-only`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text: textToSend,
+                level: currentLevel,
+                articleId: String(articleId)
+            })
+        });
+
+        let data = {};
+        try {
+            data = await res.json();
+        } catch {
+            data = {};
+        }
+
+        if (!res.ok) {
+            const msg = data.message || data.error || `Error ${res.status}`;
+            if (resultsArea) {
+                resultsArea.style.display = 'block';
+                resultsArea.innerHTML = `<p class="text-danger">${msg}</p>`;
+            }
+            quizBtn.disabled = false;
+            quizBtn.innerHTML = `🧠 Generate AI Quiz for Level ${currentLevel}`;
+            return;
+        }
+
+        if (data.quizzes && data.quizzes.length > 0) {
+            quizBtn.style.display = 'none';
+            if (resultsArea) {
+                resultsArea.style.display = 'block';
+
+                // Guardar las preguntas generadas para este nivel en memoria
+                currentArticleQuizBanks.set(bankKey, data.quizzes);
+
+                // Lanzar el quiz completo adaptado al nivel
+                launchQuizForLevel(articleId, currentLevel, data.quizzes, 'quiz-results-area');
+
+                if (data.cached) {
+                    const note = document.createElement('p');
+                    note.className = 'small text-muted text-center mb-2';
+                    note.textContent = `Quiz nivel ${currentLevel} (${data.quizzes.length} preguntas) cargado desde caché.`;
+                    const h3 = resultsArea.querySelector('h3');
+                    if (h3) h3.insertAdjacentElement('afterend', note);
+                    else resultsArea.prepend(note);
+                } else if (data.mock) {
+                    const note = document.createElement('p');
+                    note.className = 'small text-info text-center mb-2';
+                    note.textContent = `Modo demo: quiz nivel ${currentLevel} en el servidor (MOCK_READER_QUIZ).`;
+                    const h3 = resultsArea.querySelector('h3');
+                    if (h3) h3.insertAdjacentElement('afterend', note);
+                    else resultsArea.prepend(note);
+                }
+            }
+        } else {
+            if (resultsArea) {
+                resultsArea.style.display = 'block';
+                resultsArea.innerHTML = '<p class="text-warning">No se recibieron preguntas. Inténtalo de nuevo.</p>';
+            }
+            quizBtn.disabled = false;
+            quizBtn.innerHTML = `🧠 Generate AI Quiz for Level ${currentLevel}`;
+        }
+    } catch (e) {
+        console.error('Error generando quiz:', e);
+        if (resultsArea) {
+            resultsArea.style.display = 'block';
+            resultsArea.innerHTML = `<p class="text-danger">Error de conexión al generar el cuestionario.</p>`;
+        }
+        quizBtn.disabled = false;
+        quizBtn.innerHTML = '❌ Error — reintentar';
+    }
+}
 
 window.speakArticle = () => {
     if (typeof window._speakArticleFromPercent === 'function') {
@@ -1599,13 +1896,13 @@ window.renderAudioControls = () => {
 
     const audioPanel = document.createElement('div');
     audioPanel.id = 'audio-controls-panel';
-    audioPanel.style = 'background: rgba(16, 23, 58, 0.35); padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 15px; border: 1px solid #2a356a;';
+    audioPanel.className = 'audio-controls-panel';
 
     audioPanel.innerHTML = `
-        <div style="flex: 1;">
+        <div class="audio-controls-main" style="flex: 1;">
             <span style="font-weight: bold; color: #4a5568; display: block; margin-bottom: 5px;">Audio Mode 🎧</span>
             <div style="display: flex; flex-direction: column; gap: 10px;">
-                <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                <div class="audio-buttons-row">
                     <button type="button" id="btn-play-article" class="audio-toolbar-btn audio-toolbar-btn--primary">Listen / Play</button>
                     <button type="button" id="btn-pause" class="audio-toolbar-btn">Pause</button>
                     <button type="button" id="btn-resume" class="audio-toolbar-btn">Resume</button>
@@ -1690,4 +1987,7 @@ window.handleLogout = handleLogout;
 export { initReader, loadFullArticle, saveFlashcardToStorage, showFlashcardPopup, closeFlashcardPopup };
 
 // ESCUCHAR CAMBIOS DE NAVEGACIÓN
-window.addEventListener('hashchange', initReader);
+window.addEventListener('hashchange', () => {
+    if (isChangingArticleLevel) return;
+    initReader();
+});

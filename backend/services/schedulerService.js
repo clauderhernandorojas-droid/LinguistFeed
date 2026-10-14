@@ -70,8 +70,53 @@ class SchedulerService {
     
     console.log('Article fetching job scheduled to run every 6 hours');
     
-    // Run the job immediately on startup
-    this.runArticleFetchingJob();
+    // Run the job immediately on startup only if explicitly enabled or allowed
+    const initialCheck = this.shouldRunInitialScrape();
+    if (initialCheck.shouldRun) {
+      console.log(`🚀 Starting initial article fetching job (${initialCheck.reason})...`);
+      this.runArticleFetchingJob();
+    } else {
+      console.log(`⏭️ Initial article fetching job omitted (${initialCheck.reason})`);
+    }
+  }
+
+  /**
+   * Determine whether the immediate initial article fetching job should run on startup.
+   * - Omit if DISABLE_INITIAL_SCRAPE is 'true'
+   * - Execute if RUN_INITIAL_SCRAPE is 'true'
+   * - Omit if NODE_ENV is not 'production' or if RUN_INITIAL_SCRAPE is not true
+   * @returns {{ shouldRun: boolean, reason: string }}
+   */
+  shouldRunInitialScrape() {
+    const disableInitial = String(process.env.DISABLE_INITIAL_SCRAPE ?? '').trim().toLowerCase() === 'true';
+    if (disableInitial) {
+      return { shouldRun: false, reason: 'DISABLE_INITIAL_SCRAPE=true' };
+    }
+
+    const runInitial = String(process.env.RUN_INITIAL_SCRAPE ?? '').trim().toLowerCase() === 'true';
+    if (runInitial) {
+      return { shouldRun: true, reason: 'RUN_INITIAL_SCRAPE=true' };
+    }
+
+    const isProduction = process.env.NODE_ENV === 'production';
+    if (!isProduction) {
+      return {
+        shouldRun: false,
+        reason: `NODE_ENV is '${process.env.NODE_ENV || 'development'}' (omitted when not production unless RUN_INITIAL_SCRAPE=true)`
+      };
+    }
+
+    return {
+      shouldRun: false,
+      reason: 'RUN_INITIAL_SCRAPE=true is not set'
+    };
+  }
+
+  /**
+   * Alias for runArticleFetchingJob
+   */
+  async runInitialArticleFetchingJob() {
+    return this.runArticleFetchingJob();
   }
 
   /**

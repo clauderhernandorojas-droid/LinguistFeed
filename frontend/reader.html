@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Daily Articles - LinguistFeed</title>
-    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/styles.css?v=2">
 </head>
 <body>
 
@@ -16,23 +16,14 @@
         
         <h1 id="topic-title">Today's Articles</h1>
         <input type="search" id="searchBarCategory" placeholder="Buscar artículos..." autocomplete="off" style="width:100%;padding:8px;margin-bottom:12px;">
-        <div id="articles-container">
-            </div>
-    </div>
-
-    <div class="container">
-        <h1>Today's Articles</h1>
         
-        <div id="level-selector-container" class="level-selector" style="margin-bottom: 20px; display: flex; gap: 10px;"></div>
-    
+        <div id="level-selector-container" class="level-selector" style="margin-bottom: 20px; display: none; gap: 10px;"></div>
         <div id="loading" class="loading">Loading articles...</div>
-        
         <div id="error" style="display:none; color: red; font-weight: bold;">
             Error loading articles. Please make sure the server is running.
         </div>
-        
 
-<!-- Remove this duplicate -->
+        <div id="articles-container"></div>
         <div id="quiz-container" style="margin-top: 30px;"></div>
     </div>
 
@@ -64,7 +55,7 @@
     <script src="./js/search.js"></script>
     <script type="module">
         import { requireAuth, logout } from './js/auth.js';
-        import { initReader, handleLogout } from './js/reader.js?v=8';
+        import { initReader, handleLogout } from './js/reader.js?v=13';
         import { mountNavbarForCurrentUser } from './js/navbar.js';
 
         document.addEventListener('DOMContentLoaded', async () => {

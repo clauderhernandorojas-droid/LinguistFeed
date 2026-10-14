@@ -823,6 +823,27 @@ h1 {
     text-transform: uppercase;
 }
 
+/* Indicador de nivel en la vista del lector (alto contraste sobre fondo oscuro) */
+.badge-level-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(148, 163, 184, 0.12);
+    border: 1px solid #475569;
+    color: #cbd5e1;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 9999px;
+    letter-spacing: 0.3px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.badge-level-indicator strong {
+    color: #38bdf8;
+    font-weight: 700;
+}
+
 .btn-read {
     background-color: #0066cc;
     color: white;
@@ -918,19 +939,45 @@ hr {
   }
   
 
-/* Level buttons (reader list / full article): ensure labels always visible */
+/* Level selector container (A1 to C2) */
+.level-selector,
+.level-selector-inline,
+[id^="level-selector-container"],
+#level-selector-container {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+/* Level buttons (reader list / full article): ensure labels always visible and minimum 44px touch height */
 .level-btn {
   color: #0b0b0b !important;
   background-color: #ffffff !important;
   border: 1px solid #2b6cb0 !important;
-  padding: 6px 10px !important;
+  padding: 8px 16px !important;
   font-size: 14px !important;
+  font-weight: 600 !important;
   line-height: 1.2 !important;
   text-indent: 0 !important;
   overflow: visible !important;
-  display: inline-block !important;
-  vertical-align: middle !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 44px !important;
+  min-width: 48px !important;
+  border-radius: 22px !important;
+  cursor: pointer !important;
+  touch-action: manipulation !important;
+  box-sizing: border-box !important;
+  transition: all 0.2s ease !important;
 }
+
+.level-btn:hover {
+  background-color: #e2e8f0 !important;
+}
+
 .level-btn::before,
 .level-btn::after { display: none !important; }
 
@@ -939,6 +986,7 @@ hr {
   background-color: #2b6cb0 !important;
   color: #ffffff !important;
   border-color: #234e7a !important;
+  box-shadow: 0 2px 6px rgba(43, 108, 176, 0.4) !important;
 }
 
 /* ============================================================
@@ -1216,3 +1264,275 @@ body.layout-sidebar {
     padding: 8px 10px 8px 30px;
   }
 }
+
+/* ============================================================
+   Reader View & Audio Player — Base & Desktop
+   ============================================================ */
+#interactive-title {
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+#audio-controls-panel,
+.audio-controls-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  background: rgba(16, 23, 58, 0.35);
+  padding: 15px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  border: 1px solid #2a356a;
+  box-sizing: border-box;
+}
+
+.audio-controls-buttons,
+.audio-buttons-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.audio-toolbar-btn {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #4a5a9a;
+  background: rgba(30, 42, 94, 0.7);
+  color: #eef2ff;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+  box-sizing: border-box;
+}
+
+.audio-toolbar-btn--primary {
+  background: #007bff;
+  border-color: #0069d9;
+  color: #ffffff;
+}
+
+.audio-toolbar-btn:hover {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+#toggle-text-btn {
+  min-height: 44px;
+  touch-action: manipulation;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Base Quiz Options & Cards */
+.quiz-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.quiz-option-btn,
+.quiz-tf-btn {
+  min-height: 44px;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  white-space: normal !important;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  box-sizing: border-box;
+  touch-action: manipulation;
+}
+
+#generate-quiz-btn,
+#retake-quiz-btn {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+/* ============================================================
+   Mobile & Responsive Reader View (360px to 768px)
+   ============================================================ */
+@media (max-width: 768px) {
+  /* 1. Márgenes o paddings laterales excesivos reducidos a máximo 16px */
+  body {
+    padding: 10px 8px !important;
+  }
+
+  .container {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .card,
+  .article,
+  .article-full,
+  .dashboard-card {
+    padding: 16px 14px !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    margin-bottom: 16px !important;
+    border-radius: 10px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* 2. Barra de niveles: centrada, con wrap y táctil */
+  .level-selector,
+  .level-selector-inline,
+  [id^="level-selector-container"],
+  #level-selector-container {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    padding: 8px 6px !important;
+  }
+
+  .level-btn {
+    min-height: 44px !important;
+    min-width: 46px !important;
+    padding: 8px 14px !important;
+    margin: 0 !important;
+    flex: 0 0 auto;
+  }
+
+  /* Reproductor de audio: apilado vertical, botones con wrap y centrados */
+  #audio-controls-panel,
+  .audio-controls-panel {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 14px 12px !important;
+    gap: 12px !important;
+  }
+
+  #audio-controls-panel > div:first-child,
+  .audio-controls-main {
+    width: 100% !important;
+  }
+
+  .audio-controls-buttons,
+  .audio-buttons-row,
+  #audio-controls-panel div[style*="flex-wrap: wrap"] {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .audio-toolbar-btn {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 120px;
+    min-height: 44px !important;
+    text-align: center;
+    justify-content: center;
+  }
+
+  #toggle-text-btn {
+    width: 100% !important;
+    min-height: 44px !important;
+    text-align: center;
+    justify-content: center;
+  }
+
+  /* 3. Cuerpo del artículo (#interactive-text) y Título (#interactive-title) */
+  #interactive-title {
+    font-size: clamp(1.4rem, 5.5vw, 1.6rem) !important;
+    line-height: 1.3 !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    hyphens: auto;
+    margin-top: 8px !important;
+    margin-bottom: 14px !important;
+  }
+
+  #interactive-text,
+  #interactive-text p,
+  .article-body-text {
+    font-size: 1.05rem !important;
+    line-height: 1.75 !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
+  }
+
+  /* 4. Tarjetas y opciones del Quiz: apiladas verticalmente al 100% */
+  .quiz-options,
+  .quiz-tf-options,
+  #quiz-results-area .d-grid,
+  #quiz-results-area .d-flex {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+
+  .quiz-option-btn,
+  .quiz-tf-btn,
+  #quiz-results-area .btn {
+    width: 100% !important;
+    min-height: 44px !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    text-align: left !important;
+    box-sizing: border-box !important;
+  }
+
+  .quiz-tf-btn {
+    text-align: center !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+
+  .quiz-matching-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  .quiz-matching-grid button {
+    min-height: 44px !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+
+  #quiz-section {
+    padding: 18px 12px !important;
+    border-radius: 8px !important;
+  }
+
+  #generate-quiz-btn,
+  #retake-quiz-btn {
+    width: 100% !important;
+    min-height: 48px !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    font-size: 1.05rem !important;
+    padding: 12px 14px !important;
+  }
+
+  /* Flashcard popup seguro para pantallas de 360px */
+  .flashcard-popup {
+    max-width: calc(100vw - 20px) !important;
+    left: 10px !important;
+    right: 10px !important;
+    width: auto !important;
+  }
+}
+

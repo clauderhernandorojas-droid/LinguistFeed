@@ -276,40 +276,186 @@ class AiService {
     }
 
     isMockReaderQuiz() {
+        try {
+            require('dotenv').config({ override: true });
+        } catch (_) {}
         const v = String(process.env.MOCK_READER_QUIZ || '').toLowerCase();
         return v === 'true' || v === '1' || v === 'yes';
     }
 
     mockRichQuizForReader(level = 'B1') {
         const tag = `[Demo · ${level}]`;
+        const lvl = String(level || 'B1').toUpperCase();
+
+        if (lvl === 'A1' || lvl === 'A2') {
+            return [
+                {
+                    id: 'mock_a_1',
+                    type: 'mcq',
+                    category: 'explicit_comprehension',
+                    question: `${tag} What is the primary topic of this article?`,
+                    options: ['Daily English reading practice', 'Automobile repair', 'Cooking recipes'],
+                    correct_index: 0,
+                    hint: 'Look at the main topic mentioned in the title and opening.'
+                },
+                {
+                    id: 'mock_a_2',
+                    type: 'mcq',
+                    category: 'explicit_comprehension',
+                    question: `${tag} Who is this adapted text designed for?`,
+                    options: ['Students learning English', 'Rocket scientists only', 'Ancient historians'],
+                    correct_index: 0,
+                    hint: 'Consider the learners using LinguistFeed.'
+                },
+                {
+                    id: 'mock_a_3',
+                    type: 'mcq',
+                    category: 'basic_vocabulary',
+                    question: `${tag} What does the word "practice" mean in this article?`,
+                    options: ['Doing an activity regularly to improve', 'Stopping completely', 'Buying tools'],
+                    correct_index: 0,
+                    hint: 'Think of regular study routines.'
+                },
+                {
+                    id: 'mock_a_4',
+                    type: 'tf',
+                    category: 'explicit_comprehension',
+                    statement: `${tag} True or false: Reading regularly helps improve language comprehension.`,
+                    correct: true,
+                    hint: 'Frequent reading reinforces vocabulary and sentence patterns.'
+                }
+            ];
+        }
+
+        if (lvl === 'B1' || lvl === 'B2') {
+            return [
+                {
+                    id: 'mock_b_1',
+                    type: 'mcq',
+                    category: 'main_idea',
+                    question: `${tag} What is the main idea conveyed in the article?`,
+                    options: [
+                        'Reading engaging texts at your level accelerates language retention',
+                        'Memorizing random word lists without context is optimal',
+                        'Grammar drills without reading are sufficient'
+                    ],
+                    correct_index: 0,
+                    hint: 'Notice the connection between context and long-term retention.'
+                },
+                {
+                    id: 'mock_b_2',
+                    type: 'mcq',
+                    category: 'detail',
+                    question: `${tag} Which detail supports the author’s perspective?`,
+                    options: [
+                        'Consistent interactive feedback deepens comprehension',
+                        'Short isolated word memorization is superior',
+                        'Audio exercises should never be combined with reading'
+                    ],
+                    correct_index: 0,
+                    hint: 'Look for the supporting arguments in the body paragraphs.'
+                },
+                {
+                    id: 'mock_b_3',
+                    type: 'mcq',
+                    category: 'vocabulary_in_context',
+                    question: `${tag} In this context, what is the best synonym for "reinforce"?`,
+                    options: ['Strengthen and consolidate', 'Undermine and weaken', 'Ignore entirely'],
+                    correct_index: 0,
+                    hint: '"Reinforce" means to make something stronger or more established.'
+                },
+                {
+                    id: 'mock_b_4',
+                    type: 'mcq',
+                    category: 'detail',
+                    question: `${tag} According to the passage, why are level adaptations beneficial?`,
+                    options: [
+                        'They prevent cognitive overload while keeping the core message intact',
+                        'They eliminate all challenging words completely',
+                        'They shorten articles to only one sentence'
+                    ],
+                    correct_index: 0,
+                    hint: 'Consider comprehensible input principles.'
+                },
+                {
+                    id: 'mock_b_5',
+                    type: 'tf',
+                    category: 'main_idea',
+                    statement: `${tag} True or false: The text suggests that combining reading with self-assessment enhances learning.`,
+                    correct: true,
+                    hint: 'Self-quizzing helps identify comprehension gaps.'
+                }
+            ];
+        }
+
         return [
             {
+                id: 'mock_c_1',
                 type: 'mcq',
-                question: `${tag} What is this mock quiz for?`,
-                options: ['Production traffic only', 'Previewing the reader UI without API credits', 'Encrypting passwords'],
-                correct_index: 1,
-                hint: 'Toggle MOCK_READER_QUIZ off and add credits to use real AI.'
-            },
-            {
-                type: 'mcq',
-                question: `${tag} To switch back to the real generator you should…`,
+                category: 'inference',
+                question: `${tag} What nuanced implication can be deduced regarding cognitive processing during advanced reading?`,
                 options: [
-                    'Set MOCK_READER_QUIZ=false (or remove it), ensure OPENROUTER_API_KEY, add credits',
-                    'Only clear browser cache',
-                    'Change the article ID only'
+                    'Proficiency relies on integrating syntactic complexity with subtle pragmatic cues',
+                    'Lexical recognition occurs purely in isolation from discursive context',
+                    'Advanced fluency requires abandoning structured textual analysis'
                 ],
                 correct_index: 0,
-                hint: 'Environment + OpenRouter billing.'
+                hint: 'Reflect on how higher-order discourse comprehension operates.'
             },
             {
-                type: 'tf',
-                statement: `${tag} True/false cards use a statement and a boolean correct answer.`,
-                correct: true
+                id: 'mock_c_2',
+                type: 'mcq',
+                category: 'discursive_tone',
+                question: `${tag} How would you characterize the author’s rhetorical stance and tone?`,
+                options: [
+                    'Analytical, measured, and intellectually constructive',
+                    'Polemical, dismissive, and openly cynical',
+                    'Purely satirical with hyperbolic irony'
+                ],
+                correct_index: 0,
+                hint: 'Observe the balanced vocabulary and didactic intent.'
             },
             {
+                id: 'mock_c_3',
+                type: 'mcq',
+                category: 'advanced_collocations',
+                question: `${tag} Which collocation best mirrors the stylistic register of the passage?`,
+                options: [
+                    'Foster sustained cognitive engagement',
+                    'Make big quick smarts',
+                    'Push words real hard'
+                ],
+                correct_index: 0,
+                hint: 'Choose the academic and stylistically coherent pairing.'
+            },
+            {
+                id: 'mock_c_4',
+                type: 'mcq',
+                category: 'high_complexity_vocabulary',
+                question: `${tag} In this text, what does "epistemic vigilance" most accurately describe?`,
+                options: [
+                    'The critical evaluation of informational validity and authorial bias',
+                    'Passive absorption of external assertions without reflection',
+                    'A medical diagnosis relating to vision'
+                ],
+                correct_index: 0,
+                hint: 'Analyze the Greek root "episteme" (knowledge/truth).'
+            },
+            {
+                id: 'mock_c_5',
                 type: 'tf',
-                statement: `${tag} This demo statement is intentionally false.`,
-                correct: false
+                category: 'inference',
+                statement: `${tag} True or false: The author presupposes that stylistic nuance and syntactic subordination are vital for C-level discourse mastery.`,
+                correct: true,
+                hint: 'Complex subordination and register modulation are hallmarks of C1-C2 mastery.'
+            },
+            {
+                id: 'mock_c_6',
+                type: 'tf',
+                category: 'discursive_tone',
+                statement: `${tag} True or false: The narrative voice adopts an informal, conversational dialect lacking structural cohesion.`,
+                correct: false,
+                hint: 'The register is elevated, coherent, and academically structured.'
             }
         ];
     }
@@ -324,32 +470,69 @@ class AiService {
         const excerpt = String(text || '').trim().slice(0, 14000);
         if (!excerpt) throw new Error('Texto del artículo vacío');
 
-        const systemRole = `You are an expert English teacher.
-Based ONLY on the article text below, create reading comprehension exercises for CEFR level ${level}.
+        const lvl = String(level || 'B1').trim().toUpperCase();
+        let targetCount = 5;
+        let pedagogicalGuidelines = '';
 
+        if (lvl === 'A1' || lvl === 'A2') {
+            targetCount = 4;
+            pedagogicalGuidelines = `Target Level: CEFR ${lvl} (Beginner).
+Create EXACTLY 4 questions focused on:
+- Explicit comprehension (factual questions directly stated in the text).
+- Basic vocabulary in context (essential high-frequency words used in the article).
+- Simple sentence structure and direct clarity suitable for ${lvl} learners.`;
+        } else if (lvl === 'B1' || lvl === 'B2') {
+            targetCount = 5;
+            pedagogicalGuidelines = `Target Level: CEFR ${lvl} (Intermediate).
+Create EXACTLY 5 questions focused on:
+- Main idea and paragraph-level themes.
+- Specific supporting details and factual accuracy.
+- Vocabulary in context (intermediate terms, collocations, and contextual meanings).`;
+        } else {
+            targetCount = 6;
+            pedagogicalGuidelines = `Target Level: CEFR ${lvl} (Advanced / Mastery).
+Create EXACTLY 6 questions of high cognitive and linguistic rigor based on the adapted text:
+- In-depth inference (drawing conclusions and subtle implications not directly stated).
+- Author's discursive tone, rhetorical stance, or communicative purpose.
+- Advanced collocations and high-complexity vocabulary present in the adapted text.
+- Nuanced distinctions and synthesis of textual ideas.`;
+        }
+
+        const systemRole = `You are an expert English language assessment specialist.
+Based ONLY on the article text below, create a high-quality ${targetCount}-question reading comprehension quiz for CEFR level ${lvl}.
+
+${pedagogicalGuidelines}
+
+Format Requirements:
 Return ONLY a valid JSON object with this exact structure:
 {
   "quizzes": [
     {
+      "id": "q1",
       "type": "mcq",
+      "category": "factual",
       "question": "string",
       "options": ["string", "string", "string"],
       "correct_index": 0,
       "hint": "string"
     },
     {
+      "id": "q2",
       "type": "tf",
+      "category": "inference",
       "statement": "A clear statement about the text that is either true or false",
-      "correct": true
+      "correct": true,
+      "hint": "string"
     }
   ]
 }
 
 Rules:
-- Include exactly 2 items with "type": "mcq" and exactly 2 with "type": "tf".
-- Each mcq must have exactly 3 options; correct_index is 0, 1, or 2.
-- Each tf must use "statement" and boolean "correct".
-- No markdown and no commentary.`;
+- Include EXACTLY ${targetCount} question items in "quizzes" (primarily "mcq" with 1-2 "tf" items).
+- Each "mcq" MUST have exactly 3 plausible options and a "correct_index" (0, 1, or 2).
+- Each "tf" MUST have a clear "statement" and boolean "correct" (true or false).
+- Include a concise, helpful "hint" for each question pointing to clues in the text.
+- Do NOT output any markdown fences, code blocks or commentary outside the JSON object.`;
 
         const response = await this.ask(excerpt, systemRole);
         const stripped = String(response || '').replace(/```json/gi, '').replace(/```/g, '').trim();
@@ -361,28 +544,45 @@ Rules:
             throw new Error('La IA no devolvió JSON válido para el quiz.');
         }
 
-        const raw = Array.isArray(parsed.quizzes) ? parsed.quizzes : [];
+        const raw = Array.isArray(parsed) 
+            ? parsed 
+            : (Array.isArray(parsed?.quizzes) ? parsed.quizzes : (Array.isArray(parsed?.questions) ? parsed.questions : []));
         const normalized = [];
+        let idx = 0;
         for (const item of raw) {
             if (!item || typeof item !== 'object') continue;
+            idx++;
             const t = String(item.type || '').toLowerCase();
+            const qid = String(item.id || `q${idx}`);
+            const category = item.category ? String(item.category) : '';
+            const hint = item.hint != null ? String(item.hint) : '';
+
             if (t === 'tf' || t === 'true_false') {
                 const statement = String(item.statement || item.question || '').trim();
                 let c = item.correct;
                 if (c === 'true') c = true;
                 if (c === 'false') c = false;
                 if (!statement || (c !== true && c !== false)) continue;
-                normalized.push({ type: 'tf', statement, correct: c });
+                normalized.push({
+                    id: qid,
+                    type: 'tf',
+                    category,
+                    statement,
+                    correct: c,
+                    hint
+                });
             } else {
                 const opts = item.options;
                 const ci = parseInt(item.correct_index, 10);
                 if (!Array.isArray(opts) || opts.length < 3 || Number.isNaN(ci) || ci < 0 || ci > 2) continue;
                 normalized.push({
+                    id: qid,
                     type: 'mcq',
+                    category,
                     question: String(item.question || '').trim(),
                     options: [String(opts[0]), String(opts[1]), String(opts[2])],
                     correct_index: ci,
-                    hint: item.hint != null ? String(item.hint) : ''
+                    hint
                 });
             }
         }
@@ -486,6 +686,21 @@ function summarizeError(error) {
     }
 
     return summary;
+}
+
+/**
+ * Extrae de forma segura el primer bloque JSON {...} de un texto
+ * @param {string} str
+ * @returns {string|null}
+ */
+function extractFirstJsonObject(str) {
+    if (!str || typeof str !== 'string') return null;
+    const firstOpen = str.indexOf('{');
+    const lastClose = str.lastIndexOf('}');
+    if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
+        return str.slice(firstOpen, lastClose + 1).trim();
+    }
+    return null;
 }
 
 // Exportamos una INSTANCIA de la clase para que articles.js pueda usarla

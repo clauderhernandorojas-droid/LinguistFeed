@@ -270,7 +270,8 @@ router.post('/generate-quiz-only', async (req, res) => {
       if (row && row.payload) {
         try {
           const quizzes = JSON.parse(row.payload);
-          if (Array.isArray(quizzes) && quizzes.length > 0) {
+          const expectedCount = (lev === 'A1' || lev === 'A2') ? 4 : ((lev === 'B1' || lev === 'B2') ? 5 : 6);
+          if (Array.isArray(quizzes) && quizzes.length >= expectedCount) {
             return res.json({ quizzes, cached: true });
           }
         } catch (_) {
@@ -371,17 +372,44 @@ async function getArticleHandler(req, res) {
     const rawLevel = String(req.query.level || req.body.level || '').trim().toUpperCase();
     const numericArticleId = article.id != null ? Number(article.id) : null;
     if (rawLevel && CEFR_LEVELS.has(rawLevel) && numericArticleId != null && !Number.isNaN(numericArticleId)) {
-      const simplified = await db.get(
+      let simplified = await db.get(
         `SELECT text FROM simplified_articles WHERE article_id = ? AND level = ?`,
         [numericArticleId, rawLevel]
       );
-      if (simplified && simplified.text) {
-        article = {
-          ...article,
-          content: simplified.text,
-          reading_level: rawLevel
-        };
+
+      // Si no existe versión en DB para este nivel, intentamos adaptarla con IA bajo demanda
+      if (!simplified || !simplified.text) {
+        try {
+          console.log(`🤖 Generando versión nivel ${rawLevel} bajo demanda para artículo ${numericArticleId}...`);
+          const adapted = await aiService.generateLeveledArticle(article.content, rawLevel);
+          if (adapted && typeof adapted === 'string' && adapted.trim().length > 30) {
+            await db.run(
+              `INSERT OR REPLACE INTO simplified_articles (article_id, text, level) VALUES (?, ?, ?)`,
+              [numericArticleId, adapted.trim(), rawLevel]
+            );
+            simplified = { text: adapted.trim() };
+            console.log(`✅ Versión nivel ${rawLevel} guardada en simplified_articles`);
+          }
+        } catch (adaptErr) {
+          console.warn(`⚠️ No se pudo generar versión nivel ${rawLevel} con IA:`, adaptErr.message);
+        }
       }
+
+      const textForLevel = (simplified && simplified.text) ? simplified.text : article.content;
+      article = {
+        ...article,
+        title: article.title, // Asegurar título original completo siempre
+        content: textForLevel,
+        simplified_content: textForLevel,
+        reading_level: rawLevel
+      };
+    } else {
+      article = {
+        ...article,
+        title: article.title,
+        simplified_content: article.content,
+        reading_level: rawLevel || 'B1'
+      };
     }
 
     res.json(article);
