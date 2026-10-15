@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
 const { authenticate } = require('../middleware/auth');
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'LinguistFeed_Master_Key_2026';
 
 // GET /api/users/me/export
 router.get('/me/export', authenticate, async (req, res) => {
@@ -220,10 +223,53 @@ router.get('/:id', async (req, res) => {
 router.put('/:id/role', async (req, res) => {
   const { role } = req.body;
   const { id } = req.params;
+  const validRoles = ['student', 'teacher', 'admin'];
+  const normalizedRole = String(role || '').toLowerCase().trim();
+
+  if (!validRoles.includes(normalizedRole)) {
+    return res.status(400).json({ error: `Rol inválido: ${role}. Debe ser student, teacher o admin.` });
+  }
+
   try {
-    await db.run('UPDATE users SET role = ? WHERE id = ?', [role, id]);
-    res.json({ success: true, id, role });
+    await db.run('UPDATE users SET role = ? WHERE id = ?', [normalizedRole, id]);
+    const updatedUser = await db.get(
+      'SELECT id, username, email, level, role, onboarding_completed FROM users WHERE id = ?',
+      [id]
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    const token = jwt.sign(
+      {
+        id: updatedUser.id,
+        userId: updatedUser.id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        level: updatedUser.level
+      },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      success: true,
+      id: updatedUser.id,
+      role: updatedUser.role,
+      user: {
+        id: updatedUser.id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        level: updatedUser.level,
+        role: updatedUser.role,
+        onboardingCompleted: Number(updatedUser.onboarding_completed || 0) === 1
+      },
+      token
+    });
   } catch (err) {
+    console.error('❌ Error al actualizar rol:', err.message);
     res.status(500).json({ error: 'Error al actualizar rol' });
   }
 });

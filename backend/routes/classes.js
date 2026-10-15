@@ -1,5 +1,6 @@
 const express = require('express');
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 const router = express.Router();
 const db = require('../database/db');
 const { authenticate } = require('../middleware/auth');
@@ -60,9 +61,9 @@ router.post('/', authenticate, async (req, res) => {
   }
 });
 
-// GET /api/classes/my
+// GET /api/classes y GET /api/classes/my
 // Teacher/Admin: lista sus clases. Student: clases a las que pertenece.
-router.get('/my', authenticate, async (req, res) => {
+async function listUserClasses(req, res) {
   try {
     const role = normalizeRole(req.user?.role);
     const uid = currentUserId(req);
@@ -105,7 +106,10 @@ router.get('/my', authenticate, async (req, res) => {
     console.error('List classes error:', error.message);
     return res.status(500).json({ error: 'No se pudieron listar las clases' });
   }
-});
+}
+
+router.get('/', authenticate, listUserClasses);
+router.get('/my', authenticate, listUserClasses);
 
 // GET /api/classes/:classId/students
 // Teacher dueño (o admin) consulta alumnos de su clase.
@@ -195,7 +199,270 @@ router.post('/join', authenticate, async (req, res) => {
     });
   } catch (error) {
     console.error('Join class error:', error.message);
-    return res.status(500).json({ error: 'No se pudo unir a la clase' });
+    return res.status(500).json({ error: 'Error al unirse a la clase' });
+  }
+});
+
+// POST /api/classes/:id/students/quick-enroll
+// Permite al profesor/admin matricular a un estudiante (existente o nuevo)
+router.post('/:id/students/quick-enroll', authenticate, async (req, res) => {
+  try {
+    const role = normalizeRole(req.user?.role);
+    if (role !== 'teacher' && role !== 'admin') {
+      return res.status(403).json({ error: 'Solo profesores o administradores pueden matricular alumnos' });
+    }
+
+    const classId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(classId) || classId <= 0) {
+      return res.status(400).json({ error: 'ID de clase inválido' });
+    }
+
+    const classroom = await db.get(
+      `SELECT id, teacher_id AS teacherId, name, invite_code AS inviteCode
+       FROM classes
+       WHERE id = ? AND is_active = 1`,
+      [classId]
+    );
+    if (!classroom) return res.status(404).json({ error: 'Clase no encontrada' });
+
+    const uid = currentUserId(req);
+    if (role === 'teacher' && classroom.teacherId !== uid) {
+      return res.status(403).json({ error: 'No tienes permisos sobre esta clase' });
+    }
+
+    const { email, fullName, password, level, studentId } = req.body || {};
+    const cleanEmail = String(email || '').trim().toLowerCase();
+
+    // Caso A1: Identificador numérico de estudiante explícito
+    if (studentId) {
+      const numericStudentId = parseInt(studentId, 10);
+      const existingUser = await db.get(
+        'SELECT id, username, email, level, role FROM users WHERE id = ?',
+        [numericStudentId]
+      );
+      if (!existingUser) {
+        return res.status(404).json({ error: 'Estudiante no encontrado con ese ID' });
+      }
+      await db.run(
+        `INSERT OR IGNORE INTO class_members (class_id, student_id) VALUES (?, ?)`,
+        [classId, existingUser.id]
+      );
+      return res.status(200).json({
+        ok: true,
+        enrolled: true,
+        student: {
+          id: existingUser.id,
+          username: existingUser.username,
+          email: existingUser.email,
+          level: existingUser.level || 'B1'
+        },
+        message: `Estudiante ${existingUser.username} matriculado exitosamente en ${classroom.name}.`
+      });
+    }
+
+    // Caso A2: Estudiante existente por email
+    if (cleanEmail) {
+      const existingUser = await db.get(
+        'SELECT id, username, email, level, role FROM users WHERE LOWER(TRIM(email)) = LOWER(?)',
+        [cleanEmail]
+      );
+      if (existingUser) {
+        await db.run(
+          `INSERT OR IGNORE INTO class_members (class_id, student_id) VALUES (?, ?)`,
+          [classId, existingUser.id]
+        );
+        return res.status(200).json({
+          ok: true,
+          enrolled: true,
+          student: {
+            id: existingUser.id,
+            username: existingUser.username,
+            email: existingUser.email,
+            level: existingUser.level || 'B1'
+          },
+          message: `Estudiante existente (${existingUser.username}) inscrito en ${classroom.name}.`
+        });
+      }
+    }
+
+    // Caso B: Estudiante nuevo (fullName, email, password, level)
+    if (!cleanEmail) {
+      return res.status(400).json({ error: 'El email del estudiante es obligatorio' });
+    }
+
+    const cleanUsername = String(fullName || cleanEmail.split('@')[0]).trim() || 'Estudiante';
+    let finalUsername = cleanUsername;
+    const userWithSameName = await db.get('SELECT id FROM users WHERE LOWER(username) = LOWER(?)', [cleanUsername]);
+    if (userWithSameName) {
+      finalUsername = `${cleanUsername}_${Math.floor(100 + Math.random() * 900)}`;
+    }
+
+    const rawPass = String(password || 'Linguist123!').trim();
+    const hashedPassword = await bcrypt.hash(rawPass, 10);
+    const targetLevel = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].includes(String(level || '').toUpperCase())
+      ? String(level).toUpperCase()
+      : 'B1';
+
+    const insertRes = await db.run(
+      `INSERT INTO users (username, email, password_hash, role, level, onboarding_completed)
+       VALUES (?, ?, ?, 'student', ?, 1)`,
+      [finalUsername, cleanEmail, hashedPassword, targetLevel]
+    );
+
+    const newStudentId = insertRes.lastID;
+    await db.run(
+      `INSERT OR IGNORE INTO class_members (class_id, student_id) VALUES (?, ?)`,
+      [classId, newStudentId]
+    );
+
+    return res.status(201).json({
+      ok: true,
+      created: true,
+      student: {
+        id: newStudentId,
+        username: finalUsername,
+        email: cleanEmail,
+        level: targetLevel
+      },
+      message: `Nuevo estudiante ${finalUsername} creado y matriculado exitosamente en ${classroom.name}.`
+    });
+  } catch (error) {
+    console.error('Quick enroll error:', error.message);
+    return res.status(500).json({ error: 'No se pudo inscribir al estudiante: ' + error.message });
+  }
+});
+
+// DELETE /api/classes/:id/students/:studentId
+// Permite al profesor/admin desvincular a un estudiante de esa clase específica
+router.delete('/:id/students/:studentId', authenticate, async (req, res) => {
+  try {
+    const role = normalizeRole(req.user?.role);
+    if (role !== 'teacher' && role !== 'admin') {
+      return res.status(403).json({ error: 'Solo profesores o administradores pueden desvincular alumnos' });
+    }
+
+    const classId = parseInt(req.params.id, 10);
+    const studentId = parseInt(req.params.studentId, 10);
+    if (!Number.isInteger(classId) || !Number.isInteger(studentId) || classId <= 0 || studentId <= 0) {
+      return res.status(400).json({ error: 'IDs inválidos' });
+    }
+
+    const classroom = await db.get(
+      `SELECT id, teacher_id AS teacherId, name FROM classes WHERE id = ? AND is_active = 1`,
+      [classId]
+    );
+    if (!classroom) return res.status(404).json({ error: 'Clase no encontrada' });
+
+    const uid = currentUserId(req);
+    if (role === 'teacher' && classroom.teacherId !== uid) {
+      return res.status(403).json({ error: 'No tienes permisos sobre esta clase' });
+    }
+
+    const deleteRes = await db.run(
+      `DELETE FROM class_members WHERE class_id = ? AND student_id = ?`,
+      [classId, studentId]
+    );
+
+    return res.json({
+      ok: true,
+      changes: deleteRes.changes,
+      message: 'Estudiante desvinculado de la clase correctamente'
+    });
+  } catch (error) {
+    console.error('Unenroll student error:', error.message);
+    return res.status(500).json({ error: 'Error al desvincular estudiante' });
+  }
+});
+
+// GET /api/classes/:id/performance
+// Métricas agregadas y reporte de desempeño del aula para la tarjeta y modal de estadísticas
+router.get('/:id/performance', authenticate, async (req, res) => {
+  try {
+    const role = normalizeRole(req.user?.role);
+    if (role !== 'teacher' && role !== 'admin') {
+      return res.status(403).json({ error: 'Acceso denegado' });
+    }
+
+    const classId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(classId) || classId <= 0) {
+      return res.status(400).json({ error: 'ID de clase inválido' });
+    }
+
+    const classroom = await db.get('SELECT id, teacher_id AS teacherId, name FROM classes WHERE id = ?', [classId]);
+    if (!classroom) return res.status(404).json({ error: 'Clase no encontrada' });
+
+    const uid = currentUserId(req);
+    if (role === 'teacher' && classroom.teacherId !== uid) {
+      return res.status(403).json({ error: 'No tienes acceso a esta clase' });
+    }
+
+    const students = await db.all(
+      `SELECT u.id, u.username, u.email, u.level, cm.joined_at AS joinedAt
+       FROM class_members cm
+       JOIN users u ON u.id = cm.student_id
+       WHERE cm.class_id = ?
+       ORDER BY u.username ASC`,
+      [classId]
+    );
+
+    const statsService = require('../services/statsService');
+    const studentStatsList = [];
+    let totalAccuracy = 0;
+    let totalReadingMinutes = 0;
+    let totalStreak = 0;
+
+    for (const student of students) {
+      const stats = await statsService.buildStatsV2(student.id, { windowDays: 30 });
+      const acc = Number(stats?.scores?.accuracy || 0);
+      const minutes = Number(stats?.weeklyGoals?.readingMinutes?.current || 0);
+      const streak = Number(stats?.dashboard?.streak || 0);
+      const quizzesTaken = Number(stats?.dashboard?.quizzesTaken || 0);
+      const articlesRead = Number(stats?.dashboard?.articlesRead || 0);
+
+      totalAccuracy += acc;
+      totalReadingMinutes += minutes;
+      totalStreak += streak;
+
+      let performanceStatus = 'good'; // 🟢
+      if (quizzesTaken === 0 && articlesRead === 0) {
+        performanceStatus = 'inactive'; // ⚪
+      } else if (acc < 50) {
+        performanceStatus = 'needs_help'; // 🔴
+      } else if (acc < 75) {
+        performanceStatus = 'improving'; // 🟡
+      }
+
+      studentStatsList.push({
+        id: student.id,
+        username: student.username,
+        email: student.email,
+        level: student.level || 'B1',
+        accuracy: acc,
+        readingMinutes: minutes,
+        streak,
+        quizzesTaken,
+        articlesRead,
+        performanceStatus
+      });
+    }
+
+    const count = students.length;
+    const summary = {
+      studentCount: count,
+      averageAccuracy: count > 0 ? Number((totalAccuracy / count).toFixed(1)) : 0,
+      totalReadingMinutes: Number(totalReadingMinutes.toFixed(1)),
+      averageStreak: count > 0 ? Number((totalStreak / count).toFixed(1)) : 0
+    };
+
+    return res.json({
+      ok: true,
+      class: classroom,
+      summary,
+      students: studentStatsList
+    });
+  } catch (error) {
+    console.error('Class performance error:', error.message);
+    return res.status(500).json({ error: 'Error al calcular rendimiento del aula' });
   }
 });
 

@@ -288,8 +288,11 @@ class AuthService {
    */
   generateToken(user) {
     const payload = {
+      id: user.id,
       userId: user.id,
+      username: user.username,
       email: user.email,
+      role: user.role,
       level: user.level
     };
     

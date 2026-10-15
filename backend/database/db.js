@@ -43,6 +43,12 @@ async function initializeDatabase() {
     const hasIsManual = Array.isArray(articleCols)
       ? articleCols.some((c) => String(c.name || '').toLowerCase() === 'is_manual')
       : false;
+    const hasAuthorId = Array.isArray(articleCols)
+      ? articleCols.some((c) => String(c.name || '').toLowerCase() === 'author_id')
+      : false;
+    const hasClassId = Array.isArray(articleCols)
+      ? articleCols.some((c) => String(c.name || '').toLowerCase() === 'class_id')
+      : false;
     if (!hasExternalId) {
       await run('ALTER TABLE articles ADD COLUMN external_id TEXT');
       console.log("✅ Columna 'articles.external_id' agregada");
@@ -55,12 +61,24 @@ async function initializeDatabase() {
       await run('ALTER TABLE articles ADD COLUMN is_manual INTEGER DEFAULT 0');
       console.log("✅ Columna 'articles.is_manual' agregada");
     }
+    if (!hasAuthorId) {
+      await run('ALTER TABLE articles ADD COLUMN author_id INTEGER');
+      console.log("✅ Columna 'articles.author_id' agregada");
+    }
+    if (!hasClassId) {
+      await run('ALTER TABLE articles ADD COLUMN class_id INTEGER REFERENCES classes(id)');
+      console.log("✅ Columna 'articles.class_id' agregada");
+    }
     await run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_articles_external_id_unique
       ON articles (external_id)`);
     await run(`CREATE INDEX IF NOT EXISTS idx_articles_topic_created
       ON articles (topic, created_at DESC)`);
     await run(`CREATE INDEX IF NOT EXISTS idx_articles_assigned_user
       ON articles (assigned_to_user_id, created_at DESC)`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_articles_author
+      ON articles (author_id, created_at DESC)`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_articles_class_id
+      ON articles (class_id, created_at DESC)`);
 
     // 2. Simplified Articles table (AI-generated content)
     await run(`CREATE TABLE IF NOT EXISTS simplified_articles (

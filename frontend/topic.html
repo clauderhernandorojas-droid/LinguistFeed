@@ -119,7 +119,9 @@
 
                 try {
                     const level = levelSelect.value;
-                    const res = await fetch(`${CONFIG.API_BASE_URL}/articles?topic=${topic}&level=${level}`);
+                    const token = localStorage.getItem('token');
+                    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                    const res = await fetch(`${CONFIG.API_BASE_URL}/articles?topic=${topic}&level=${level}`, { headers });
                     const data = await res.json();
 
                     if (!data.articles || data.articles.length === 0) {
@@ -130,6 +132,14 @@
                     data.articles.forEach(article => {
                         const card = document.createElement('div');
                         card.className = 'article-card card';
+
+                        if (article.class_name) {
+                            const badge = document.createElement('span');
+                            badge.className = 'classroom-badge';
+                            badge.style.marginBottom = '8px';
+                            badge.textContent = `🏷️ ${article.class_name}`;
+                            card.appendChild(badge);
+                        }
 
                         const title = document.createElement('h3');
                         title.textContent = article.title;

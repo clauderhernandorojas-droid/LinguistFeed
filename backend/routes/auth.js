@@ -30,8 +30,8 @@ router.post('/register', async (req, res) => {
     );
     
     const userId = result.lastID || result.id;
-    const user = { id: userId, username: rawUsername, email: rawEmail, onboardingCompleted: false, role: 'student' };
-    const token = jwt.sign(user, JWT_SECRET, { expiresIn: '24h' });
+    const user = { id: userId, userId, username: rawUsername, email: rawEmail, onboardingCompleted: false, role: 'student' };
+    const token = jwt.sign(user, JWT_SECRET, { expiresIn: '7d' });
     
     res.status(201).json({ token, user });
   } catch (error) {
@@ -68,9 +68,9 @@ router.post('/login', async (req, res) => {
 
     if (userFound && passwordMatch) {
       const token = jwt.sign(
-        { id: user.id, username: user.username, role: user.role },
+        { id: user.id, userId: user.id, username: user.username, email: user.email, role: user.role, level: user.level },
         JWT_SECRET,
-        { expiresIn: '24h' }
+        { expiresIn: '7d' }
       );
       res.json({ 
         token, 

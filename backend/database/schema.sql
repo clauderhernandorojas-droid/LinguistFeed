@@ -9,10 +9,16 @@ CREATE TABLE IF NOT EXISTS users (
 -- Articles table
 CREATE TABLE IF NOT EXISTS articles (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  url TEXT UNIQUE NOT NULL,
+  url TEXT UNIQUE,
   title TEXT,
   topic TEXT,
   content TEXT,
+  source TEXT,
+  external_id TEXT,
+  assigned_to_user_id INTEGER,
+  author_id INTEGER,
+  class_id INTEGER REFERENCES classes(id),
+  is_manual INTEGER DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

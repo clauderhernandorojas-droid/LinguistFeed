@@ -57,8 +57,8 @@ function normalizeLegacyArticle(raw) {
 async function insertManualArticleInDb(article) {
   return db.run(
     `INSERT INTO articles
-      (title, content, topic, source, created_at, external_id, assigned_to_user_id, is_manual)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+      (title, content, topic, source, created_at, external_id, assigned_to_user_id, is_manual, author_id, class_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
     [
       article.title,
       article.content,
@@ -66,7 +66,9 @@ async function insertManualArticleInDb(article) {
       'manual',
       article.createdAt,
       article.externalId,
-      article.assignedToUserId
+      article.assignedToUserId,
+      article.authorId || null,
+      article.classId || null
     ]
   );
 }
@@ -100,17 +102,46 @@ async function ensureLegacyJsonMigrated() {
   }
 }
 
-function filterClassroomVisibility(rows, requestUserId, role = '') {
-  if (!Array.isArray(rows)) return [];
+async function filterClassroomVisibility(rows, requestUserId, role = '') {
+  if (!Array.isArray(rows) || rows.length === 0) return [];
   const normalizedRole = String(role || '').toLowerCase();
-  const canSeeAllClassroom = normalizedRole === 'teacher' || normalizedRole === 'admin';
+  if (normalizedRole === 'admin') return rows;
+
+  const userIdNum = requestUserId != null ? Number(requestUserId) : null;
+
+  if (normalizedRole === 'teacher' && userIdNum != null) {
+    const teacherClasses = await db.all('SELECT id FROM classes WHERE teacher_id = ?', [userIdNum]);
+    const teacherClassSet = new Set(teacherClasses.map((c) => Number(c.id)));
+    return rows.filter((a) => {
+      const topic = String(a.topic || '').toLowerCase();
+      if (topic !== 'classroom') return true;
+      if (a.author_id != null && Number(a.author_id) === userIdNum) return true;
+      if (a.class_id != null && teacherClassSet.has(Number(a.class_id))) return true;
+      if (a.class_id == null && a.assigned_to_user_id == null) return true;
+      return false;
+    });
+  }
+
+  let studentClassSet = new Set();
+  if (userIdNum != null) {
+    const studentClasses = await db.all(
+      'SELECT class_id FROM class_members WHERE student_id = ?',
+      [userIdNum]
+    );
+    studentClassSet = new Set(studentClasses.map((c) => Number(c.class_id)));
+  }
+
   return rows.filter((a) => {
     const topic = String(a.topic || '').toLowerCase();
     if (topic !== 'classroom') return true;
-    if (canSeeAllClassroom) return true;
-    if (a.assigned_to_user_id == null) return true;
-    if (requestUserId == null) return false;
-    return Number(a.assigned_to_user_id) === Number(requestUserId);
+    // a) Artículos públicos (class_id IS NULL y sin alumno asignado)
+    if (a.class_id == null && a.assigned_to_user_id == null) return true;
+    if (userIdNum == null) return false;
+    // b) Artículos asignados a clases donde el estudiante está inscrito
+    if (a.class_id != null && studentClassSet.has(Number(a.class_id))) return true;
+    // c) Artículos asignados directamente a su ID
+    if (a.assigned_to_user_id != null && Number(a.assigned_to_user_id) === userIdNum) return true;
+    return false;
   });
 }
 
@@ -152,7 +183,8 @@ function writeLegacyJsonArticle(article) {
     topic: article.topic,
     content: article.content,
     date: article.createdAt,
-    assigned_to_user_id: article.assignedToUserId
+    assigned_to_user_id: article.assignedToUserId,
+    class_id: article.classId || null
   });
   fs.writeFileSync(LEGACY_JSON_PATH, JSON.stringify(list, null, 2), 'utf8');
 }
@@ -169,14 +201,16 @@ router.get('/personalized-feed', authenticate, async (req, res) => {
 
     const placeholders = interestList.map(() => '?').join(',');
     const query = `
-      SELECT id, title, content, topic, created_at, assigned_to_user_id
-      FROM articles
-      WHERE (LOWER(topic) IN (${placeholders}) OR LOWER(topic) = 'classroom')
-      ORDER BY datetime(created_at) DESC
+      SELECT a.id, a.title, a.content, a.topic, a.created_at, a.assigned_to_user_id, a.class_id, a.author_id,
+             c.name AS class_name
+      FROM articles a
+      LEFT JOIN classes c ON a.class_id = c.id
+      WHERE (LOWER(a.topic) IN (${placeholders}) OR LOWER(a.topic) = 'classroom')
+      ORDER BY datetime(a.created_at) DESC
       LIMIT 120
     `;
     const rows = await db.all(query, interestList.map((t) => String(t).toLowerCase()));
-    const articles = filterClassroomVisibility(rows, Number(userId));
+    const articles = await filterClassroomVisibility(rows, Number(userId), req.user?.role || 'student');
     res.json({ articles: articles.slice(0, 60) });
   } catch (error) {
     console.error('🔥 Error en personalized-feed:', error.message);
@@ -193,14 +227,17 @@ router.get('/', async (req, res) => {
     const requestUser = getRequestUserContext(req);
 
     const rows = await db.all(
-      `SELECT id, title, content, url, topic, source, created_at, external_id, assigned_to_user_id, is_manual
-       FROM articles
-       WHERE LOWER(topic) = ?
-       ORDER BY datetime(created_at) DESC
+      `SELECT a.id, a.title, a.content, a.url, a.topic, a.source, a.created_at, a.external_id,
+              a.assigned_to_user_id, a.is_manual, a.class_id, a.author_id,
+              c.name AS class_name
+       FROM articles a
+       LEFT JOIN classes c ON a.class_id = c.id
+       WHERE LOWER(a.topic) = ?
+       ORDER BY datetime(a.created_at) DESC
        LIMIT 120`,
       [normalizedTopic]
     );
-    let articles = filterClassroomVisibility(rows, requestUser.userId, requestUser.role);
+    let articles = await filterClassroomVisibility(rows, requestUser.userId, requestUser.role);
 
     if (articles.length === 0) {
       const legacy = await readLegacyJsonByTopic(normalizedTopic, requestUser.userId);
@@ -219,18 +256,21 @@ router.get('/daily-articles', async (req, res) => {
     await ensureLegacyJsonMigrated();
     const requestUser = getRequestUserContext(req);
     const rows = await db.all(
-      `SELECT id, title, content, url, topic, source, created_at, external_id, assigned_to_user_id, is_manual
-       FROM articles
-       ORDER BY datetime(created_at) DESC
+      `SELECT a.id, a.title, a.content, a.url, a.topic, a.source, a.created_at, a.external_id,
+              a.assigned_to_user_id, a.is_manual, a.class_id, a.author_id,
+              c.name AS class_name
+       FROM articles a
+       LEFT JOIN classes c ON a.class_id = c.id
+       ORDER BY datetime(a.created_at) DESC
        LIMIT 200`
     );
-    let articles = filterClassroomVisibility(rows, requestUser.userId, requestUser.role);
+    let articles = await filterClassroomVisibility(rows, requestUser.userId, requestUser.role);
 
     if (articles.length === 0 && READ_JSON_FALLBACK && fs.existsSync(LEGACY_JSON_PATH)) {
       const raw = fs.readFileSync(LEGACY_JSON_PATH, 'utf8');
       const list = JSON.parse(raw || '[]');
       if (Array.isArray(list)) {
-        articles = filterClassroomVisibility(list, requestUser.userId, requestUser.role);
+        articles = await filterClassroomVisibility(list, requestUser.userId, requestUser.role);
       }
     }
 
@@ -317,7 +357,7 @@ router.post('/generate-quiz-only', async (req, res) => {
 });
 
 router.post('/manual-upload', authenticate, async (req, res) => {
-  const { title, topic, content, studentId } = req.body;
+  const { title, topic, content, studentId, classId } = req.body;
   const role = String(req.user?.role || '').toLowerCase();
   if (role !== 'teacher' && role !== 'admin') {
     return res.status(403).json({ error: 'Solo teacher/admin puede publicar artículos manuales' });
@@ -327,6 +367,9 @@ router.post('/manual-upload', authenticate, async (req, res) => {
     await ensureLegacyJsonMigrated();
     const hasTargetStudent =
       studentId !== undefined && studentId !== null && String(studentId).trim() !== '';
+    const hasClassId =
+      classId !== undefined && classId !== null && String(classId).trim() !== '';
+    const parsedClassId = hasClassId ? Number(classId) : null;
     // Publicación general siempre cae en classroom para evitar pérdidas por topic libre.
     const normalizedTopic = 'classroom';
 
@@ -336,6 +379,8 @@ router.post('/manual-upload', authenticate, async (req, res) => {
       content: String(content || ''),
       topic: normalizedTopic,
       assignedToUserId: hasTargetStudent ? Number(studentId) : null,
+      classId: parsedClassId && !Number.isNaN(parsedClassId) ? parsedClassId : null,
+      authorId: req.user?.id ? Number(req.user.id) : null,
       createdAt: new Date().toISOString()
     };
 
@@ -349,6 +394,202 @@ router.post('/manual-upload', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * Función centralizada para eliminar un artículo y limpiar en cascada
+ * todas sus referencias en SQLite y el archivo JSON legacy.
+ */
+async function deleteArticleById(articleId, user) {
+  const cleanId = String(articleId || '').trim();
+  if (!cleanId || cleanId === 'undefined' || cleanId === 'null') {
+    return { error: 'ID de artículo inválido', status: 400 };
+  }
+
+  let article = null;
+  if (/^\d+$/.test(cleanId)) {
+    article = await db.get('SELECT * FROM articles WHERE id = ?', [Number(cleanId)]);
+  }
+  if (!article) {
+    article = await db.get('SELECT * FROM articles WHERE external_id = ?', [cleanId]);
+  }
+
+  // Fallback si estuviera únicamente en JSON legacy
+  if (!article && READ_JSON_FALLBACK) {
+    const legacyItem = await readLegacyJsonById(cleanId);
+    if (legacyItem) {
+      article = {
+        id: null,
+        external_id: legacyItem.id,
+        title: legacyItem.title,
+        author_id: null
+      };
+    }
+  }
+
+  if (!article) {
+    return { error: 'Artículo no encontrado', status: 404 };
+  }
+
+  const role = String(user?.role || '').toLowerCase();
+  const userId = user?.id ? Number(user.id) : null;
+  if (role !== 'teacher' && role !== 'admin') {
+    return { error: 'Permisos insuficientes para eliminar artículos', status: 403 };
+  }
+
+  const articleAuthorId =
+    article.author_id != null
+      ? Number(article.author_id)
+      : article.created_by != null
+      ? Number(article.created_by)
+      : null;
+
+  if (role === 'teacher' && articleAuthorId != null && userId != null && articleAuthorId !== userId) {
+    return {
+      error: 'Solo el profesor que creó el artículo o un administrador pueden eliminarlo',
+      status: 403
+    };
+  }
+
+  const numericId = article.id != null ? Number(article.id) : null;
+  const extId = String(article.external_id || cleanId);
+
+  // 1. Limpieza en cascada en SQLite
+  if (numericId != null) {
+    await db.run(
+      'DELETE FROM attempts WHERE quiz_id IN (SELECT id FROM quizzes WHERE article_id = ?)',
+      [numericId]
+    );
+    await db.run('DELETE FROM quizzes WHERE article_id = ?', [numericId]);
+    await db.run('DELETE FROM simplified_articles WHERE article_id = ?', [numericId]);
+    await db.run('DELETE FROM vocabulary WHERE article_id = ?', [numericId]);
+    await db.run('DELETE FROM daily_articles WHERE article_id = ?', [numericId]);
+    await db.run('DELETE FROM answer_events WHERE article_id = ?', [numericId]);
+    await db.run('DELETE FROM articles WHERE id = ?', [numericId]);
+  } else {
+    await db.run('DELETE FROM articles WHERE external_id = ?', [extId]);
+  }
+
+  // 2. Limpieza de reader_quiz_cache (clave puede ser el ID numérico o el external_id)
+  await db.run(
+    'DELETE FROM reader_quiz_cache WHERE article_key = ? OR article_key = ?',
+    [numericId != null ? String(numericId) : '', extId]
+  );
+
+  // 3. Limpieza en legacy JSON si existe
+  try {
+    if (fs.existsSync(LEGACY_JSON_PATH)) {
+      const raw = fs.readFileSync(LEGACY_JSON_PATH, 'utf8');
+      const list = JSON.parse(raw || '[]');
+      if (Array.isArray(list)) {
+        const filtered = list.filter((item) => {
+          const itemId = String(item?.id || '').trim();
+          return itemId !== String(numericId) && itemId !== extId;
+        });
+        if (filtered.length !== list.length) {
+          fs.writeFileSync(LEGACY_JSON_PATH, JSON.stringify(filtered, null, 2), 'utf8');
+        }
+      }
+    }
+  } catch (jsonErr) {
+    console.warn('⚠️ Error limpiando simplified_articles.json:', jsonErr.message);
+  }
+
+  return { success: true, id: numericId || extId, title: article.title };
+}
+
+// Listado de lecturas manuales (Classroom) para el portal docente
+router.get('/manual/mine', authenticate, async (req, res) => {
+  const role = String(req.user?.role || '').toLowerCase();
+  if (role !== 'teacher' && role !== 'admin') {
+    return res.status(403).json({ error: 'Solo docentes o administradores pueden ver sus lecturas' });
+  }
+
+  try {
+    await ensureLegacyJsonMigrated();
+    const rows = await db.all(
+      `SELECT a.id, a.external_id, a.title, a.content, a.topic, a.created_at,
+              a.assigned_to_user_id, a.author_id, a.class_id,
+              c.name AS class_name,
+              u.username AS assigned_student_name, u.email AS assigned_student_email
+       FROM articles a
+       LEFT JOIN classes c ON a.class_id = c.id
+       LEFT JOIN users u ON a.assigned_to_user_id = u.id
+       WHERE LOWER(a.topic) = 'classroom' OR a.is_manual = 1
+       ORDER BY datetime(a.created_at) DESC`
+    );
+
+    const userId = Number(req.user.id);
+    const enriched = (rows || []).map((row) => ({
+      ...row,
+      can_delete: role === 'admin' || row.author_id == null || Number(row.author_id) === userId
+    }));
+
+    res.json({ articles: enriched });
+  } catch (error) {
+    console.error('❌ Error al obtener lecturas manuales:', error.message);
+    res.status(500).json({ error: 'Error al obtener lecturas' });
+  }
+});
+
+// Eliminación individual de un artículo
+router.delete('/:id', authenticate, async (req, res) => {
+  try {
+    await ensureLegacyJsonMigrated();
+    const result = await deleteArticleById(req.params.id, req.user);
+    if (result.error) {
+      return res.status(result.status || 400).json({ error: result.error });
+    }
+    res.json({
+      success: true,
+      message: 'Artículo eliminado correctamente',
+      id: result.id
+    });
+  } catch (error) {
+    console.error('❌ Error en DELETE /articles/:id:', error.message);
+    res.status(500).json({ error: 'Error interno al eliminar el artículo' });
+  }
+});
+
+// Eliminación en bloque de lecturas seleccionadas
+router.post('/batch-delete', authenticate, async (req, res) => {
+  const { ids } = req.body || {};
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'Debe proporcionar una lista de IDs para eliminar' });
+  }
+
+  const role = String(req.user?.role || '').toLowerCase();
+  if (role !== 'teacher' && role !== 'admin') {
+    return res.status(403).json({ error: 'Solo docentes o administradores pueden eliminar lecturas' });
+  }
+
+  try {
+    await ensureLegacyJsonMigrated();
+    let deletedCount = 0;
+    const deletedIds = [];
+    const errors = [];
+
+    for (const id of ids) {
+      const resDel = await deleteArticleById(id, req.user);
+      if (resDel.success) {
+        deletedCount++;
+        deletedIds.push(resDel.id);
+      } else {
+        errors.push({ id, error: resDel.error });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Se eliminaron ${deletedCount} lecturas correctamente`,
+      deletedCount,
+      deletedIds,
+      errors: errors.length > 0 ? errors : undefined
+    });
+  } catch (error) {
+    console.error('❌ Error en POST /articles/batch-delete:', error.message);
+    res.status(500).json({ error: 'Error interno en eliminación masiva' });
+  }
+});
+
 async function getArticleHandler(req, res) {
   const articleId = String(req.params.id || req.body.id || req.body.articleId || '').replace(/['"]+/g, '').trim();
   if (!articleId || articleId === 'undefined' || articleId === 'null') {
@@ -359,9 +600,21 @@ async function getArticleHandler(req, res) {
     await ensureLegacyJsonMigrated();
     let article = null;
     if (/^\d+$/.test(articleId)) {
-      article = await db.get('SELECT * FROM articles WHERE id = ?', [Number(articleId)]);
+      article = await db.get(
+        `SELECT a.*, c.name AS class_name
+         FROM articles a
+         LEFT JOIN classes c ON a.class_id = c.id
+         WHERE a.id = ?`,
+        [Number(articleId)]
+      );
     } else {
-      article = await db.get('SELECT * FROM articles WHERE external_id = ?', [articleId]);
+      article = await db.get(
+        `SELECT a.*, c.name AS class_name
+         FROM articles a
+         LEFT JOIN classes c ON a.class_id = c.id
+         WHERE a.external_id = ?`,
+        [articleId]
+      );
     }
 
     if (!article) {

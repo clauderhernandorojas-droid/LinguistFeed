@@ -7,7 +7,37 @@ import { API_BASE_URL } from './config.js';
 
 const USER_STORAGE_KEY = 'linguistfeed_user';
 
+function isTokenExpired(token) {
+  if (!token) return true;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const payload = JSON.parse(json);
+    if (payload.exp && Date.now() >= payload.exp * 1000) {
+      return true;
+    }
+    return false;
+  } catch (_) {
+    return false;
+  }
+}
+
 function readStoredUser() {
+  const token = localStorage.getItem('token');
+  if (token && isTokenExpired(token)) {
+    console.warn('⚠️ Sesión expirada (token JWT caducó).');
+    localStorage.removeItem('token');
+    localStorage.removeItem(USER_STORAGE_KEY);
+    return null;
+  }
+
   const userJson = localStorage.getItem(USER_STORAGE_KEY);
   if (!userJson) return null;
 
@@ -39,6 +69,8 @@ export async function getUser() {
 }
 
 export function isLoggedIn() {
+  const token = localStorage.getItem('token');
+  if (!token || isTokenExpired(token)) return false;
   return !!readStoredUser();
 }
 
@@ -269,34 +301,73 @@ function initOnboarding() {
     if (!interestsGrid) return;
     interestsGrid.innerHTML = '';
 
-    if (age >= 15 && age <= 60) {
-      const group = age <= 25 ? themes.young : themes.adult;
+    const numAge = parseInt(age, 10);
+    const group = (!isNaN(numAge) && numAge <= 25) ? themes.young : themes.adult;
 
-      group.forEach(theme => {
-        const card = document.createElement('label');
-        card.className = 'interest-card-item';
-        card.innerHTML = `
-                      <input type="checkbox" name="interest" value="${theme.id}" style="display:none">
-                      <div class="card-content">
-                          <span class="icon">${theme.icon}</span>
-                          <span class="name">${theme.name}</span>
-                      </div>
-                  `;
+    const currentSavedInterests = (localStorage.getItem('user-interests') || '')
+      .split(',')
+      .map(s => s.trim().toLowerCase())
+      .filter(Boolean);
 
-        card.addEventListener('change', (e) => {
-          card.classList.toggle('selected', e.target.checked);
-        });
+    group.forEach(theme => {
+      const card = document.createElement('label');
+      card.className = 'interest-card-item';
+      const isChecked = currentSavedInterests.includes(theme.id.toLowerCase());
+      if (isChecked) card.classList.add('selected');
 
-        interestsGrid.appendChild(card);
+      card.innerHTML = `
+        <input type="checkbox" name="interest" value="${theme.id}" style="display:none" ${isChecked ? 'checked' : ''}>
+        <div class="card-content">
+            <span class="icon">${theme.icon}</span>
+            <span class="name">${theme.name}</span>
+        </div>
+      `;
+
+      card.addEventListener('change', (e) => {
+        card.classList.toggle('selected', e.target.checked);
       });
 
-      if (interestsSection) interestsSection.style.display = 'block';
-    }
+      interestsGrid.appendChild(card);
+    });
+
+    if (interestsSection) interestsSection.style.display = 'block';
   }
+
+  // Inicializar temas inmediatamente para que la lista esté visible y no se quede bloqueada
+  const initialAge = (ageInput && ageInput.value) ? ageInput.value : (localStorage.getItem('userAge') || '25');
+  if (ageInput && !ageInput.value && localStorage.getItem('userAge')) {
+    ageInput.value = localStorage.getItem('userAge');
+  }
+  updateInterests(initialAge);
 
   ageInput?.addEventListener('input', (e) => {
     const age = parseInt(e.target.value, 10);
     updateInterests(age);
+  });
+
+  // Funciones de cierre del modal (Botón X, Botón Cancelar, Backdrop click y Escape)
+  const closeModal = () => {
+    if (modal) modal.style.display = 'none';
+  };
+
+  const closeBtn = document.getElementById('onboarding-close-btn');
+  if (closeBtn) closeBtn.addEventListener('click', closeModal);
+
+  const cancelBtn = document.getElementById('onboarding-cancel-btn');
+  if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        closeModal();
+      }
+    });
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal && modal.style.display !== 'none') {
+      closeModal();
+    }
   });
 
   if (weeklyGoalSelect && weeklyGoalCustom) {

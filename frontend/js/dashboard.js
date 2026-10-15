@@ -259,6 +259,25 @@ function bindPrivacyAccountControls(headers) {
  */
 async function initDashboard() {
     requireAuth();
+
+    // Mostrar aviso si fue redirigido por Route Guard desde Teacher Portal
+    const deniedMsg = sessionStorage.getItem('access_denied_message') || (
+      new URLSearchParams(window.location.search).get('denied') === 'teacher'
+        ? '⚠️ Acceso restringido: Esta sección es exclusiva para docentes y administradores.'
+        : null
+    );
+    if (deniedMsg) {
+      sessionStorage.removeItem('access_denied_message');
+      const container = document.querySelector('.container') || document.querySelector('main');
+      if (container) {
+        const alertBox = document.createElement('div');
+        alertBox.className = 'access-denied-alert';
+        alertBox.style.cssText = 'background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; padding: 12px 18px; border-radius: 8px; margin: 16px 0; font-size: 0.95rem; font-weight: 500; display: flex; align-items: center; justify-content: space-between; gap: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.04);';
+        alertBox.innerHTML = `<span>${deniedMsg}</span><button type="button" style="background:none;border:none;cursor:pointer;font-weight:700;font-size:1.1rem;color:#991b1b;line-height:1;" onclick="this.parentElement.remove()">✕</button>`;
+        container.insertBefore(alertBox, container.firstChild);
+      }
+    }
+
     const sessionUser = await getUser();
     displayUserInfo(sessionUser);
     const token = localStorage.getItem('token');
@@ -313,21 +332,35 @@ export function bindEditProfileButton() {
     if (!btn) return;
 
     btn.addEventListener('click', () => {
-        // Abrir el modal de onboarding ya existente
+        // Abrir el modal de preferencias centrado
         const modal = document.getElementById('onboarding-modal');
         if (modal) {
-            modal.style.display = 'block';
+            modal.style.display = 'flex';
+            
+            const modalTitle = document.getElementById('onboarding-modal-title');
+            const submitBtn = document.getElementById('onboarding-submit-btn');
+            if (modalTitle) modalTitle.textContent = 'Editar Perfil y Preferencias ⚙️';
+            if (submitBtn) submitBtn.textContent = 'Guardar Cambios';
+
             // Precargar valores actuales desde localStorage
-            const age = localStorage.getItem('userAge') || '';
-            const level = localStorage.getItem('userLevel') || '';
-            const interests = (localStorage.getItem('user-interests') || '').split(',');
+            const age = localStorage.getItem('userAge') || '25';
+            const level = localStorage.getItem('userLevel') || 'B1';
+            const rawInterests = (localStorage.getItem('user-interests') || '')
+                .split(',')
+                .map(s => s.trim().toLowerCase())
+                .filter(Boolean);
             const weeklyGoal = localStorage.getItem('weeklyReadingGoalMinutes') || '60';
 
             const ageInput = document.getElementById('user-age');
             const levelSelect = document.getElementById('user-level');
             const weeklyGoalSelect = document.getElementById('weekly-goal-select');
             const weeklyGoalCustom = document.getElementById('weekly-goal-custom');
-            if (ageInput) ageInput.value = age;
+            
+            if (ageInput) {
+                ageInput.value = age;
+                // Dispara el evento input para renderizar temas acordes a la edad
+                ageInput.dispatchEvent(new Event('input'));
+            }
             if (levelSelect) levelSelect.value = level;
             if (weeklyGoalSelect && weeklyGoalCustom) {
                 const allowed = ['30', '45', '60', '90', '120', '180'];
@@ -342,11 +375,34 @@ export function bindEditProfileButton() {
                 }
             }
 
+            // Marcar visualmente los checkboxes de temas guardados
             document.querySelectorAll('input[name="interest"]').forEach(cb => {
-                cb.checked = interests.includes(cb.value);
+                const isSelected = rawInterests.includes(cb.value.toLowerCase());
+                cb.checked = isSelected;
+                const card = cb.closest('.interest-card-item');
+                if (card) {
+                    card.classList.toggle('selected', isSelected);
+                }
             });
         }
     });
+
+    // Delegación defensiva para cerrar el modal desde X o Cancelar
+    const modal = document.getElementById('onboarding-modal');
+    const closeBtn = document.getElementById('onboarding-close-btn');
+    const cancelBtn = document.getElementById('onboarding-cancel-btn');
+
+    const hideModal = () => {
+        if (modal) modal.style.display = 'none';
+    };
+
+    if (closeBtn) closeBtn.onclick = hideModal;
+    if (cancelBtn) cancelBtn.onclick = hideModal;
+    if (modal) {
+        modal.onclick = (e) => {
+            if (e.target === modal) hideModal();
+        };
+    }
 }
 
 document.addEventListener('DOMContentLoaded', initDashboard);
@@ -401,10 +457,16 @@ function renderArticles(articles) {
     articles.forEach(article => {
         // Creamos un resumen corto del contenido
         const preview = article.content ? article.content.substring(0, 100) + '...' : 'No content available';
+        const classBadge = article.class_name
+            ? `<span class="classroom-badge" style="margin-bottom: 0;">🏷️ ${article.class_name}</span>`
+            : '';
 
         const articleCard = `
             <div class="article-card">
-                <span class="topic-tag">${article.topic || 'General'}</span>
+                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+                    <span class="topic-tag" style="margin-bottom:0;">${article.topic || 'General'}</span>
+                    ${classBadge}
+                </div>
                 <h3 style="font-size: 16px; margin: 0 0 10px 0;" class="article-title">${article.title}</h3>
                 <p style="font-size: 14px; color: #666; font-weight: normal; margin-bottom: 15px;">
                     ${preview}

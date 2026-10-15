@@ -1,4 +1,5 @@
 require('dotenv').config();
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const db = require('./database/db'); // Esta es la única declaración de 'db'
@@ -48,6 +49,7 @@ app.use(cors({
 
 // 3. Middlewares Esenciales
 app.use(express.json()); 
+app.use(express.static(path.join(__dirname, '../frontend')));
 
 // Middleware de Logging
 app.use((req, res, next) => {

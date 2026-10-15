@@ -454,10 +454,16 @@ async function loadDailyArticlesList(filterTopic = null) {
             <div class="articles-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
                 ${filtered.map(article => {
                     const identifier = article.id || encodeURIComponent(article.url);
+                    const classBadge = article.class_name
+                        ? `<span class="classroom-badge" style="margin-left: 6px;">🏷️ ${article.class_name}</span>`
+                        : '';
                     return `
                     <div class="card" style="border: 1px solid #ddd; padding: 15px; border-radius: 10px;">
                         <div>
-                            <span class="badge" style="background: transparent; border: 1px solid #7a91ff; color: #eef2ff; padding: 2px 7px; font-size: 0.7rem; border-radius: 999px;">Subtopic: ${article.topic}</span>
+                            <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
+                                <span class="badge" style="background: transparent; border: 1px solid #7a91ff; color: #eef2ff; padding: 2px 7px; font-size: 0.7rem; border-radius: 999px;">Subtopic: ${article.topic}</span>
+                                ${classBadge}
+                            </div>
                             <h3 style="cursor:pointer;" class="article-title">${article.title}</h3>
                             <p style="font-size: 0.85rem;">${article.content.substring(0, 80)}...</p>
                         </div>
@@ -554,6 +560,10 @@ async function loadFullArticle(id, level = null) {
             ? String(article.title).trim()
             : 'Untitled Article';
 
+        const classBadgeHtml = article.class_name
+            ? `<div style="margin-top: 8px;"><span class="classroom-badge">🏷️ ${article.class_name}</span></div>`
+            : '';
+
         container.innerHTML = `
             <div class="article-full">
                 <div id="nav-and-title-area" style="margin-bottom: 20px;">
@@ -562,6 +572,7 @@ async function loadFullArticle(id, level = null) {
                         ← Back to Articles
                     </button>
                     <h1 id="interactive-title" style="margin-top:10px;">${completeTitle}</h1>
+                    ${classBadgeHtml}
                 </div>
 
                 <div id="audio-controls-panel" class="audio-controls-panel">
@@ -1065,14 +1076,18 @@ function shuffleArray(arr) {
 
 function renderMcqCard(cardBody, q, index, onAnswered) {
     const renderTs = Date.now();
-    const questionText = document.createElement('p');
-    questionText.className = 'fw-bold mb-3';
-    questionText.style.color = '#2d3748';
 
-    const categoryBadge = q.category
-        ? `<span class="badge bg-secondary me-2 text-uppercase" style="font-size:0.68rem;letter-spacing:0.5px;">${String(q.category).replace(/_/g, ' ')}</span>`
-        : '';
-    questionText.innerHTML = `${categoryBadge}${index + 1}. ${q.question}`;
+    if (q.category) {
+        const categoryBadge = document.createElement('span');
+        categoryBadge.className = 'quiz-category-badge';
+        categoryBadge.textContent = String(q.category).replace(/_/g, ' ');
+        cardBody.appendChild(categoryBadge);
+    }
+
+    const questionText = document.createElement('p');
+    questionText.className = 'quiz-question-text fw-bold mb-3';
+    questionText.style.color = '#2d3748';
+    questionText.innerHTML = `<strong>${index + 1}.</strong> ${q.question}`;
     cardBody.appendChild(questionText);
 
     const optionsDiv = document.createElement('div');
@@ -1123,14 +1138,18 @@ function renderMcqCard(cardBody, q, index, onAnswered) {
 
 function renderTfCard(cardBody, q, index, onAnswered) {
     const renderTs = Date.now();
-    const p = document.createElement('p');
-    p.className = 'fw-bold mb-3';
-    p.style.color = '#2d3748';
 
-    const categoryBadge = q.category
-        ? `<span class="badge bg-secondary me-2 text-uppercase" style="font-size:0.68rem;letter-spacing:0.5px;">${String(q.category).replace(/_/g, ' ')}</span>`
-        : '';
-    p.innerHTML = `${categoryBadge}${index + 1}. True or false: ${q.statement}`;
+    if (q.category) {
+        const categoryBadge = document.createElement('span');
+        categoryBadge.className = 'quiz-category-badge';
+        categoryBadge.textContent = String(q.category).replace(/_/g, ' ');
+        cardBody.appendChild(categoryBadge);
+    }
+
+    const p = document.createElement('p');
+    p.className = 'quiz-question-text fw-bold mb-3';
+    p.style.color = '#2d3748';
+    p.innerHTML = `<strong>${index + 1}.</strong> True or false: ${q.statement}`;
     cardBody.appendChild(p);
 
     const row = document.createElement('div');
@@ -1179,10 +1198,17 @@ function renderMatchingCard(cardBody, q, index, onAnswered) {
     const pairs = q.pairs || [];
     if (pairs.length < 2) return;
 
+    if (q.category) {
+        const categoryBadge = document.createElement('span');
+        categoryBadge.className = 'quiz-category-badge';
+        categoryBadge.textContent = String(q.category).replace(/_/g, ' ');
+        cardBody.appendChild(categoryBadge);
+    }
+
     const title = document.createElement('p');
-    title.className = 'fw-bold mb-2';
+    title.className = 'quiz-question-text fw-bold mb-2';
     title.style.color = '#2d3748';
-    title.textContent = `${index + 1}. Match each word with its definition (English). Click a word, then its definition.`;
+    title.innerHTML = `<strong>${index + 1}.</strong> Match each word with its definition (English). Click a word, then its definition.`;
     cardBody.appendChild(title);
 
     const words = shuffleArray(pairs.map((p) => ({ word: p.word, definition: p.definition })));
