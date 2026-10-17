@@ -92,6 +92,9 @@
                     <button type="button" id="btn-refresh-dashboard" class="btn-secondary-deck" title="Refrescar datos del aula">
                         🔄 Actualizar
                     </button>
+                    <button type="button" id="btn-delete-class" class="btn btn-outline-danger btn-sm" title="Eliminar el aula activa">
+                        🗑️ Eliminar Clase
+                    </button>
                 </div>
             </div>
 
@@ -501,6 +504,33 @@
             </div>
             <div class="teacher-modal-footer">
                 <button type="button" class="btn-secondary-deck" data-close-modal="modal-student-detail-stats">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 8: Confirmar Eliminación de Clase -->
+    <div id="modal-delete-class" class="teacher-modal-overlay">
+        <div class="teacher-modal-card" style="max-width: 480px;">
+            <div class="teacher-modal-header">
+                <h3 style="margin: 0; color: #ef4444;">⚠️ Confirmar Eliminación de Clase</h3>
+                <button type="button" class="modal-close-btn" data-close-modal="modal-delete-class">✕</button>
+            </div>
+            <div class="teacher-modal-body">
+                <p style="color: #f8fafc; font-weight: 600; margin-top: 0;">
+                    ¿Estás seguro de que deseas eliminar permanentemente esta clase?
+                </p>
+                <div style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px; margin-bottom: 14px;">
+                    <div style="font-size: 1.05rem; font-weight: 700; color: #ffffff;" id="delete-class-modal-target-name">Clase</div>
+                    <div style="font-size: 0.82rem; color: #94a3b8; margin-top: 4px;" id="delete-class-modal-target-code">Código: ------</div>
+                </div>
+                <p style="color: #94a3b8; font-size: 0.88rem; margin-bottom: 0;">
+                    <strong>Advertencia:</strong> Se desvincularán automáticamente todos los estudiantes matriculados en esta aula y las lecturas asociadas quedarán sin clase asignada. Esta acción es <strong>irreversible</strong>.
+                </p>
+                <p id="delete-class-modal-status" style="margin: 10px 0 0; font-size: 0.88rem;"></p>
+            </div>
+            <div class="teacher-modal-footer">
+                <button type="button" class="btn-secondary-deck" data-close-modal="modal-delete-class">Cancelar</button>
+                <button type="button" id="btn-confirm-delete-class" class="btn-danger-deck">Sí, Eliminar Clase</button>
             </div>
         </div>
     </div>

@@ -79,6 +79,12 @@ export function mountNavbar(basePathOrRole = '', secondParam = '') {
     ? `<li class="nav-item"><a href="${p('features/teacher/teacher.html')}" class="nav-link" id="teacher-portal-link">Teacher Portal</a></li>`
     : '';
 
+  // 1b. Control de acceso: Admin Panel SOLO se renderiza si es admin.
+  const isAdmin = effectiveRole === 'admin';
+  const adminExtra = isAdmin
+    ? `<li class="nav-item"><a href="${p('admin.html')}" class="nav-link" id="admin-panel-link">Admin Panel</a></li>`
+    : '';
+
   // 2. Configuración de texto e ícono de cada rol
   let badgeLabel = '🎓 Estudiante';
   let badgeClass = 'role-student';
@@ -113,12 +119,13 @@ export function mountNavbar(basePathOrRole = '', secondParam = '') {
                 <li class="nav-item"><a href="${p('topics.html')}" class="nav-link" id="topics-link">Topics</a></li>
                 <li class="nav-item"><a href="${p('my-flashcards.html')}" class="nav-link">My Flashcards</a></li>
                 ${teacherExtra}
+                ${adminExtra}
                 <li class="nav-item nav-user-info" id="nav-role-container">
                     ${userDisplayName ? `<span class="nav-username">👤 ${escHtml(userDisplayName)}</span>` : ''}
                     <span class="user-role-badge ${badgeClass} ${devClickClass}" id="navbar-role-badge" ${tooltipAttr}>
                         ${badgeLabel}
                     </span>
-                    <div class="dev-role-menu" id="dev-role-menu" style="display: none;">
+                    <div class="dev-role-menu" id="role-switcher-menu" style="display: none;">
                         <div class="dev-role-menu-header">🔧 Rol Activo (Dev)</div>
                         <button type="button" class="dev-role-btn ${effectiveRole === 'student' ? 'active' : ''}" data-target-role="student">
                             🎓 Estudiante
@@ -172,7 +179,7 @@ export function mountNavbar(basePathOrRole = '', secondParam = '') {
  */
 function setupDevRoleSwitcher(currentUser, currentRole, basePath) {
   const badge = document.getElementById('navbar-role-badge');
-  const menu = document.getElementById('dev-role-menu');
+  const menu = document.getElementById('role-switcher-menu') || document.getElementById('dev-role-menu');
   const container = document.getElementById('nav-role-container');
   if (!badge || !menu || !container) return;
 

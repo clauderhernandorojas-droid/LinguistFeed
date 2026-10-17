@@ -37,6 +37,26 @@ function authenticate(req, res, next) {
   }
 }
 
+/**
+ * Middleware to restrict route to specific roles
+ *
+ * @param {...string} roles - Allowed roles (e.g. 'admin', 'teacher')
+ */
+function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'No autenticado' });
+    }
+    const userRole = String(req.user.role || '').toLowerCase();
+    const allowed = roles.map((r) => String(r).toLowerCase());
+    if (!allowed.includes(userRole)) {
+      return res.status(403).json({ error: 'Acceso denegado: permisos insuficientes' });
+    }
+    next();
+  };
+}
+
 module.exports = {
-  authenticate
+  authenticate,
+  requireRole
 };

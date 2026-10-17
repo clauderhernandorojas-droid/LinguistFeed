@@ -68,15 +68,38 @@ async function listUserClasses(req, res) {
     const role = normalizeRole(req.user?.role);
     const uid = currentUserId(req);
 
-    if (role === 'teacher' || role === 'admin') {
+    if (role === 'admin') {
       const classes = await db.all(
         `SELECT
            c.id,
            c.name,
            c.invite_code AS inviteCode,
            c.created_at AS createdAt,
+           c.teacher_id AS teacherId,
+           COALESCE(u.username, 'Docente') AS teacherName,
            COUNT(cm.id) AS studentsCount
          FROM classes c
+         LEFT JOIN users u ON u.id = c.teacher_id
+         LEFT JOIN class_members cm ON cm.class_id = c.id
+         WHERE c.is_active = 1
+         GROUP BY c.id
+         ORDER BY c.created_at DESC`
+      );
+      return res.json({ classes });
+    }
+
+    if (role === 'teacher') {
+      const classes = await db.all(
+        `SELECT
+           c.id,
+           c.name,
+           c.invite_code AS inviteCode,
+           c.created_at AS createdAt,
+           c.teacher_id AS teacherId,
+           COALESCE(u.username, 'Docente') AS teacherName,
+           COUNT(cm.id) AS studentsCount
+         FROM classes c
+         LEFT JOIN users u ON u.id = c.teacher_id
          LEFT JOIN class_members cm ON cm.class_id = c.id
          WHERE c.teacher_id = ? AND c.is_active = 1
          GROUP BY c.id
@@ -371,6 +394,50 @@ router.delete('/:id/students/:studentId', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Unenroll student error:', error.message);
     return res.status(500).json({ error: 'Error al desvincular estudiante' });
+  }
+});
+
+// DELETE /api/classes/:id
+// Permite al profesor titular o al administrador eliminar una clase con limpieza en cascada
+router.delete('/:id', authenticate, async (req, res) => {
+  try {
+    const role = normalizeRole(req.user?.role);
+    if (role !== 'teacher' && role !== 'admin') {
+      return res.status(403).json({ error: 'Solo profesores o administradores pueden eliminar clases' });
+    }
+
+    const classId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(classId) || classId <= 0) {
+      return res.status(400).json({ error: 'ID de clase inválido' });
+    }
+
+    const classroom = await db.get(
+      `SELECT id, teacher_id AS teacherId, name FROM classes WHERE id = ?`,
+      [classId]
+    );
+    if (!classroom) return res.status(404).json({ error: 'Clase no encontrada' });
+
+    const uid = currentUserId(req);
+    if (role === 'teacher' && Number(classroom.teacherId) !== Number(uid)) {
+      return res.status(403).json({ error: 'Solo el profesor titular o un administrador pueden eliminar esta clase' });
+    }
+
+    // 1. Elimina las membresías en class_members asociadas a esa clase
+    await db.run(`DELETE FROM class_members WHERE class_id = ?`, [classId]);
+
+    // 2. Desvincula las lecturas asignadas a esta clase
+    await db.run(`UPDATE articles SET class_id = NULL WHERE class_id = ?`, [classId]);
+
+    // 3. Elimina el aula de la tabla classes
+    await db.run(`DELETE FROM classes WHERE id = ?`, [classId]);
+
+    return res.status(200).json({
+      ok: true,
+      message: 'Clase eliminada con éxito'
+    });
+  } catch (error) {
+    console.error('Delete class error:', error.message);
+    return res.status(500).json({ error: 'Error al eliminar la clase: ' + error.message });
   }
 });
 

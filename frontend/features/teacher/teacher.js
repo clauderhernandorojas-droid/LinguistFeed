@@ -242,17 +242,26 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      const currentUserRole = (() => {
+        try {
+          const raw = localStorage.getItem('linguistfeed_user') || localStorage.getItem('user');
+          return String(JSON.parse(raw)?.role || '').toLowerCase();
+        } catch (_) { return ''; }
+      })();
+      const isAdmin = currentUserRole === 'admin';
+
       teacherClasses.forEach((c) => {
         const opt = document.createElement('option');
         opt.value = String(c.id);
         const count = c.studentsCount != null ? ` (${c.studentsCount} alumnos)` : '';
-        opt.textContent = `${c.name} · ${c.inviteCode}${count}`;
+        const teacherTag = isAdmin && c.teacherName ? ` - Prof. ${c.teacherName}` : '';
+        opt.textContent = `${c.name}${teacherTag} · ${c.inviteCode}${count}`;
         classSelect.appendChild(opt);
 
         if (modalReadingTarget) {
           const optTarget = document.createElement('option');
           optTarget.value = String(c.id);
-          optTarget.textContent = `Grupo: ${c.name} (${c.inviteCode})`;
+          optTarget.textContent = `Grupo: ${c.name}${teacherTag} (${c.inviteCode})`;
           modalReadingTarget.appendChild(optTarget);
         }
       });
@@ -281,6 +290,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (activeInviteBadge) activeInviteBadge.style.display = 'none';
     if (activeClassSummaryText) activeClassSummaryText.textContent = 'Crea una clase para comenzar a gestionar alumnos';
     if (deckSuggestedTarget) deckSuggestedTarget.textContent = 'Ninguno';
+    const btnDel = document.getElementById('btn-delete-class');
+    if (btnDel) btnDel.disabled = true;
   }
 
   function renderEmptyDeck() {
@@ -300,7 +311,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!activeClassData) return;
 
-    if (activeClassTitle) activeClassTitle.textContent = activeClassData.name;
+    const btnDel = document.getElementById('btn-delete-class');
+    if (btnDel) btnDel.disabled = false;
+
+    if (activeClassTitle) {
+      const isRoleAdmin = (() => {
+        try {
+          const raw = localStorage.getItem('linguistfeed_user') || localStorage.getItem('user');
+          return String(JSON.parse(raw)?.role || '').toLowerCase() === 'admin';
+        } catch (_) { return false; }
+      })();
+      const teacherSuffix = isRoleAdmin && activeClassData.teacherName ? ` - Prof. ${activeClassData.teacherName}` : '';
+      activeClassTitle.textContent = `${activeClassData.name}${teacherSuffix}`;
+    }
     if (activeInviteBadge && activeInviteCodeEl) {
       activeInviteCodeEl.textContent = activeClassData.inviteCode;
       activeInviteBadge.style.display = 'inline-flex';
@@ -400,6 +423,77 @@ document.addEventListener('DOMContentLoaded', () => {
       } finally {
         btnConfirmCreateClass.disabled = false;
         btnConfirmCreateClass.textContent = 'Guardar y Crear Clase';
+      }
+    });
+  }
+
+  // ==========================================================================
+  // ELIMINACIÓN DE CLASE ACTIVA
+  // ==========================================================================
+  const btnDeleteClass = document.getElementById('btn-delete-class');
+  const btnConfirmDeleteClass = document.getElementById('btn-confirm-delete-class');
+  const deleteClassModalTargetName = document.getElementById('delete-class-modal-target-name');
+  const deleteClassModalTargetCode = document.getElementById('delete-class-modal-target-code');
+  const deleteClassModalStatus = document.getElementById('delete-class-modal-status');
+
+  if (btnDeleteClass) {
+    btnDeleteClass.addEventListener('click', () => {
+      if (!activeClassId || !activeClassData) {
+        showCopyToast('⚠️ No hay ninguna clase activa para eliminar');
+        return;
+      }
+      if (deleteClassModalTargetName) {
+        deleteClassModalTargetName.textContent = activeClassData.name || 'Clase';
+      }
+      if (deleteClassModalTargetCode) {
+        deleteClassModalTargetCode.textContent = `Código: ${activeClassData.inviteCode || '------'}`;
+      }
+      if (deleteClassModalStatus) {
+        deleteClassModalStatus.textContent = '';
+        deleteClassModalStatus.style.color = '';
+      }
+      if (btnConfirmDeleteClass) {
+        btnConfirmDeleteClass.disabled = false;
+        btnConfirmDeleteClass.textContent = 'Sí, Eliminar Clase';
+      }
+      openModal('modal-delete-class');
+    });
+  }
+
+  if (btnConfirmDeleteClass) {
+    btnConfirmDeleteClass.addEventListener('click', async () => {
+      if (!activeClassId) return;
+
+      btnConfirmDeleteClass.disabled = true;
+      btnConfirmDeleteClass.textContent = '⏳ Eliminando clase...';
+      if (deleteClassModalStatus) {
+        deleteClassModalStatus.style.color = '#38bdf8';
+        deleteClassModalStatus.textContent = 'Desvinculando estudiantes y eliminando aula...';
+      }
+
+      try {
+        const res = await apiFetch(`/classes/${activeClassId}`, {
+          method: 'DELETE'
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || 'Error al eliminar la clase');
+        }
+
+        closeModal('modal-delete-class');
+        showCopyToast('🗑️ Clase eliminada con éxito');
+        localStorage.removeItem('teacher_active_class_id');
+
+        // Recargar clases: seleccionará automáticamente la siguiente o estado vacío si ya no hay
+        await loadTeacherClasses();
+      } catch (err) {
+        console.error('Error al eliminar clase:', err);
+        if (deleteClassModalStatus) {
+          deleteClassModalStatus.style.color = '#f87171';
+          deleteClassModalStatus.textContent = `❌ ${err.message}`;
+        }
+        btnConfirmDeleteClass.disabled = false;
+        btnConfirmDeleteClass.textContent = 'Reintentar Eliminación';
       }
     });
   }

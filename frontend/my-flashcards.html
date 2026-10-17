@@ -10,15 +10,30 @@
 
     <nav class="navbar"></nav>
 
-    <div class="container">
-        <h1>My Flashcards</h1>
+    <div class="container flashcards-main-container">
+        <h1 class="flashcards-title">My Flashcards</h1>
 
         <section id="decks-view">
+            <!-- Buscador centrado con diseño estilizado -->
+            <div class="decks-search-wrapper">
+                <div class="decks-search-box">
+                    <span class="decks-search-icon" aria-hidden="true">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    </span>
+                    <input id="deck-search-input" type="search" placeholder="Search deck..." autocomplete="off" />
+                </div>
+            </div>
+
+            <!-- Fila de controles superiores limpia y no amontonada -->
             <div class="decks-toolbar">
-                <input id="deck-search-input" type="search" placeholder="Search deck..." />
-                <button type="button" id="new-deck-btn" class="btn">New deck</button>
-                <button type="button" id="toggle-select-mode-btn" class="btn">Select decks</button>
-                <button type="button" id="export-all-json-btn" class="btn">Export all JSON</button>
+                <div class="decks-toolbar-left">
+                    <button type="button" id="new-deck-btn" class="btn btn-accent-new-deck">+ New deck</button>
+                </div>
+                <div class="decks-toolbar-right">
+                    <button id="btn-sync-lexispelling" class="btn btn-lexispelling-cloud" type="button">☁️ Sincronizar a la nube (Lexispelling)</button>
+                    <button id="btn-export-lexispelling-csv" class="btn btn-lexispelling-main" type="button">📥 Exportar para Lexispelling (.csv)</button>
+                    <button type="button" id="export-all-json-btn" class="btn btn-subtle-json">Export all JSON</button>
+                </div>
             </div>
 
             <div id="deck-empty-state" class="text-center" hidden>
@@ -27,11 +42,15 @@
 
             <div id="decks-grid" class="decks-grid"></div>
 
+            <!-- Barra flotante inferior de selección múltiple (oculta por defecto si selectedCount === 0) -->
             <div id="multi-select-bar" class="multi-select-bar" hidden>
-                <span id="multi-select-count">0 selected</span>
-                <button type="button" id="review-selected-btn" class="btn">Review selected</button>
-                <button type="button" id="export-selected-xlsx-btn" class="btn">Export selected (XLSX-ready CSV)</button>
-                <button type="button" id="cancel-select-mode-btn" class="btn">Cancel</button>
+                <div class="multi-select-pill">
+                    <span id="multi-select-count" class="multi-select-badge">0 selected</span>
+                    <button type="button" id="review-selected-btn" class="btn btn-pill-review">▶ Review selected</button>
+                    <button type="button" id="btn-sync-selected-lexispelling" class="btn btn-pill-cloud">☁️ Sincronizar a la nube</button>
+                    <button type="button" id="btn-export-selected-lexispelling" class="btn btn-pill-export">📥 Exportar para Lexispelling (.csv)</button>
+                    <button type="button" id="cancel-select-mode-btn" class="btn-deselect-all">Deselect all</button>
+                </div>
             </div>
         </section>
 
@@ -39,7 +58,8 @@
             <div class="flashcard-page-actions">
                 <button type="button" id="back-to-decks-btn" class="btn">Back to decks</button>
                 <button type="button" id="rename-deck-btn" class="btn">Rename deck</button>
-                <button type="button" id="export-csv-btn" class="btn">Export CSV (Lexispelling)</button>
+                <button type="button" id="study-sync-lexispelling-btn" class="btn btn-lexispelling-cloud">☁️ Sincronizar mazo a la nube</button>
+                <button type="button" id="study-export-lexispelling-btn" class="btn btn-lexispelling-main">📥 Exportar para Lexispelling (.csv)</button>
                 <button type="button" id="export-json-btn" class="btn">Export JSON</button>
                 <button type="button" id="delete-all-in-deck-btn" class="btn btn-danger">Delete all cards in this deck</button>
             </div>
@@ -89,6 +109,8 @@
         </div>
     </div>
 
+    <div id="flashcards-toast" class="flashcards-toast" hidden></div>
+
     <footer class="container text-center mt-3">
         <p>&copy; 2026 LinguistFeed. All rights reserved.</p>
     </footer>
@@ -97,7 +119,7 @@
         import { requireAuth, logout } from './js/auth.js';
         import { handleLogout } from './js/reader.js';
         // Importamos la lógica interna de tus flashcards
-        import { initFlashcards } from './js/flashcards.js';
+        import { initFlashcards } from './js/my-flashcards.js';
         import { mountNavbarForCurrentUser } from './js/navbar.js';
 
         document.addEventListener('DOMContentLoaded', () => {

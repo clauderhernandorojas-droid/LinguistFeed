@@ -1,70 +1,312 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel - LinguistFeed</title>
+    <title>Panel de Administración | LinguistFeed</title>
     <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/admin.css">
+
+    <!-- Route Guard: Verificación estricta de autenticación y rol admin antes de renderizar la página -->
+    <script>
+        (function() {
+            try {
+                var token = localStorage.getItem('token');
+                var rawUser = localStorage.getItem('linguistfeed_user') || localStorage.getItem('user');
+
+                if (!token || !rawUser) {
+                    window.location.replace('login.html?redirect=' + encodeURIComponent(window.location.pathname));
+                    return;
+                }
+
+                // Verificar si el token JWT expiró
+                var isExpired = false;
+                try {
+                    var parts = token.split('.');
+                    if (parts.length === 3) {
+                        var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+                        var payload = JSON.parse(decodeURIComponent(escape(atob(b64))));
+                        if (payload.exp && Date.now() >= payload.exp * 1000) {
+                            isExpired = true;
+                        }
+                    }
+                } catch (_) {}
+
+                if (isExpired) {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('linguistfeed_user');
+                    localStorage.removeItem('user');
+                    window.location.replace('login.html?session_expired=1');
+                    return;
+                }
+
+                var role = 'student';
+                try {
+                    var u = JSON.parse(rawUser);
+                    if (u && u.role) role = String(u.role).toLowerCase();
+                } catch (_) {}
+
+                if (role !== 'admin' && token) {
+                    try {
+                        var parts = token.split('.');
+                        if (parts.length === 3) {
+                            var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+                            var payload = JSON.parse(decodeURIComponent(escape(atob(b64))));
+                            if (payload && payload.role) role = String(payload.role).toLowerCase();
+                        }
+                    } catch (_) {}
+                }
+
+                if (role !== 'admin') {
+                    sessionStorage.setItem('access_denied_message', '⚠️ Acceso restringido: Esta sección es exclusiva para administradores.');
+                    window.location.replace('dashboard.html?denied=admin');
+                }
+            } catch (e) {
+                console.error('Route Guard Error:', e);
+            }
+        })();
+    </script>
 </head>
-<body>
+<body class="admin-page">
+    <!-- Navbar Dinámica -->
     <nav class="navbar"></nav>
 
-    <div class="container">
-        <h1>Admin Panel</h1>
-        
-        <div class="card">
-            <h2>Coming Soon!</h2>
-            <p>The admin panel is under development and will be available in a future update.</p>
-            <p>This panel will allow teachers and administrators to manage users, content, and view analytics.</p>
-            
-            <div class="text-center mt-3">
-                <a href="dashboard.html" class="btn">Back to Dashboard</a>
+    <!-- Contenedor Principal -->
+    <main class="admin-container">
+        <section class="admin-card">
+            <!-- Cabecera de la Página -->
+            <div class="admin-header-row">
+                <div class="admin-title-group">
+                    <h1>⚡ Administración de Usuarios</h1>
+                    <p>Gestión centralizada de cuentas, roles del sistema y eliminación limpia en cascada.</p>
+                </div>
             </div>
+
+            <!-- Métricas KPI Rápidas -->
+            <div class="admin-stats-grid">
+                <div class="admin-stat-card">
+                    <span class="stat-icon">👥</span>
+                    <div class="stat-info">
+                        <span id="stat-total-users" class="stat-value">--</span>
+                        <span class="stat-label">Total Usuarios</span>
+                    </div>
+                </div>
+                <div class="admin-stat-card">
+                    <span class="stat-icon">🎓</span>
+                    <div class="stat-info">
+                        <span id="stat-students" class="stat-value">--</span>
+                        <span class="stat-label">Estudiantes</span>
+                    </div>
+                </div>
+                <div class="admin-stat-card">
+                    <span class="stat-icon">👨‍🏫</span>
+                    <div class="stat-info">
+                        <span id="stat-teachers" class="stat-value">--</span>
+                        <span class="stat-label">Profesores</span>
+                    </div>
+                </div>
+                <div class="admin-stat-card">
+                    <span class="stat-icon">⚡</span>
+                    <div class="stat-info">
+                        <span id="stat-admins" class="stat-value">--</span>
+                        <span class="stat-label">Administradores</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Barra de Herramientas y Filtros -->
+            <div class="admin-toolbar-row">
+                <div class="toolbar-left">
+                    <div class="search-input-wrapper">
+                        <span class="search-icon-fixed">🔍</span>
+                        <input type="text" id="admin-search-input" placeholder="Buscar en vivo por nombre o correo..." autocomplete="off">
+                    </div>
+                    <select id="admin-role-filter" class="toolbar-select">
+                        <option value="all">Todos los roles</option>
+                        <option value="student">🎓 Solo Estudiantes</option>
+                        <option value="teacher">👨‍🏫 Solo Profesores</option>
+                        <option value="admin">⚡ Solo Administradores</option>
+                    </select>
+                </div>
+                <div class="toolbar-right">
+                    <span id="results-count-badge" class="results-badge">0 usuarios</span>
+                    <button type="button" id="btn-open-create-user-modal" class="btn-primary" title="Crear un nuevo usuario">
+                        ➕ Nuevo Usuario
+                    </button>
+                    <button type="button" id="btn-refresh-users" class="btn-refresh" title="Refrescar lista desde la base de datos">
+                        🔄 Refrescar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabla de Usuarios -->
+            <div class="table-responsive-wrapper">
+                <table class="admin-users-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 70px;">ID</th>
+                            <th>Nombre</th>
+                            <th>Email</th>
+                            <th style="width: 170px;">Rol</th>
+                            <th style="width: 90px;">Nivel</th>
+                            <th style="width: 140px;">Registro</th>
+                            <th style="width: 175px; text-align: right;">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-users-tbody">
+                        <tr>
+                            <td colspan="7" class="admin-empty-cell">
+                                <div class="admin-loading-state">
+                                    <div class="admin-spinner"></div>
+                                    <p style="margin: 10px 0 0; color: #94a3b8;">Cargando usuarios...</p>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal: Crear Nuevo Usuario -->
+    <div id="create-user-modal" class="admin-modal-overlay" style="display: none;">
+        <div class="admin-modal-card" style="max-width: 480px;">
+            <div class="admin-modal-header">
+                <h3>➕ Crear Nuevo Usuario</h3>
+                <button type="button" id="create-modal-close-x" class="admin-modal-close">✕</button>
+            </div>
+            <form id="create-user-form">
+                <div class="admin-modal-body">
+                    <div class="form-field-group">
+                        <label for="new-user-name">Nombre Completo *</label>
+                        <input type="text" id="new-user-name" class="form-control-admin" placeholder="Ej: Juan Pérez" required autocomplete="name">
+                    </div>
+                    <div class="form-field-group">
+                        <label for="new-user-email">Correo Electrónico *</label>
+                        <input type="email" id="new-user-email" class="form-control-admin" placeholder="juan.perez@ejemplo.com" required autocomplete="email">
+                    </div>
+                    <div class="form-field-group">
+                        <label for="new-user-role">Rol en el Sistema *</label>
+                        <select id="new-user-role" class="form-control-admin" required>
+                            <option value="student" selected>🎓 Estudiante</option>
+                            <option value="teacher">👨‍🏫 Profesor</option>
+                            <option value="admin">⚡ Administrador</option>
+                        </select>
+                    </div>
+                    <div id="group-new-user-level" class="form-field-group">
+                        <label for="new-user-level">Nivel CEFR</label>
+                        <select id="new-user-level" class="form-control-admin">
+                            <option value="A1">A1 - Principiante</option>
+                            <option value="A2">A2 - Elemental</option>
+                            <option value="B1" selected>B1 - Intermedio</option>
+                            <option value="B2">B2 - Intermedio Alto</option>
+                            <option value="C1">C1 - Avanzado</option>
+                            <option value="C2">C2 - Maestría</option>
+                        </select>
+                    </div>
+                    <div class="form-field-group">
+                        <label for="new-user-password">Contraseña (Opcional)</label>
+                        <input type="password" id="new-user-password" class="form-control-admin" placeholder="Por defecto: Linguist123!" autocomplete="new-password">
+                        <small style="color: #94a3b8; font-size: 0.78rem; display: block; margin-top: 4px;">Si se deja vacía, se asignará <code>Linguist123!</code> automáticamente.</small>
+                    </div>
+                    <p id="create-user-modal-status" style="margin: 0;"></p>
+                </div>
+                <div class="admin-modal-footer">
+                    <button type="button" id="btn-cancel-create" class="btn-secondary">Cancelar</button>
+                    <button type="submit" id="btn-confirm-create-user" class="btn-primary">Crear Usuario</button>
+                </div>
+            </form>
         </div>
-        
-        <div class="card mt-3">
-            <h2>Admin Features</h2>
-            <div class="admin-section">
-                <h3>User Management</h3>
-                <p>View and manage student accounts, create teacher accounts, and organize students into classes.</p>
+    </div>
+
+    <!-- Modal: Editar Usuario y Reseteo de Contraseña -->
+    <div id="edit-user-modal" class="admin-modal-overlay" style="display: none;">
+        <div class="admin-modal-card" style="max-width: 480px;">
+            <div class="admin-modal-header">
+                <h3>✏️ Editar Usuario</h3>
+                <button type="button" id="edit-modal-close-x" class="admin-modal-close">✕</button>
             </div>
-            
-            <div class="admin-section">
-                <h3>Content Management</h3>
-                <p>Review and edit articles, create custom quizzes, and manage vocabulary lists.</p>
+            <form id="edit-user-form">
+                <input type="hidden" id="edit-user-id">
+                <div class="admin-modal-body">
+                    <div class="form-field-group">
+                        <label for="edit-user-name">Nombre Completo *</label>
+                        <input type="text" id="edit-user-name" class="form-control-admin" placeholder="Ej: Juan Pérez" required autocomplete="name">
+                    </div>
+                    <div class="form-field-group">
+                        <label for="edit-user-email">Correo Electrónico *</label>
+                        <input type="email" id="edit-user-email" class="form-control-admin" placeholder="juan.perez@ejemplo.com" required autocomplete="email">
+                    </div>
+                    <div class="form-field-group">
+                        <label for="edit-user-role">Rol en el Sistema *</label>
+                        <select id="edit-user-role" class="form-control-admin" required>
+                            <option value="student">🎓 Estudiante</option>
+                            <option value="teacher">👨‍🏫 Profesor</option>
+                            <option value="admin">⚡ Administrador</option>
+                        </select>
+                    </div>
+                    <div id="group-edit-user-level" class="form-field-group">
+                        <label for="edit-user-level">Nivel CEFR</label>
+                        <select id="edit-user-level" class="form-control-admin">
+                            <option value="A1">A1 - Principiante</option>
+                            <option value="A2">A2 - Elemental</option>
+                            <option value="B1">B1 - Intermedio</option>
+                            <option value="B2">B2 - Intermedio Alto</option>
+                            <option value="C1">C1 - Avanzado</option>
+                            <option value="C2">C2 - Maestría</option>
+                        </select>
+                    </div>
+                    <div class="form-field-group">
+                        <label for="edit-user-password">Nueva Contraseña</label>
+                        <input type="text" id="edit-user-password" class="form-control-admin" placeholder="Dejar en blanco para conservar la actual" autocomplete="new-password">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; flex-wrap: wrap; gap: 6px;">
+                            <small style="color: #94a3b8; font-size: 0.78rem;">Dejar en blanco para no cambiarla.</small>
+                            <button type="button" id="btn-quick-reset-pass" class="btn-quick-reset" title="Restablecer clave default">
+                                🔑 Resetear a default (Linguist123!)
+                            </button>
+                        </div>
+                    </div>
+                    <p id="edit-user-modal-status" style="margin: 0;"></p>
+                </div>
+                <div class="admin-modal-footer">
+                    <button type="button" id="btn-cancel-edit" class="btn-secondary">Cancelar</button>
+                    <button type="submit" id="btn-confirm-edit-user" class="btn-primary">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmación para Eliminación en Cascada -->
+    <div id="delete-confirm-modal" class="admin-modal-overlay">
+        <div class="admin-modal-card">
+            <div class="admin-modal-header">
+                <h3>⚠️ Confirmar Eliminación de Usuario</h3>
+                <button type="button" id="modal-close-x" class="admin-modal-close">✕</button>
             </div>
-            
-            <div class="admin-section">
-                <h3>Analytics</h3>
-                <p>View detailed statistics on student progress, identify areas for improvement, and track engagement.</p>
+            <div class="admin-modal-body">
+                <p style="margin: 0 0 10px; color: #f8fafc; font-weight: 600;">
+                    ¿Estás seguro de que deseas eliminar permanentemente esta cuenta?
+                </p>
+                <div class="delete-target-box">
+                    <span>👤</span>
+                    <span id="delete-modal-user-target">Usuario</span>
+                </div>
+                <p style="margin: 0; font-size: 0.88rem; color: #94a3b8;">
+                    <strong>Borrado limpio en cascada:</strong> Se eliminarán automáticamente todos sus registros vinculados en <code>class_members</code>, <code>answer_events</code>, <code>user_flashcards</code>, <code>attempts</code> y <code>user_progress</code>. Esta acción es <strong>irreversible</strong>.
+                </p>
+                <p id="delete-modal-status"></p>
+            </div>
+            <div class="admin-modal-footer">
+                <button type="button" id="btn-cancel-delete" class="btn-secondary">Cancelar</button>
+                <button type="button" id="btn-confirm-delete" class="btn-danger-confirm">Sí, Eliminar Usuario</button>
             </div>
         </div>
     </div>
 
-    <footer class="container text-center mt-3">
-        <p>&copy; 2026 LinguistFeed. All rights reserved.</p>
-    </footer>
+    <!-- Toast Flotante -->
+    <div id="admin-toast" class="admin-toast"></div>
 
-    <script type="module">
-        import { requireAuth, logout, getUser } from './js/auth.js';
-        // Importamos la función que unifica el Logout
-        import { handleLogout } from './js/reader.js';
-        import { mountNavbarForCurrentUser } from './js/navbar.js';
-        
-        document.addEventListener('DOMContentLoaded', async function() {
-            // 1. Verificamos autenticación
-            requireAuth();
-            mountNavbarForCurrentUser('');
-            
-            // 2. Verificamos si es admin/teacher
-            const user = await getUser();
-            if (user && user.role !== 'admin' && user.role !== 'teacher') {
-                window.location.href = 'dashboard.html';
-            }
-            
-            // 3. Activamos el botón de Logout (limpio y unificado)
-            handleLogout(logout);
-        });
-    </script>
+    <!-- Script del Panel Admin -->
+    <script type="module" src="js/admin.js"></script>
 </body>
 </html>

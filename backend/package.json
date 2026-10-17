@@ -4,7 +4,7 @@
   "description": "LinguistFeed development environment",
   "main": "backend/server.js",
   "scripts": {
-    "backend": "node server.js",
+    "backend": "nodemon server.js",
     "frontend": "npx serve ../frontend",
     "dev": "npx concurrently \"npm run backend\" \"npm run frontend\"",
     "batch-simplify": "node scripts/batch-simplify-top-per-topic.js"
@@ -17,6 +17,7 @@
     "cors": "^2.8.6",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "firebase-admin": "^14.5.0",
     "jsonwebtoken": "^9.0.2",
     "node-schedule": "^2.1.1",
     "rss-parser": "^3.13.0",
