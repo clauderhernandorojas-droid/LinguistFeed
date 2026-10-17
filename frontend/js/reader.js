@@ -77,8 +77,16 @@ function upsertDeckAndCardFromReader(newCard) {
         localStorage.setItem(DECKS_KEY, JSON.stringify(decks));
     }
 
-    const key = normalizeWord(newCard.word);
-    const exists = cards.some((c) => c.deckId === deck.id && normalizeWord(c.word) === key);
+    const newWordNorm = normalizeWord(newCard.word);
+    const newTransNorm = String(newCard.translation || '').trim().toLowerCase();
+
+    // Duplicado SOLO si coinciden palabra Y traducción (acepción idéntica)
+    const exists = cards.some((c) => {
+        const cWordNorm = normalizeWord(c.word);
+        const cTransNorm = String(c.translation || '').trim().toLowerCase();
+        return c.deckId === deck.id && cWordNorm === newWordNorm && cTransNorm === newTransNorm;
+    });
+
     if (exists) {
         return { ok: true, reason: 'duplicate', deckName: deck.name };
     }
@@ -90,6 +98,7 @@ function upsertDeckAndCardFromReader(newCard) {
         translation: newCard.translation || '',
         example: newCard.example || '',
         definition: newCard.definition || 'Saved from reader',
+        tags: newCard.tags || (title ? [title] : []),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
     });
@@ -773,14 +782,60 @@ async function saveFlashcardToStorage() {
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
+        let userEmail = null;
+        try {
+            const raw = localStorage.getItem('linguistfeed_user') || localStorage.getItem('user');
+            if (raw) {
+                const u = JSON.parse(raw);
+                if (u.email) userEmail = u.email;
+            }
+        } catch (_) {}
+
+        // Obtener el contexto y título real del artículo actual para metadato de tags
+        const { title: currentArticleTitleRaw } = getCurrentArticleContextForDeck();
+        const currentArticleTitle = (currentArticleTitleRaw && currentArticleTitleRaw !== 'Article deck')
+            ? currentArticleTitleRaw
+            : '';
+        const tags = currentArticleTitle ? [currentArticleTitle] : [];
+
+        const newCard = {
+            word: word,
+            translation: translation,
+            example: example,
+            definition: "Saved from reader",
+            tags: tags,
+            date: new Date().toISOString()
+        };
+
+        // Guardado y resolución del mazo localmente
+        const deckSaveResult = upsertDeckAndCardFromReader(newCard);
+        if (!deckSaveResult.ok && deckSaveResult.reason === 'deck_limit') {
+            alert('You reached the deck limit (10). Delete another deck before saving this word.');
+            return;
+        }
+
+        // Mazo Central Único para sincronización con Lexispelling
+        const centralDeckName = "Reading Vocabulary";
+
         const payload = {
             word,
             context: `[${translation}] - ${example}`,
-            level: currentLevel
+            translation: translation,
+            phrase: example,
+            example: example,
+            deckName: centralDeckName,
+            tags: tags,
+            notes: `Level ${currentLevel}`,
+            level: currentLevel,
+            userEmail: userEmail || undefined,
+            email: userEmail || undefined,
         };
-        if (userId != null && !Number.isNaN(userId)) payload.user_id = userId;
+        if (userId != null && !Number.isNaN(userId)) {
+            payload.user_id = userId;
+            payload.userId = userId;
+        }
 
-        console.log('Final URL:', `${API_BASE_URL}/flashcards`);
+        console.log('Final URL:', `${API_BASE_URL}/flashcards`, 'Deck:', centralDeckName, 'Tags:', tags);
         const response = await fetch(`${API_BASE_URL}/flashcards`, {
             method: 'POST',
             headers,
@@ -796,25 +851,19 @@ async function saveFlashcardToStorage() {
         if (response.ok) {
             console.log("✅ Flashcard guardada!");
             let localFlashcards = JSON.parse(localStorage.getItem("linguistfeed_flashcards")) || [];
-            
-            const newCard = {
-                word: word,
-                translation: translation, // Aquí sí guardamos la traducción limpia
-                example: example,
-                definition: "Saved from reader",
-                date: new Date().toISOString()
-            };
-
-            const deckSaveResult = upsertDeckAndCardFromReader(newCard);
-            if (!deckSaveResult.ok && deckSaveResult.reason === 'deck_limit') {
-                alert('You reached the deck limit (10). Delete another deck before saving this word.');
-                return;
-            }
 
             if (deckSaveResult.reason !== 'duplicate') {
-                localFlashcards.push(newCard);
-                localStorage.setItem("linguistfeed_flashcards", JSON.stringify(localFlashcards));
-                console.log("✅ Sincronizado con LocalStorage para Repaso");
+                const newWordNorm = String(newCard.word || '').trim().toLowerCase();
+                const newTransNorm = String(newCard.translation || '').trim().toLowerCase();
+                const existsInLegacy = localFlashcards.some((c) =>
+                    String(c.word || '').trim().toLowerCase() === newWordNorm &&
+                    String(c.translation || '').trim().toLowerCase() === newTransNorm
+                );
+                if (!existsInLegacy) {
+                    localFlashcards.push(newCard);
+                    localStorage.setItem("linguistfeed_flashcards", JSON.stringify(localFlashcards));
+                    console.log("✅ Sincronizado con LocalStorage para Repaso");
+                }
             }
             // ACTUALIZACIÓN CRÍTICA: Añadimos la palabra al Set para que se resalte de inmediato
             if (typeof savedWordsSet !== 'undefined') {
