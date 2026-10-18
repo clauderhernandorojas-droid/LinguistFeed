@@ -27,6 +27,44 @@ function cleanArticleUrl(rawUrl) {
   } catch {
     return rawUrl;
   }
+/**
+ * Normaliza las claves de temas para que coincidan exactamente con los 14 slugs de Explore Topics
+ */
+function normalizeTopic(rawTopic) {
+  if (!rawTopic || typeof rawTopic !== 'string') return 'news';
+  const t = rawTopic.toLowerCase().trim();
+  const map = {
+    'technology': 'tech',
+    'tech': 'tech',
+    'science': 'science',
+    'history': 'history',
+    'culture': 'culture',
+    'pop_culture': 'trends',
+    'pop-culture': 'trends',
+    'popculture': 'trends',
+    'trends': 'trends',
+    'movies': 'movies',
+    'movies_series': 'movies',
+    'movies-series': 'movies',
+    'film': 'movies',
+    'films': 'movies',
+    'cinema': 'movies',
+    'gaming': 'gaming',
+    'games': 'gaming',
+    'travel': 'travel',
+    'lifestyle': 'lifestyle',
+    'lifeandstyle': 'lifestyle',
+    'health': 'health',
+    'education': 'edu',
+    'edu': 'edu',
+    'classroom': 'classroom',
+    'business': 'business',
+    'news': 'news',
+    'world': 'news',
+    'global_news': 'news',
+    'global-news': 'news'
+  };
+  return map[t] || t;
 }
 
 /**
@@ -168,10 +206,8 @@ class SchedulerService {
 
       for (const articleData of articlesData) {
         try {
-          // --- 🛠️ NORMALIZACIÓN DEL TOPIC ---
-          let cleanTopic = (articleData.category || 'news').toLowerCase().trim();
-          if (cleanTopic === 'technology') cleanTopic = 'tech';
-          if (cleanTopic === 'world') cleanTopic = 'news';
+          // --- 🛠️ NORMALIZACIÓN DEL TOPIC (Slugs exactos de Explore Topics) ---
+          const cleanTopic = normalizeTopic(articleData.category);
           // ----------------------------------
 
           const cleanUrl = cleanArticleUrl(articleData.url);
@@ -194,20 +230,41 @@ class SchedulerService {
 
             newArticlesCount++;
             console.log(`📦 Scraping nuevo artículo (${newArticlesCount}/${maxNewArticles}): ${articleData.title}`);
-            const scrapedArticle = await scraperService.scrapeArticle(articleData.url);
             
-            // Priorizamos el titular limpio del RSS con gancho editorial
-            const finalTitle = (articleData.title && articleData.title.trim()) || scrapedArticle.title || 'Untitled Article';
+            let scrapedText = '';
+            let scrapedTitle = '';
+            try {
+              const scrapedArticle = await scraperService.scrapeArticle(articleData.url);
+              scrapedText = scrapedArticle.text || '';
+              scrapedTitle = scrapedArticle.title || '';
+            } catch (scrapeErr) {
+              console.warn(`⚠️ Scraping web falló para ${articleData.url} (${scrapeErr.message}). Utilizando texto provisto por el feed RSS.`);
+              scrapedText = (articleData.original_text || '').trim();
+            }
 
-            // Insertamos usando cleanTopic y cleanUrl
+            // Si el scraping extrajo muy poco texto pero el RSS tiene más, usamos el del RSS
+            if ((!scrapedText || scrapedText.length < 150) && articleData.original_text && articleData.original_text.length >= 150) {
+              scrapedText = articleData.original_text.trim();
+            }
+
+            if (!scrapedText || scrapedText.length < 100) {
+              console.warn(`⚠️ Texto insuficiente (<100 caracteres) para "${articleData.title}". Omitiendo artículo.`);
+              newArticlesCount--;
+              continue;
+            }
+
+            // Priorizamos el titular limpio del RSS con gancho editorial
+            const finalTitle = (articleData.title && articleData.title.trim()) || scrapedTitle || 'Untitled Article';
+
+            // Insertamos usando cleanTopic normalizado y cleanUrl
             const result = await db.run(
               'INSERT INTO articles (url, title, topic, content, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)',
-              [cleanUrl, finalTitle, cleanTopic, scrapedArticle.text]
+              [cleanUrl, finalTitle, cleanTopic, scrapedText]
             );
             
             articleId = result.lastID;
-            articleContent = scrapedArticle.text;
-            console.log(`✅ Artículo insertado con ID: ${articleId} ("${finalTitle}")`);
+            articleContent = scrapedText;
+            console.log(`✅ Artículo insertado con ID: ${articleId} ("${finalTitle}") [Tema: ${cleanTopic}]`);
           } else {
             articleId = existingArticle.id;
             articleContent = existingArticle.content;

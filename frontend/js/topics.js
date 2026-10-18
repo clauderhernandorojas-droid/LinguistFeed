@@ -23,8 +23,23 @@ export function renderTopics() {
     if (!favoritesGrid || !othersGrid) return;
 
     // 1. Obtener intereses (ej: "tech,gaming"); mismo fallback que topics.html anterior
+    const normalizeTopicId = (t) => {
+        const map = {
+            technology: 'tech',
+            pop_culture: 'trends',
+            'pop-culture': 'trends',
+            movies_series: 'movies',
+            'movies-series': 'movies',
+            education: 'edu',
+            global_news: 'news',
+            'global-news': 'news',
+            world: 'news'
+        };
+        return map[t] || t;
+    };
+
     const userInterestsRaw = localStorage.getItem('user-interests') || "tech,science";
-    const userInterests = userInterestsRaw.split(',').map(i => i.trim().toLowerCase());
+    const userInterests = userInterestsRaw.split(',').map(i => normalizeTopicId(i.trim().toLowerCase()));
 
     favoritesGrid.innerHTML = '';
     othersGrid.innerHTML = '';

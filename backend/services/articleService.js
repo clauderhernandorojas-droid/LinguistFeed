@@ -22,24 +22,66 @@ class ArticleService {
       timeout: 12000
     });
 
-    // Fuentes curadas con ganchos editoriales atractivos, cultura, divulgación y estilo de vida
+    // Diccionario curado por categoría (alineado con los 14 temas de Explore Topics)
     const feeds = {
+      // 1. Science (divulgación, descubrimientos y futuro)
+      science: 'https://www.bbc.com/future/feed.rss',
+
+      // 2. Technology (Wired / The Verge)
+      tech: [
+        'https://www.wired.com/feed/rss',
+        'https://www.theverge.com/rss/index.xml'
+      ],
+
+      // 3. History (Smithsonian / BBC HistoryExtra)
+      history: [
+        'https://www.smithsonianmag.com/rss/history/',
+        'https://www.historyextra.com/feed/'
+      ],
+
+      // 4. Culture (The Guardian / BBC Culture)
       culture: [
         'https://www.theguardian.com/uk/culture/rss',
         'https://www.bbc.com/culture/feed.rss'
       ],
-      lifestyle: 'https://www.theguardian.com/uk/lifeandstyle/rss',
-      tech: 'https://www.wired.com/feed/rss',
-      science: 'https://www.bbc.com/future/feed.rss',
-      news: 'https://feeds.bbci.co.uk/news/world/rss.xml',
-      trends: 'https://www.wired.com/feed/rss',
-      history: 'https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml',
-      health: 'https://www.theguardian.com/uk/lifeandstyle/rss',
-      business: 'https://feeds.bbci.co.uk/news/business/rss.xml',
-      gaming: 'https://feeds.feedburner.com/ign/all',
+
+      // 5. Pop Culture / Trends (Rolling Stone / The Guardian)
+      trends: [
+        'https://www.rollingstone.com/culture/feed/',
+        'https://www.theguardian.com/uk/culture/rss'
+      ],
+
+      // 6. Movies & Series (IndieWire)
+      movies: 'https://www.indiewire.com/feed/',
+
+      // 7. Gaming (Kotaku / Polygon)
+      gaming: [
+        'https://kotaku.com/rss',
+        'https://www.polygon.com/rss/index.xml'
+      ],
+
+      // 8. Travel (Condé Nast Traveler)
       travel: 'https://www.cntraveler.com/feed/rss',
-      movies: 'https://www.hollywoodreporter.com/t/movies/feed/',
-      edu: 'https://hechingerreport.org/feed/'
+
+      // 9. Lifestyle & Health (The Guardian Life & Style)
+      lifestyle: 'https://www.theguardian.com/uk/lifeandstyle/rss',
+      health: 'https://www.theguardian.com/uk/lifeandstyle/rss',
+
+      // 10. Education & Classroom (MindShift KQED / The Hechinger Report)
+      edu: [
+        'https://ww2.kqed.org/mindshift/feed/',
+        'https://hechingerreport.org/feed/'
+      ],
+      classroom: [
+        'https://hechingerreport.org/feed/',
+        'https://ww2.kqed.org/mindshift/feed/'
+      ],
+
+      // 11. Business (Fast Company)
+      business: 'https://www.fastcompany.com/latest/rss',
+
+      // 12. Global News (BBC World News)
+      news: 'https://feeds.bbci.co.uk/news/world/rss.xml'
     };
 
     const articlesToProcess = [];

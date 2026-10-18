@@ -12,26 +12,47 @@ const parser = new Parser({
 class RssService {
   constructor() {
     this.feeds = [
-      // --- CULTURA, ESTILO DE VIDA Y DIVULGACIÓN (Titulares atractivos y ganchos editoriales) ---
-      { url: 'https://www.theguardian.com/uk/culture/rss', name: 'The Guardian Culture', category: 'culture' },
-      { url: 'https://www.theguardian.com/uk/lifeandstyle/rss', name: 'The Guardian Lifestyle', category: 'lifestyle' },
-      { url: 'https://www.bbc.com/culture/feed.rss', name: 'BBC Culture', category: 'culture' },
-      { url: 'https://www.bbc.com/future/feed.rss', name: 'BBC Future (Divulgación y Ciencia)', category: 'science' },
+      // 1. Science (BBC Future)
+      { url: 'https://www.bbc.com/future/feed.rss', name: 'BBC Future', category: 'science' },
+
+      // 2. Technology (Wired / The Verge)
       { url: 'https://www.wired.com/feed/rss', name: 'Wired (Ciencia e Innovación)', category: 'tech' },
-      { url: 'https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml', name: 'BBC Entertainment & Arts', category: 'history' },
-      { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', name: 'BBC World News', category: 'news' },
-      { url: 'https://feeds.bbci.co.uk/news/business/rss.xml', name: 'BBC Business', category: 'business' },
-  
-      // --- HISTORIA Y PENSAMIENTO ---
-      { url: 'https://www.historyextra.com/feed/', name: 'HistoryExtra (BBC History Mag)', category: 'history' },
-      { url: 'https://historyguild.org/feed/', name: 'History Guild', category: 'history' },
-      { url: 'https://www.newyorker.com/feed/culture', name: 'The New Yorker Culture', category: 'culture' },
-  
-      // --- GAMING, TENDENCIAS Y VIAJES ---
-      { url: 'https://feeds.feedburner.com/ign/all', name: 'IGN Gaming', category: 'gaming' },
+      { url: 'https://www.theverge.com/rss/index.xml', name: 'The Verge', category: 'tech' },
+
+      // 3. History (Smithsonian Magazine / HistoryExtra)
+      { url: 'https://www.smithsonianmag.com/rss/history/', name: 'Smithsonian Magazine History', category: 'history' },
+      { url: 'https://www.historyextra.com/feed/', name: 'BBC HistoryExtra', category: 'history' },
+
+      // 4. Culture (The Guardian Culture / BBC Culture)
+      { url: 'https://www.theguardian.com/uk/culture/rss', name: 'The Guardian Culture', category: 'culture' },
+      { url: 'https://www.bbc.com/culture/feed.rss', name: 'BBC Culture', category: 'culture' },
+
+      // 5. Pop Culture (Rolling Stone / Trends)
+      { url: 'https://www.rollingstone.com/culture/feed/', name: 'Rolling Stone Culture', category: 'trends' },
+
+      // 6. Movies & Series (IndieWire)
+      { url: 'https://www.indiewire.com/feed/', name: 'IndieWire Movies & Series', category: 'movies' },
+
+      // 7. Gaming (Kotaku / Polygon)
+      { url: 'https://kotaku.com/rss', name: 'Kotaku Gaming', category: 'gaming' },
+      { url: 'https://www.polygon.com/rss/index.xml', name: 'Polygon', category: 'gaming' },
+
+      // 8. Travel (Condé Nast Traveler)
       { url: 'https://www.cntraveler.com/feed/rss', name: 'Condé Nast Traveler', category: 'travel' },
-      { url: 'https://www.hollywoodreporter.com/t/movies/feed/', name: 'Hollywood Reporter Movies', category: 'movies' },
-      { url: 'https://hechingerreport.org/feed/', name: 'The Hechinger Report', category: 'edu' }
+
+      // 9. Lifestyle & Health (The Guardian Life and Style)
+      { url: 'https://www.theguardian.com/uk/lifeandstyle/rss', name: 'The Guardian Life & Style', category: 'lifestyle' },
+      { url: 'https://www.theguardian.com/uk/lifeandstyle/rss', name: 'The Guardian Health & Wellbeing', category: 'health' },
+
+      // 10. Education & Classroom (MindShift / The Hechinger Report)
+      { url: 'https://ww2.kqed.org/mindshift/feed/', name: 'MindShift (KQED)', category: 'edu' },
+      { url: 'https://hechingerreport.org/feed/', name: 'The Hechinger Report', category: 'classroom' },
+
+      // 11. Business (Fast Company)
+      { url: 'https://www.fastcompany.com/latest/rss', name: 'Fast Company', category: 'business' },
+
+      // 12. Global News (BBC World News)
+      { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', name: 'BBC World News', category: 'news' }
     ];
   }
 
