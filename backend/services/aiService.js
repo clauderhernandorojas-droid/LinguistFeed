@@ -617,20 +617,23 @@ Rules:
     /**
      * Analiza o traduce un texto/palabra (Esta es la que buscaba articles.js)
      */
-    async analyzeText(text, type = 'general') {
+    async analyzeText(text, type = 'general', contextSentence = '') {
+        const cleanText = String(text || '').trim();
+        const cleanContext = typeof contextSentence === 'string' ? contextSentence.trim() : '';
+
         // 1. EL FILTRO: ¿Es un título o una palabra?
         if (type === 'translate') {
             try {
-                console.log("🎯 Procesando como TÍTULO (Traducción simple):", text.substring(0, 20));
+                console.log("🎯 Procesando como TÍTULO (Traducción simple):", cleanText.substring(0, 20));
                 const translation = await this.askForAnalyze(
-                    text,
+                    cleanText,
                     'Translate this English title to natural Spanish. Return ONLY the translation.',
                     { max_tokens: 128 }
                 );
                 return {
                     translation: translation.trim(),
                     definition: "Article Title", // Evita el "No definition found"
-                    example: "Context: News Headline"
+                    example: cleanContext || "Context: News Headline"
                 };
             } catch (error) {
                 console.error("❌ Error en traducción de título:", summarizeError(error));
@@ -638,32 +641,53 @@ Rules:
             }
         }
     
-        // 2. EL RESTO: Si no es 'translate', es una PALABRA (Flashcard completa)
-        const systemRole = `You are an expert English teacher. 
-        Analyze the provided word or phrase for a Spanish-speaking student.
-        Return ONLY a valid JSON object:
-        {
-          "definition": "Simple English definition",
-          "translation": "Spanish translation",
-          "example": "Example sentence using the word"
-        }`;
+        // 2. EL RESTO: Si no es 'translate', es una PALABRA (Flashcard completa con desambiguación contextual)
+        let promptContent = `Word to analyze: "${cleanText}"`;
+        if (cleanContext) {
+            promptContent += `\nSurrounding sentence context (MANDATORY TO USE): "${cleanContext}"`;
+        }
+
+        const systemRole = `You are an expert bilingual English teacher and lexicographer.
+Analyze the target English word for a Spanish-speaking student with STRICT contextual disambiguation.
+
+${cleanContext ? `MANDATORY CONTEXT PRIORITY (OVERRIDE DEFAULT DICTIONARY MEANING):
+The word appears in this specific context sentence:
+"${cleanContext}"
+
+CRITICAL RULES:
+1. ALWAYS prioritize the exact meaning and part of speech of the word AS USED IN THIS SPECIFIC SENTENCE above any default, primary, or common dictionary meaning.
+2. If the word has multiple meanings (polysemy), you MUST choose the one that makes sense in this sentence. Do NOT return a generic or out-of-context translation.
+   - Example: if "sentence" is in a legal context ("received a 5-year sentence"), translation MUST be "condena" or "sentencia judicial", NEVER "oración gramatical".
+   - Example: if "plant" is in an industrial context ("nuclear plant"), translation MUST be "planta" or "fábrica", NEVER "planta biológica".
+   - Example: if "current" is in a water or electrical context, translate accordingly, not as "actual".
+3. "translation": The precise Spanish translation fitting this exact sentence.
+4. "definition": A concise English definition explaining this exact sense.
+5. "example": A clear example sentence demonstrating this exact sense.` : 'Provide a clear definition, accurate Spanish translation, and example sentence.'}
+
+Return ONLY a valid JSON object:
+{
+  "definition": "Simple English definition matching the contextual meaning",
+  "translation": "Natural Spanish translation strictly matching this sentence context",
+  "example": "A clear example sentence using the word in this exact contextual sense"
+}`;
     
         try {
-            const response = await this.askForAnalyze(text, systemRole, { max_tokens: 512 });
-            const cleanJSON = response.replace(/```json/g, "").replace(/```/g, "").trim();
-            const data = JSON.parse(cleanJSON);
+            const response = await this.askForAnalyze(promptContent, systemRole, { max_tokens: 512 });
+            const cleanJSON = String(response || '').replace(/```json/gi, "").replace(/```/g, "").trim();
+            const jsonMatch = cleanJSON.match(/\{[\s\S]*\}/);
+            const data = JSON.parse(jsonMatch ? jsonMatch[0] : cleanJSON);
     
             return {
-                definition: data.definition,
-                translation: data.translation,
-                example: data.example
+                definition: data.definition || 'No definition found',
+                translation: data.translation || 'No translation found',
+                example: data.example || (cleanContext || `Context: "${cleanText}"`)
             };
         } catch (error) {
             console.error("❌ Error en flashcard:", error.message);
             return {
                 definition: "Check context",
                 translation: "Error",
-                example: text
+                example: cleanContext || cleanText
             };
         }
     }

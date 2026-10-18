@@ -282,9 +282,9 @@ router.get('/daily-articles', async (req, res) => {
 });
 
 router.post('/analyze-text', async (req, res) => {
-  const { text, type } = req.body;
+  const { text, type, contextSentence } = req.body;
   try {
-    const result = await aiService.analyzeText(text, type);
+    const result = await aiService.analyzeText(text, type, contextSentence);
     res.json(result);
   } catch (error) {
     console.error('❌ Error en analyze-text:', error.message);

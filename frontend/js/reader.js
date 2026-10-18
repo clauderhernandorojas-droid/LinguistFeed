@@ -209,6 +209,52 @@ function renderMiniPopup(original, translated, event) {
  * Lee el Hash (#) para decidir qué mostrar sin recargar la página.
  */
 let savedWordsSet = new Set(); // Aquí guardaremos tus palabras "tesoro"
+let savedFlashcardsList = [];
+let savedWordsMap = new Map(); // word -> array of { id, word, phrase, rawContext }
+
+/** Control de promesa de enriquecimiento activa para evitar condición de carrera */
+let currentEnrichmentPromise = null;
+let currentEnrichmentWord = '';
+let currentTargetSpan = null;
+let currentTargetRange = null;
+
+function escapeRegExp(string) {
+    return String(string || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Resalta ÚNICAMENTE la instancia específica de la palabra seleccionada en el DOM
+ */
+function highlightSelectedInstance(word, wordId = null) {
+    try {
+        if (currentTargetSpan && currentTargetSpan.classList) {
+            currentTargetSpan.classList.add('lf-saved-word');
+            if (wordId) currentTargetSpan.dataset.wordId = String(wordId);
+            return;
+        }
+
+        if (currentTargetRange) {
+            if (currentTargetRange.startContainer && currentTargetRange.startContainer.isConnected) {
+                const span = document.createElement('span');
+                span.className = 'lf-saved-word word';
+                if (wordId) span.dataset.wordId = String(wordId);
+                span.dataset.word = String(word || '').toLowerCase();
+
+                try {
+                    currentTargetRange.surroundContents(span);
+                } catch (_) {
+                    const fragment = currentTargetRange.extractContents();
+                    span.appendChild(fragment);
+                    currentTargetRange.insertNode(span);
+                }
+                currentTargetSpan = span;
+                currentTargetRange = null;
+            }
+        }
+    } catch (err) {
+        console.warn("⚠️ No se pudo resaltar la instancia específica:", err);
+    }
+}
 
 /** Palabras analizadas en esta sesión (palabra + definición EN) para el ejercicio matching */
 const MAX_SESSION_VOCAB = 24;
@@ -513,7 +559,7 @@ async function loadDailyArticlesList(filterTopic = null) {
                 if (window.handleWordClick) {
                     window.handleWordClick(fullTitle, e);
                 } else {
-                    showFlashcardPopup(fullTitle, e.clientX, e.clientY);
+                    showFlashcardPopup(fullTitle, e.clientX, e.clientY, fullTitle);
                 }
             };
         });
@@ -721,6 +767,86 @@ function renderLevelSelector(containerOrArticleId, maybeArticleId, maybeActiveLe
     `}).join('');
 }
 /**
+ * Extrae la oración o el párrafo circundante donde se encuentra el texto seleccionado
+ */
+/**
+ * Extrae la oración o el párrafo circundante donde se encuentra el texto seleccionado
+ */
+function extractSurroundingSentence(selection, fallbackNode = null, clickRange = null) {
+    try {
+        let node = null;
+        if (clickRange && clickRange.startContainer) {
+            node = clickRange.startContainer;
+        } else if (selection && selection.rangeCount > 0) {
+            node = selection.getRangeAt(0).startContainer;
+        }
+        if (!node) node = fallbackNode;
+        if (!node) return '';
+
+        // 1. Subir al párrafo padre (p) o bloque contenedor
+        const element = (node.nodeType === 1 ? node : node.parentElement) || fallbackNode;
+        const blockEl = element ? (element.closest('p, blockquote, li, div.article-body-text') || element) : null;
+        if (!blockEl) return '';
+
+        // 2. Obtener el texto completo de ese bloque
+        const fullBlockText = (blockEl.innerText || blockEl.textContent || '').trim();
+        if (!fullBlockText) return '';
+
+        // 3. Dividir en oraciones usando delimitadores (. , ! , ? )
+        const sentences = fullBlockText
+            .split(/(?<=[.!?])\s+|\n+/)
+            .map((s) => s.trim())
+            .filter(Boolean);
+
+        if (sentences.length <= 1) {
+            return sentences[0] || fullBlockText;
+        }
+
+        // 4. Calcular el índice del carácter donde se hizo clic dentro de blockEl
+        let clickCharIndex = -1;
+        const targetRange = clickRange || (selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null);
+        if (targetRange && targetRange.startContainer && blockEl.contains(targetRange.startContainer)) {
+            try {
+                const preRange = document.createRange();
+                preRange.selectNodeContents(blockEl);
+                preRange.setEnd(targetRange.startContainer, targetRange.startOffset);
+                clickCharIndex = preRange.toString().length;
+            } catch (_) {}
+        }
+
+        // Si tenemos la posición del clic, encontramos la oración en ese rango exacto
+        if (clickCharIndex >= 0) {
+            let searchOffset = 0;
+            for (const s of sentences) {
+                const start = fullBlockText.indexOf(s, searchOffset);
+                const end = start !== -1 ? start + s.length : searchOffset + s.length;
+                if (clickCharIndex >= start && clickCharIndex <= end + 5) {
+                    return s;
+                }
+                searchOffset = end;
+            }
+        }
+
+        // 5. Si no se resolvió por offset, buscar por la palabra seleccionada/clicada
+        const targetWord = (selection ? selection.toString() : (node.textContent || '')).trim().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, '');
+        if (targetWord) {
+            const escaped = escapeRegExp(targetWord);
+            const wordRegex = new RegExp(`\\b${escaped}\\b`, 'i');
+            const found = sentences.find((s) => wordRegex.test(s));
+            if (found) return found;
+
+            const fallbackFound = sentences.find((s) => s.toLowerCase().includes(targetWord.toLowerCase()));
+            if (fallbackFound) return fallbackFound;
+        }
+
+        return sentences[0] || fullBlockText;
+    } catch (err) {
+        console.warn('⚠️ Error al extraer oración circundante:', err);
+        return '';
+    }
+}
+
+/**
  * Configura la interactividad de las palabras
  */
 function setupTextInteractivity() {
@@ -738,11 +864,26 @@ function setupTextInteractivity() {
 
         // CASO A: Selección manual de frase o palabra
         if (selectedText.length > 0) {
-            showFlashcardPopup(selectedText, e.clientX, e.clientY);
+            currentTargetSpan = (e.target && e.target.classList && e.target.classList.contains('word')) ? e.target : null;
+            currentTargetRange = selection.getRangeAt(0).cloneRange();
+
+            const surroundingSentence = extractSurroundingSentence(selection, e.target, currentTargetRange);
+            showFlashcardPopup(selectedText, e.clientX, e.clientY, surroundingSentence);
         } 
         // CASO B: Clic simple (intentamos capturar la palabra bajo el cursor)
         else {
-            const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+            let range = null;
+            if (document.caretRangeFromPoint) {
+                range = document.caretRangeFromPoint(e.clientX, e.clientY);
+            } else if (document.caretPositionFromPoint) {
+                const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
+                if (pos) {
+                    range = document.createRange();
+                    range.setStart(pos.offsetNode, pos.offset);
+                    range.collapse(true);
+                }
+            }
+
             if (range) {
                 selection.removeAllRanges();
                 selection.addRange(range);
@@ -751,7 +892,11 @@ function setupTextInteractivity() {
                 const word = selection.toString().trim().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "");
                 
                 if (word.length > 2) {
-                    showFlashcardPopup(word, e.clientX, e.clientY);
+                    currentTargetSpan = (e.target && e.target.classList && e.target.classList.contains('word')) ? e.target : null;
+                    currentTargetRange = selection.getRangeAt(0).cloneRange();
+
+                    const surroundingSentence = extractSurroundingSentence(selection, range.startContainer || e.target, currentTargetRange);
+                    showFlashcardPopup(word, e.clientX, e.clientY, surroundingSentence);
                 }
                 // Limpiamos la selección automática para no ensuciar la vista
                 selection.removeAllRanges();
@@ -764,16 +909,52 @@ function setupTextInteractivity() {
  * Guarda una flashcard en la base de datos real
  */
 async function saveFlashcardToStorage() {
+    const saveBtn = document.getElementById('save-flashcard-btn');
+
+    // 1. Si la promesa de análisis aún está pendiente, esperamos a que termine
+    if (currentEnrichmentPromise) {
+        if (saveBtn) {
+            saveBtn.innerHTML = "⏳ Saving...";
+            saveBtn.disabled = true;
+        }
+        try {
+            await currentEnrichmentPromise;
+        } catch (err) {
+            console.warn("⚠️ Error esperando análisis antes de guardar:", err);
+        }
+    }
+
     const wordElement = document.getElementById('flashcard-word');
     const exampleElement = document.getElementById('flashcard-example');
-    // --- NUEVO: Capturamos la traducción para no perderla ---
     const translationElement = document.getElementById('flashcard-translation'); 
+    const definitionElement = document.getElementById('flashcard-definition');
     
-    if (!wordElement) return;
+    if (!wordElement) {
+        currentEnrichmentPromise = null;
+        return;
+    }
     
-    const word = wordElement.textContent;
-    const example = exampleElement ? exampleElement.textContent : "";
-    const translation = translationElement ? translationElement.textContent : "";
+    const word = String(wordElement.textContent || '').trim();
+    if (!word) {
+        currentEnrichmentPromise = null;
+        return;
+    }
+
+    let example = exampleElement ? String(exampleElement.textContent || '').trim() : "";
+    let translation = translationElement ? String(translationElement.textContent || '').trim() : "";
+    let definition = definitionElement ? String(definitionElement.textContent || '').trim() : "";
+
+    // Garantizar que nunca se envíen campos vacíos o temporales
+    if (!translation || translation === 'Translating...' || translation === 'Analyzing...') {
+        translation = word;
+    }
+    if (!example) {
+        example = `Context: "${word}"`;
+    }
+    if (!definition || definition === 'Analyzing selection...') {
+        definition = 'Saved from reader';
+    }
+
     const currentLevel = localStorage.getItem('user-level') || 'B1';
 
     try {
@@ -802,7 +983,7 @@ async function saveFlashcardToStorage() {
             word: word,
             translation: translation,
             example: example,
-            definition: "Saved from reader",
+            definition: definition,
             tags: tags,
             date: new Date().toISOString()
         };
@@ -811,6 +992,10 @@ async function saveFlashcardToStorage() {
         const deckSaveResult = upsertDeckAndCardFromReader(newCard);
         if (!deckSaveResult.ok && deckSaveResult.reason === 'deck_limit') {
             alert('You reached the deck limit (10). Delete another deck before saving this word.');
+            if (saveBtn) {
+                saveBtn.innerHTML = "Save to Flashcards";
+                saveBtn.disabled = false;
+            }
             return;
         }
 
@@ -845,6 +1030,13 @@ async function saveFlashcardToStorage() {
         if (!response.ok) {
             const text = await response.text();
             console.error("HTTP Error:", response.status, text);
+            if (saveBtn) {
+                saveBtn.innerHTML = "❌ Error saving";
+                saveBtn.disabled = false;
+                setTimeout(() => {
+                    saveBtn.innerHTML = "Save to Flashcards";
+                }, 2000);
+            }
             return;
         }
 
@@ -865,13 +1057,8 @@ async function saveFlashcardToStorage() {
                     console.log("✅ Sincronizado con LocalStorage para Repaso");
                 }
             }
-            // ACTUALIZACIÓN CRÍTICA: Añadimos la palabra al Set para que se resalte de inmediato
-            if (typeof savedWordsSet !== 'undefined') {
-                savedWordsSet.add(word.toLowerCase().trim());
-                // Opcional: Re-aplicar resaltado en el momento
-                const textContainer = document.getElementById('interactive-text');
-                if (textContainer) applyHighlights(textContainer);
-            }
+            // Resaltar ÚNICAMENTE la instancia específica seleccionada en lugar de pintar todas las del artículo
+            highlightSelectedInstance(word, newCard.id || word);
             
             // Feedback visual para el usuario
             const btn = document.getElementById('save-flashcard-btn');
@@ -881,6 +1068,7 @@ async function saveFlashcardToStorage() {
                 } else {
                     btn.innerHTML = "✅ Saved!";
                 }
+                btn.disabled = false;
                 btn.classList.replace('btn-primary', 'btn-success');
                 setTimeout(() => {
                     btn.innerHTML = "Save to Flashcards";
@@ -890,18 +1078,31 @@ async function saveFlashcardToStorage() {
         }
     } catch (error) {
         console.error("❌ Error al guardar flashcard:", error);
+        if (saveBtn) {
+            saveBtn.innerHTML = "❌ Error saving";
+            saveBtn.disabled = false;
+            setTimeout(() => {
+                saveBtn.innerHTML = "Save to Flashcards";
+            }, 2000);
+        }
+    } finally {
+        currentEnrichmentPromise = null;
     }
 }
+
 /**
  * Muestra el popup con la palabra, traducción y ejemplo
  */
-async function showFlashcardPopup(text, mouseX, mouseY) {
+async function showFlashcardPopup(text, mouseX, mouseY, contextSentence = '') {
+    currentEnrichmentWord = text;
 
-const popup = document.getElementById('flashcard-popup');
-const saveBtn = document.getElementById('save-flashcard-btn');
-if (saveBtn) {
-    saveBtn.onclick = () => window.saveFlashcardToStorage();
-}
+    const popup = document.getElementById('flashcard-popup');
+    const saveBtn = document.getElementById('save-flashcard-btn');
+    if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = "⏳ Analyzing...";
+        saveBtn.onclick = () => window.saveFlashcardToStorage();
+    }
     if (!popup) return;
 
     // --- 1. RESETEO TOTAL DE POSICIÓN ---
@@ -928,19 +1129,13 @@ if (saveBtn) {
         popup.style.bottom = `${viewportHeight - mouseY + 20}px`;
     } else {
         // Mitad superior: el popup crece hacia ABAJO (anclado al top)
-        // --- Lógica de Rebote (Pégalo reemplazando la línea 373) ---
         const popupHeight = 440; 
-        const margin = 20;
-
-        // Limpiamos estilos previos para evitar conflictos
         popup.style.top = 'auto';
         popup.style.bottom = 'auto';
 
         if (mouseY + popupHeight > window.innerHeight) {
-            // Si no cabe abajo, lo pegamos al borde inferior con un margen
             popup.style.bottom = `${margin}px`; 
         } else {
-            // Si cabe, usamos la posición normal
             popup.style.top = `${mouseY + margin}px`;
         }
     }
@@ -948,8 +1143,8 @@ if (saveBtn) {
     // --- 4. PREPARACIÓN DE LA TARJETA (Limpieza de textos) ---
     document.getElementById('flashcard-word').textContent = text;
     document.getElementById('flashcard-definition').textContent = "Analyzing selection...";
-    document.getElementById('flashcard-translation').textContent = "";
-    document.getElementById('flashcard-example').textContent = "";
+    document.getElementById('flashcard-translation').textContent = "Translating...";
+    document.getElementById('flashcard-example').textContent = contextSentence || "";
 
     // --- 5. CONFIGURACIÓN DEL BOTÓN DE AUDIO (TTS) ---
     const ttsBtn = document.getElementById('tts-btn');
@@ -965,13 +1160,12 @@ if (saveBtn) {
             utterance.lang = 'en-US';
             utterance.rate = 0.9; // Un poquito más lento para B1
 
-            // 🎯 Buscamos la barra y el texto del porcentaje que pusimos en el panel
             const progressBar = document.getElementById('article-audio-progress')
                 || document.getElementById('audio-progress');
             const progressLabel = document.getElementById('article-audio-percentage')
                 || document.getElementById('audio-percentage');
 
-            // 3. 🧠 EL TRUCO: Mientras la IA habla, mueve la barra
+            // 3. 🧠 Mientras la voz habla, mueve la barra
             utterance.onboundary = (event) => {
                 if (event.name === 'word' && progressBar) {
                     const charIndex = event.charIndex;
@@ -983,62 +1177,95 @@ if (saveBtn) {
                 }
             };
 
-            // No asignamos progressBar.oninput aquí: reemplazaría el seek del artículo (attachReadModeArticleAudio).
-
             window.speechSynthesis.speak(utterance);
         };
     }
 
-    // --- 6. LLAMADA A LA IA ---
-    try {
-        // Dentro de handleWordClick Y dentro de showFlashcardPopup:
-        // En reader.js -> showFlashcardPopup
-        const response = await fetch(`${API_BASE_URL}/articles/analyze-text`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify({ 
-                text: text, 
-                type: "word"  // 🎯 Sello de PALABRA (Esto arregla el error)
-            })
-        });
-
-        let data = {};
+    // --- 6. LLAMADA A LA IA CON GESTIÓN DE PROMESA (Antirace condition) ---
+    const thisPromise = (async () => {
         try {
-            data = await response.json();
-        } catch {
-            data = {};
-        }
+            const surroundingSentence = contextSentence || "";
+            console.log("Contexto enviado a la IA:", surroundingSentence);
+            const response = await fetch(`${API_BASE_URL}/articles/analyze-text`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({ 
+                    text: text, 
+                    type: "word",
+                    contextSentence: surroundingSentence
+                })
+            });
 
-        if (!response.ok) {
-            const msg = data.message || data.error || `Error del servidor (${response.status})`;
-            document.getElementById('flashcard-definition').textContent = 'No disponible';
-            document.getElementById('flashcard-translation').textContent = msg;
-            const exElemErr = document.getElementById('flashcard-example');
-            if (exElemErr) {
-                exElemErr.textContent = 'Revisa OPENROUTER_API_KEY en backend/.env y los logs del servidor Node.';
+            let data = {};
+            try {
+                data = await response.json();
+            } catch {
+                data = {};
             }
-            return;
+
+            if (!response.ok) {
+                const msg = data.message || data.error || `Error del servidor (${response.status})`;
+                if (currentEnrichmentWord === text) {
+                    document.getElementById('flashcard-definition').textContent = 'No disponible';
+                    document.getElementById('flashcard-translation').textContent = msg;
+                    const exElemErr = document.getElementById('flashcard-example');
+                    if (exElemErr) {
+                        exElemErr.textContent = contextSentence || 'Revisa OPENROUTER_API_KEY en backend/.env y los logs del servidor Node.';
+                    }
+                }
+                return {
+                    definition: 'No disponible',
+                    translation: text,
+                    example: contextSentence || `Context: "${text}"`
+                };
+            }
+
+            const definition = data.definition || 'No definition found';
+            const translation = data.translation || 'No translation found';
+            const example = data.example || (contextSentence ? contextSentence : `Context: "${text}"`);
+
+            if (currentEnrichmentWord === text) {
+                document.getElementById('flashcard-definition').textContent = definition;
+                document.getElementById('flashcard-translation').textContent = translation;
+
+                const exElem = document.getElementById('flashcard-example');
+                if (exElem) {
+                    exElem.textContent = example;
+                }
+
+                recordSessionVocabPair(text, definition);
+            }
+
+            return { definition, translation, example };
+        } catch (error) {
+            console.error("Error al analizar texto:", error);
+            if (currentEnrichmentWord === text) {
+                document.getElementById('flashcard-definition').textContent = 'Service error. Please try again.';
+                document.getElementById('flashcard-translation').textContent = error.message || 'Network or parse error';
+                const exCatch = document.getElementById('flashcard-example');
+                if (exCatch) exCatch.textContent = contextSentence || '';
+            }
+            return {
+                definition: 'Service error',
+                translation: text,
+                example: contextSentence || `Context: "${text}"`
+            };
+        } finally {
+            if (currentEnrichmentWord === text) {
+                const btn = document.getElementById('save-flashcard-btn');
+                if (btn && btn.innerHTML.includes('Analyzing')) {
+                    btn.innerHTML = "Save to Flashcards";
+                    btn.disabled = false;
+                }
+            }
         }
+    })();
 
-        document.getElementById('flashcard-definition').textContent = data.definition || 'No definition found';
-        document.getElementById('flashcard-translation').textContent = data.translation || 'No translation found';
-
-        const exElem = document.getElementById('flashcard-example');
-        if (exElem) {
-            exElem.textContent = data.example || `Context: "${text}"`;
-        }
-
-        recordSessionVocabPair(text, data.definition);
-    } catch (error) {
-        console.error("Error al analizar texto:", error);
-        document.getElementById('flashcard-definition').textContent = 'Service error. Please try again.';
-        document.getElementById('flashcard-translation').textContent = error.message || 'Network or parse error';
-        const exCatch = document.getElementById('flashcard-example');
-        if (exCatch) exCatch.textContent = '';
-    }
+    currentEnrichmentPromise = thisPromise;
+    return thisPromise;
 }
 
 /**
@@ -1047,6 +1274,7 @@ if (saveBtn) {
 function closeFlashcardPopup() {
     const popup = document.getElementById('flashcard-popup');
     if (popup) popup.style.display = 'none';
+    currentEnrichmentPromise = null;
 }
 
 /**
@@ -1072,7 +1300,8 @@ function attachTranslationListener(element) {
         // Si tenemos texto (ya sea por arrastre o por selección automática)
         if (selectedText.length > 0) {
             console.log("🎯 Traduciendo título completo:", selectedText);
-            showFlashcardPopup(selectedText, e.clientX, e.clientY);
+            const surroundingSentence = (element.innerText || element.textContent || '').trim();
+            showFlashcardPopup(selectedText, e.clientX, e.clientY, surroundingSentence);
         }
     });
 }
@@ -1496,7 +1725,26 @@ async function refreshSavedWords() {
         const flashcards = await response.json();
         
         if (Array.isArray(flashcards)) {
+            savedFlashcardsList = flashcards;
             savedWordsSet = new Set(flashcards.map(f => f.word.toLowerCase().trim()));
+            savedWordsMap = new Map();
+
+            for (const f of flashcards) {
+                const w = String(f.word || '').toLowerCase().trim();
+                if (!w) continue;
+                if (!savedWordsMap.has(w)) {
+                    savedWordsMap.set(w, []);
+                }
+                const rawContext = String(f.context || '');
+                const phraseMatch = rawContext.match(/^\[.*?\]\s*-\s*(.*)$/);
+                const phrase = (phraseMatch ? phraseMatch[1] : (f.phrase || rawContext)).trim().toLowerCase();
+                savedWordsMap.get(w).push({
+                    id: f.id,
+                    word: w,
+                    phrase: phrase,
+                    rawContext: rawContext
+                });
+            }
             console.log("✅ Diccionario personal cargado:", savedWordsSet.size, "palabras.");
         }
     } catch (e) {
@@ -1504,33 +1752,86 @@ async function refreshSavedWords() {
     }
 }
 function applyHighlights(container) {
-    if (savedWordsSet.size === 0) return;
+    if (!container || savedWordsSet.size === 0) return;
 
-    // Usamos TreeWalker para tocar SOLO el texto, no las etiquetas HTML
-    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
-    let node;
-    const nodesToReplace = [];
+    const blocks = container.querySelectorAll('p, blockquote, li');
+    const targetBlocks = blocks.length > 0 ? Array.from(blocks) : [container];
 
-    while (node = walker.nextNode()) {
-        const text = node.nodeValue;
-        // Buscamos palabras individuales (ignorando puntuación)
-        const newHtml = text.replace(/\b(\w+)\b/g, (match) => {
-            if (savedWordsSet.has(match.toLowerCase())) {
-                return `<span class="lf-saved-word word">${match}</span>`;
-            }
-            return match;
-        });
-
-        if (newHtml !== text) {
-            nodesToReplace.push({ node, newHtml });
-        }
+    // Pre-contar apariciones de cada palabra en todo el artículo para detectar polisemia/frecuencia
+    const fullArticleText = (container.innerText || container.textContent || '').toLowerCase();
+    const wordCounts = new Map();
+    for (const word of savedWordsSet) {
+        const reg = new RegExp(`\\b${escapeRegExp(word)}\\b`, 'gi');
+        const matches = fullArticleText.match(reg);
+        wordCounts.set(word, matches ? matches.length : 0);
     }
 
-    // Aplicamos los cambios al final para no romper el bucle del Walker
-    nodesToReplace.forEach(({ node, newHtml }) => {
-        const span = document.createElement('span');
-        span.innerHTML = newHtml;
-        node.parentNode.replaceChild(span, node);
+    targetBlocks.forEach((block) => {
+        const blockText = block.innerText || block.textContent || '';
+        if (!blockText) return;
+
+        // Dividir el bloque en oraciones
+        const sentences = blockText.split(/(?<=[.!?])\s+|\n+/);
+
+        const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, null, false);
+        let node;
+        const nodesToReplace = [];
+
+        while ((node = walker.nextNode())) {
+            if (node.parentElement && node.parentElement.classList.contains('lf-saved-word')) {
+                continue;
+            }
+
+            const text = node.nodeValue;
+            let modified = false;
+
+            const newHtml = text.replace(/\b([a-zA-Z0-9'-]+)\b/g, (match) => {
+                const lower = match.toLowerCase();
+                if (!savedWordsSet.has(lower)) {
+                    return match;
+                }
+
+                const totalOccurrences = wordCounts.get(lower) || 0;
+                const cards = savedWordsMap.get(lower) || [];
+
+                // Si la palabra aparece una sola vez en todo el artículo, se resalta
+                if (totalOccurrences <= 1) {
+                    modified = true;
+                    const cardId = cards[0]?.id || '';
+                    return `<span class="lf-saved-word word" ${cardId ? `data-word-id="${cardId}"` : ''} data-word="${lower}">${match}</span>`;
+                }
+
+                // Si aparece múltiples veces (palabra polisémica / frecuente):
+                // Encontrar la oración específica donde se encuentra este nodo
+                const nodeSentence = sentences.find((s) => s.toLowerCase().includes(lower)) || '';
+
+                // Verificar si alguna flashcard guardada coincide con la oración o frase del contexto
+                const matchedCard = cards.find((c) => {
+                    if (!c.phrase) return false;
+                    const cleanPhrase = c.phrase.replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, '').trim().toLowerCase();
+                    const cleanSentence = nodeSentence.replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, '').trim().toLowerCase();
+                    return cleanSentence.includes(cleanPhrase) || cleanPhrase.includes(cleanSentence);
+                });
+
+                if (matchedCard) {
+                    modified = true;
+                    return `<span class="lf-saved-word word" data-word-id="${matchedCard.id}" data-word="${lower}">${match}</span>`;
+                }
+
+                // Si no coincide con el contexto guardado, NO se resalta indiscriminadamente
+                return match;
+            });
+
+            if (modified && newHtml !== text) {
+                nodesToReplace.push({ node, newHtml });
+            }
+        }
+
+        nodesToReplace.forEach(({ node, newHtml }) => {
+            const span = document.createElement('span');
+            span.innerHTML = newHtml;
+            node.parentNode.replaceChild(span, node);
+        });
     });
 }
 // FUNCIONES GLOBALES PARA EL HTML
