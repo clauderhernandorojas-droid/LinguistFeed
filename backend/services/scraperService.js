@@ -39,10 +39,10 @@ class ScraperService {
       // Parse HTML
       const $ = cheerio.load(response.data);
       
-      // Extract title
-      const title = $('title').text().trim() || 
+      // Extract title (prioritizing og:title or h1 to avoid nav/menu text often packed in <title>)
+      const title = $('meta[property="og:title"]').attr('content')?.trim() || 
                    $('h1').first().text().trim() || 
-                   $('meta[property="og:title"]').attr('content') || 
+                   $('title').text().trim() || 
                    'Untitled Article';
       
       // Extract main content

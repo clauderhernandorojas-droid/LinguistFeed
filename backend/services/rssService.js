@@ -1,5 +1,10 @@
 const Parser = require('rss-parser');
-const parser = new Parser();
+const parser = new Parser({
+  headers: {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+  },
+  timeout: 12000
+});
 
 /**
  * Service for fetching and processing RSS feeds
@@ -7,46 +12,26 @@ const parser = new Parser();
 class RssService {
   constructor() {
     this.feeds = [
-      // --- NOTICIAS Y NEGOCIOS ---
-      { url: 'https://feeds.bbci.co.uk/news/rss.xml', name: 'BBC News', category: 'news' },
-      { url: 'https://feeds.bbci.co.uk/news/business/rss.xml', name: 'BBC Business', category: 'business' },
-      
-      // --- TECNOLOGÍA Y CIENCIA ---
-      { url: 'https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml', name: 'NYT Tech', category: 'tech' },
-      { url: 'https://rss.nytimes.com/services/xml/rss/nyt/Science.xml', name: 'NYT Science', category: 'science' },
-      { url: 'https://www.wired.com/feed/rss', name: 'Wired', category: 'tech' },
-  
-      // --- CULTURA, HISTORIA Y FILO (Para el grupo de Adultos) ---
+      // --- CULTURA, ESTILO DE VIDA Y DIVULGACIÓN (Titulares atractivos y ganchos editoriales) ---
+      { url: 'https://www.theguardian.com/uk/culture/rss', name: 'The Guardian Culture', category: 'culture' },
+      { url: 'https://www.theguardian.com/uk/lifeandstyle/rss', name: 'The Guardian Lifestyle', category: 'lifestyle' },
+      { url: 'https://www.bbc.com/culture/feed.rss', name: 'BBC Culture', category: 'culture' },
+      { url: 'https://www.bbc.com/future/feed.rss', name: 'BBC Future (Divulgación y Ciencia)', category: 'science' },
+      { url: 'https://www.wired.com/feed/rss', name: 'Wired (Ciencia e Innovación)', category: 'tech' },
       { url: 'https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml', name: 'BBC Entertainment & Arts', category: 'history' },
+      { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', name: 'BBC World News', category: 'news' },
+      { url: 'https://feeds.bbci.co.uk/news/business/rss.xml', name: 'BBC Business', category: 'business' },
+  
+      // --- HISTORIA Y PENSAMIENTO ---
       { url: 'https://www.historyextra.com/feed/', name: 'HistoryExtra (BBC History Mag)', category: 'history' },
       { url: 'https://historyguild.org/feed/', name: 'History Guild', category: 'history' },
-      { url: 'https://www.historytoday.com/feed/rss.xml', name: 'History Today', category: 'history' },
-      { url: 'https://feeds.feedburner.com/AncientOrigins', name: 'Ancient Origins', category: 'history' },
-      { url: 'https://ancientpages.com/feed', name: 'Ancient Pages', category: 'history' },
-      { url: 'https://www.thehistoryblog.com/feed', name: 'The History Blog', category: 'history' },
-      { url: 'https://feeds.feedburner.com/Activehistory', name: 'Active History', category: 'history' },
-      { url: 'https://www.newyorker.com/feed/culture', name: 'The New Yorker', category: 'culture' },
-      { url: 'https://philosophyforlife.org/blog?format=rss', name: 'Philosophy for Life', category: 'history' }, // Lo mapeamos a historia/filo
+      { url: 'https://www.newyorker.com/feed/culture', name: 'The New Yorker Culture', category: 'culture' },
   
-      // --- GAMING Y CULTURA POP (Para el grupo de Jóvenes) ---
-      { url: 'https://www.gamespot.com/feeds/reviews/', name: 'GameSpot', category: 'gaming' },
-      { url: 'https://www.rollingstone.com/results.rss', name: 'Rolling Stone', category: 'trends' },
-      { url: 'https://www.edsurge.com/news.rss', name: 'EdSurge', category: 'edu' },
-      { url: 'https://feeds.bbci.co.uk/learningenglish/rss.xml', name: 'BBC Learning English', category: 'edu' },
-      { url: 'https://learnenglish.britishcouncil.org/rss.xml', name: 'British Council LearnEnglish', category: 'edu' },
-      { url: 'https://www.edutopia.org/rss.xml', name: 'Edutopia', category: 'edu' },
-      { url: 'https://www.nationalgeographic.org/education/rss/', name: 'National Geographic Education', category: 'edu' },
-      { url: 'https://hechingerreport.org/feed', name: 'The Hechinger Report', category: 'edu' },
-      { url: 'https://www.insidehighered.com/news/rss.xml', name: 'Inside Higher Ed (news)', category: 'edu' },
-      { url: 'https://ww2.kqed.org/mindshift/feed', name: 'MindShift (KQED)', category: 'edu' },
-      { url: 'https://www.nytimes.com/section/learning/rss.xml', name: 'NYT Learning Network', category: 'edu' },
-      { url: 'https://edsource.org/feed/atom', name: 'EdSource', category: 'edu' },
+      // --- GAMING, TENDENCIAS Y VIAJES ---
+      { url: 'https://feeds.feedburner.com/ign/all', name: 'IGN Gaming', category: 'gaming' },
       { url: 'https://www.cntraveler.com/feed/rss', name: 'Condé Nast Traveler', category: 'travel' },
       { url: 'https://www.hollywoodreporter.com/t/movies/feed/', name: 'Hollywood Reporter Movies', category: 'movies' },
-  
-      // --- ESTILO DE VIDA Y SALUD ---
-      { url: 'https://feeds.bbci.co.uk/news/health/rss.xml', name: 'BBC Health', category: 'health' },
-      { url: 'https://www.lifehacker.com/rss', name: 'Lifehacker', category: 'lifestyle' }
+      { url: 'https://hechingerreport.org/feed/', name: 'The Hechinger Report', category: 'edu' }
     ];
   }
 

@@ -5,6 +5,31 @@ const db = require('../database/db');
 const aiService = require('./aiService'); // Asegúrate de que la ruta sea correcta
 
 /**
+ * Utility to strip marketing/tracking query parameters from article URLs
+ */
+function cleanArticleUrl(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== 'string') return rawUrl;
+  try {
+    const parsed = new URL(rawUrl);
+    const trackingParams = [
+      'utm_source',
+      'utm_medium',
+      'utm_campaign',
+      'utm_term',
+      'utm_content',
+      'ocid',
+      'at_medium',
+      'at_campaign'
+    ];
+    trackingParams.forEach((param) => parsed.searchParams.delete(param));
+    const search = parsed.searchParams.toString();
+    return `${parsed.origin}${parsed.pathname}${search ? '?' + search : ''}`;
+  } catch {
+    return rawUrl;
+  }
+}
+
+/**
  * Service for scheduling background jobs
  */
 class SchedulerService {
@@ -38,27 +63,17 @@ class SchedulerService {
 
   /**
    * Schedule article fetching job
+   * Default: Runs once a day at 4:00 AM ('0 4 * * *')
    */
   scheduleArticleFetching() {
-    // Schedule job to run every 6 hours
-    // Cron format: second minute hour day-of-month month day-of-week
-    const job = schedule.scheduleJob('0 0 */6 * * *', async () => {
-      console.log('Running scheduled article fetching job');
+    // Frecuencia diaria a las 4:00 AM (configurable mediante ARTICLE_FETCH_CRON)
+    const cronSchedule = process.env.ARTICLE_FETCH_CRON || '0 4 * * *';
+
+    const job = schedule.scheduleJob(cronSchedule, async () => {
+      console.log(`[${new Date().toISOString()}] Running scheduled article fetching job`);
       
       try {
-        // Process articles for different CEFR levels
-        const levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
-        
-        for (const level of levels) {
-          console.log(`Processing articles for level ${level}`);
-          
-          // Fetch and process articles from RSS
-          await this.fetchAndProcessArticlesFromRSS(level);
-          
-          // Wait a bit between levels to avoid overwhelming the AI service
-          await new Promise(resolve => setTimeout(resolve, 5000));
-        }
-        
+        await this.runArticleFetchingJob();
         console.log('Scheduled article fetching job completed');
       } catch (error) {
         console.error('Error in scheduled article fetching job:', error.message);
@@ -68,7 +83,7 @@ class SchedulerService {
     // Store the job
     this.jobs.articleFetching = job;
     
-    console.log('Article fetching job scheduled to run every 6 hours');
+    console.log(`Article fetching job scheduled to run once daily at 4:00 AM (${cronSchedule})`);
     
     // Run the job immediately on startup only if explicitly enabled or allowed
     const initialCheck = this.shouldRunInitialScrape();
@@ -121,88 +136,103 @@ class SchedulerService {
 
   /**
    * Run the article fetching job immediately
+   * @param {number} maxNewArticles - Maximum number of new articles to ingest per cycle (defaults to 5)
    */
-  async runArticleFetchingJob() {
-    console.log('Running initial article fetching job');
+  async runArticleFetchingJob(maxNewArticles = parseInt(process.env.MAX_NEW_ARTICLES_PER_CYCLE || '5', 10)) {
+    console.log(`Running article fetching job (max new articles: ${maxNewArticles})`);
     
     try {
-      // Process articles for different CEFR levels
-      // Start with just B1 level for the initial run to populate the database quickly
-      await this.fetchAndProcessArticlesFromRSS('B1');
+      const levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+      await this.fetchAndProcessArticlesFromRSS(levels, maxNewArticles);
       
-      console.log('Initial article fetching job completed');
+      console.log('Article fetching job completed');
     } catch (error) {
-      console.error('Error in initial article fetching job:', error.message);
+      console.error('Error in article fetching job:', error.message);
     }
   }
 
   /**
    * Fetch and process articles from RSS feeds
-   * @param {string} level - CEFR level
+   * @param {string|string[]} levelsOrLevel - CEFR level or array of levels
+   * @param {number} maxNewArticles - Maximum new articles to ingest in this cycle (default 5, satisfies 3-5 limit)
    */
-  /**
-   * Fetch and process articles from RSS feeds
-   * @param {string} level - CEFR level
-   */
-  async fetchAndProcessArticlesFromRSS(level) {
+  async fetchAndProcessArticlesFromRSS(levelsOrLevel = 'B1', maxNewArticles = parseInt(process.env.MAX_NEW_ARTICLES_PER_CYCLE || '5', 10)) {
     try {
-      console.log(`🚀 Fetching and processing RSS articles for level ${level}`);
+      const levels = Array.isArray(levelsOrLevel) ? levelsOrLevel : [levelsOrLevel];
+      console.log(`🚀 Fetching RSS articles (levels: [${levels.join(', ')}], limit: ${maxNewArticles} new articles per cycle)`);
       
-      // Obtenemos los artículos de los feeds
+      // Obtenemos los artículos recolectados de los feeds configurados
       const articlesData = await articleService.fetchAndProcessArticlesFromRSS();
       
+      let newArticlesCount = 0;
+
       for (const articleData of articlesData) {
         try {
           // --- 🛠️ NORMALIZACIÓN DEL TOPIC ---
-          // Mapeamos los nombres del RSS a los IDs que usa tu Frontend
-          let cleanTopic = articleData.category.toLowerCase().trim();
+          let cleanTopic = (articleData.category || 'news').toLowerCase().trim();
           if (cleanTopic === 'technology') cleanTopic = 'tech';
           if (cleanTopic === 'world') cleanTopic = 'news';
           // ----------------------------------
 
+          const cleanUrl = cleanArticleUrl(articleData.url);
+
           // Verificamos si ya existe el artículo
           const existingArticle = await db.get(
-            'SELECT id, content FROM articles WHERE url = ?',
-            [articleData.url]
+            'SELECT id, content FROM articles WHERE url = ? OR url = ?',
+            [cleanUrl, articleData.url]
           );
           
           let articleId;
           let articleContent;
           
           if (!existingArticle) {
-            console.log(`📦 Scraping nuevo artículo: ${articleData.title}`);
+            // Límite estricto por corrida para no saturar la base de datos
+            if (newArticlesCount >= maxNewArticles) {
+              console.log(`🛑 Límite de nuevos artículos por ciclo alcanzado (${maxNewArticles}). Finalizando ingesta de nuevos artículos.`);
+              break;
+            }
+
+            newArticlesCount++;
+            console.log(`📦 Scraping nuevo artículo (${newArticlesCount}/${maxNewArticles}): ${articleData.title}`);
             const scrapedArticle = await scraperService.scrapeArticle(articleData.url);
             
-            // Insertamos usando cleanTopic
+            // Priorizamos el titular limpio del RSS con gancho editorial
+            const finalTitle = (articleData.title && articleData.title.trim()) || scrapedArticle.title || 'Untitled Article';
+
+            // Insertamos usando cleanTopic y cleanUrl
             const result = await db.run(
               'INSERT INTO articles (url, title, topic, content, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)',
-              [articleData.url, scrapedArticle.title || articleData.title, cleanTopic, scrapedArticle.text]
+              [cleanUrl, finalTitle, cleanTopic, scrapedArticle.text]
             );
             
-            articleId = result.lastID; // Importante: usar lastID
+            articleId = result.lastID;
             articleContent = scrapedArticle.text;
-            console.log(`✅ Articulo insertado con ID: ${articleId}`);
+            console.log(`✅ Artículo insertado con ID: ${articleId} ("${finalTitle}")`);
           } else {
             articleId = existingArticle.id;
             articleContent = existingArticle.content;
           }
 
-          // --- 🤖 GENERACIÓN DE QUIZ AUTOMÁTICO ---
-          const existingQuiz = await db.get(
-            'SELECT id FROM quizzes WHERE article_id = ? AND level = ?',
-            [articleId, level]
-          );
+          // --- 🤖 GENERACIÓN DE QUIZ AUTOMÁTICO PARA LOS NIVELES ---
+          if (articleContent) {
+            for (const level of levels) {
+              const existingQuiz = await db.get(
+                'SELECT id FROM quizzes WHERE article_id = ? AND level = ?',
+                [articleId, level]
+              );
 
-          if (!existingQuiz && articleContent) {
-            if (aiService.isMockSchedulerQuiz()) {
-              // Dev: sin OpenRouter; evita 402 y ruido en logs
-            } else {
-              console.log(`🧠 Generando Quiz IA para artículo ${articleId} (Nivel ${level})...`);
-              try {
-                await aiService.generateQuiz(articleId, articleContent, level);
-                console.log(`✨ Quiz guardado con éxito.`);
-              } catch (aiError) {
-                console.error(`❌ Error en IA (Quiz):`, aiError.message);
+              if (!existingQuiz) {
+                if (aiService.isMockSchedulerQuiz()) {
+                  // Dev: sin OpenRouter; evita 402 y ruido en logs
+                } else {
+                  console.log(`🧠 Generando Quiz IA para artículo ${articleId} (Nivel ${level})...`);
+                  try {
+                    await aiService.generateQuiz(articleId, articleContent, level);
+                    console.log(`✨ Quiz guardado con éxito (Nivel ${level}).`);
+                  } catch (aiError) {
+                    console.error(`❌ Error en IA (Quiz Nivel ${level}):`, aiError.message);
+                  }
+                }
               }
             }
           }
@@ -217,16 +247,16 @@ class SchedulerService {
           if (!existingDailyArticle) {
             await db.run(
               'INSERT INTO daily_articles (date, topic, article_id) VALUES (?, ?, ?)',
-              [date, cleanTopic, articleId] // <--- Usamos cleanTopic aquí también
+              [date, cleanTopic, articleId]
             );
             console.log(`📌 Guardado en feed diario bajo el tema: "${cleanTopic}"`);
           }
         } catch (innerError) {
-          console.error(`⚠️ Error procesando artículo individual:`, innerError.message);
+          console.error(`⚠️ Error procesando artículo individual (${articleData.url}):`, innerError.message);
         }
       }
       
-      console.log(`🏁 Proceso completado para nivel ${level}`);
+      console.log(`🏁 Proceso de ingesta completado. Nuevos artículos agregados: ${newArticlesCount}/${maxNewArticles}`);
     } catch (error) {
       console.error(`🔥 Error crítico en Scheduler:`, error.message);
       throw error;
