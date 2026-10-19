@@ -366,7 +366,181 @@ async function trackQuizAnswerEvent(question, payload) {
     }
 }
 
+// ========================================================
+// ⏱️ TIMER DE LECTURA ACTIVA Y META DIARIA EN EL LECTOR
+// ========================================================
+function getLocalDateString() {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function initActiveReadingTimer() {
+    if (window._activeReadingTimerStarted) return;
+    window._activeReadingTimerStarted = true;
+
+    const todayStr = getLocalDateString();
+    const storageKey = `lf_reading_time_${todayStr}`;
+    const celebratedKey = `lf_goal_celebrated_${todayStr}`;
+
+    let dailyGoalMinutes = parseInt(localStorage.getItem('daily_goal_minutes') || '15', 10);
+    if (!Number.isInteger(dailyGoalMinutes) || dailyGoalMinutes <= 0) dailyGoalMinutes = 15;
+
+    let totalSecondsToday = parseInt(localStorage.getItem(storageKey) || '0', 10) || 0;
+    let unsyncedSeconds = 0;
+    let lastInteractionTime = Date.now();
+
+    const timeDisplay = document.getElementById('reading-time-display');
+    const progressBar = document.getElementById('reading-progress-bar');
+    const statusDot = document.getElementById('reading-status-dot');
+    const toast = document.getElementById('reading-goal-toast');
+
+    // Sincronizar desde el backend
+    const token = localStorage.getItem('token');
+    if (token) {
+        fetch(`${API_BASE_URL}/users/study-time/today?date=${todayStr}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+            if (data) {
+                if (data.dailyGoalMinutes) {
+                    dailyGoalMinutes = data.dailyGoalMinutes;
+                    localStorage.setItem('daily_goal_minutes', String(dailyGoalMinutes));
+                }
+                if (typeof data.totalSecondsToday === 'number' && data.totalSecondsToday > totalSecondsToday) {
+                    totalSecondsToday = data.totalSecondsToday;
+                    localStorage.setItem(storageKey, String(totalSecondsToday));
+                }
+                updateWidgetUI();
+            }
+        })
+        .catch(() => {});
+    }
+
+    function updateWidgetUI() {
+        const minutes = Math.floor(totalSecondsToday / 60);
+        const pct = Math.min(Math.round((minutes / dailyGoalMinutes) * 100), 100);
+
+        if (timeDisplay) {
+            timeDisplay.textContent = `⏱️ ${minutes} / ${dailyGoalMinutes} min`;
+        }
+        if (progressBar) {
+            progressBar.style.width = `${pct}%`;
+            if (minutes >= dailyGoalMinutes) {
+                progressBar.style.background = '#10b981'; // Verde de meta completada
+            } else {
+                progressBar.style.background = '#2563eb';
+            }
+        }
+
+        // Celebración de meta al 100% (una vez al día)
+        if (minutes >= dailyGoalMinutes && !localStorage.getItem(celebratedKey)) {
+            localStorage.setItem(celebratedKey, 'true');
+            showGoalCelebrationToast();
+        }
+    }
+
+    function showGoalCelebrationToast() {
+        if (!toast) return;
+        toast.style.display = 'flex';
+        toast.style.opacity = '1';
+        toast.style.animation = 'slideUpToast 0.4s cubic-bezier(0.16, 1, 0.3, 1)';
+        setTimeout(() => {
+            if (toast) {
+                toast.style.transition = 'opacity 0.6s ease';
+                toast.style.opacity = '0';
+                setTimeout(() => {
+                    toast.style.display = 'none';
+                    toast.style.opacity = '1';
+                }, 600);
+            }
+        }, 7000);
+    }
+
+    function markInteraction() {
+        lastInteractionTime = Date.now();
+    }
+
+    ['scroll', 'click', 'keydown', 'touchstart'].forEach(evt => {
+        window.addEventListener(evt, markInteraction, { passive: true });
+    });
+
+    function syncStudyTimeToBackend(secondsToSync) {
+        if (!secondsToSync || secondsToSync <= 0) return;
+        const currentToken = localStorage.getItem('token');
+        if (!currentToken) return;
+
+        try {
+            fetch(`${API_BASE_URL}/users/study-time`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${currentToken}`
+                },
+                body: JSON.stringify({
+                    seconds: secondsToSync,
+                    date: todayStr
+                }),
+                keepalive: true
+            }).catch(() => {});
+        } catch (_) {}
+    }
+
+    // Intervalo de lectura activa (1 segundo)
+    setInterval(() => {
+        const isTabActive = !document.hidden;
+        const isTTSPlaying = Boolean(window.speechSynthesis && window.speechSynthesis.speaking);
+        const isInteracting = (Date.now() - lastInteractionTime) <= 45000; // Activo en los últimos 45s
+
+        const isReadingActive = isTabActive && (isInteracting || isTTSPlaying);
+
+        if (isReadingActive) {
+            totalSecondsToday++;
+            unsyncedSeconds++;
+            localStorage.setItem(storageKey, String(totalSecondsToday));
+
+            if (statusDot) {
+                statusDot.classList.add('active');
+                statusDot.title = 'Lectura activa en progreso';
+            }
+
+            // Actualizar UI cada 5 segundos para suavidad y rendimiento
+            if (totalSecondsToday % 5 === 0) {
+                updateWidgetUI();
+            }
+
+            // Sincronizar al backend cada 60s acumulados
+            if (unsyncedSeconds >= 60) {
+                syncStudyTimeToBackend(unsyncedSeconds);
+                unsyncedSeconds = 0;
+            }
+        } else {
+            if (statusDot) {
+                statusDot.classList.remove('active');
+                statusDot.title = 'Lectura pausada (inactividad)';
+            }
+        }
+    }, 1000);
+
+    // Sincronizar al salir de la página
+    const onExit = () => {
+        if (unsyncedSeconds > 0) {
+            syncStudyTimeToBackend(unsyncedSeconds);
+            unsyncedSeconds = 0;
+        }
+    };
+    window.addEventListener('beforeunload', onExit);
+    window.addEventListener('pagehide', onExit);
+
+    // Render inicial
+    updateWidgetUI();
+}
+
 async function initReader() {
+    initActiveReadingTimer();
     const container = document.getElementById('articles-container');
     const loadingDiv = document.getElementById('loading');
     await refreshSavedWords();

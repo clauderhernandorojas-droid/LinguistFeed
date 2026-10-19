@@ -186,21 +186,29 @@ async function handleOnboarding(event) {
     });
 
     if (profileResponse.ok) {
+      const dailyGoalInput = document.getElementById('daily-goal-input');
+      const dailyGoalMinutes = parseInt(dailyGoalInput?.value || '15', 10) || 15;
+
       await fetch(`${API_BASE_URL}/users/me/preferences`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ weeklyReadingGoalMinutes })
+        body: JSON.stringify({
+          weeklyReadingGoalMinutes,
+          dailyGoalMinutes,
+          daily_goal_minutes: dailyGoalMinutes
+        })
       }).catch((err) => {
-        console.warn('No se pudo guardar la meta semanal:', err?.message || err);
+        console.warn('No se pudo guardar la meta semanal/diaria:', err?.message || err);
       });
 
       localStorage.setItem('userLevel', level);
       localStorage.setItem('userAge', age);
       localStorage.setItem('user-interests', selectedInterests.join(','));
       localStorage.setItem('weeklyReadingGoalMinutes', String(weeklyReadingGoalMinutes));
+      localStorage.setItem('daily_goal_minutes', String(dailyGoalMinutes));
       const stored = readStoredUser();
       if (stored) {
         localStorage.setItem(USER_STORAGE_KEY, JSON.stringify({
@@ -208,11 +216,12 @@ async function handleOnboarding(event) {
           age: Number(age),
           level,
           interests: selectedInterests.join(','),
+          daily_goal_minutes: dailyGoalMinutes,
           onboardingCompleted: true
         }));
       }
       document.getElementById('onboarding-modal').style.display = 'none';
-      alert('¡Perfil actualizado!');
+      alert('¡Perfil actualizado con tu meta de lectura!');
     } else {
       const errorData = await profileResponse.json();
       console.error("❌ Error del servidor:", errorData);
@@ -380,6 +389,32 @@ function initOnboarding() {
     };
     weeklyGoalSelect.addEventListener('change', toggleCustomGoalInput);
     toggleCustomGoalInput();
+  }
+
+  // Interacción de tarjetas para meta diaria (10, 15, 20, 30 min)
+  const goalCards = document.querySelectorAll('.daily-goal-card');
+  const goalInput = document.getElementById('daily-goal-input');
+  if (goalCards.length > 0) {
+    const savedGoal = localStorage.getItem('daily_goal_minutes') || '15';
+    if (goalInput) goalInput.value = savedGoal;
+    goalCards.forEach((card) => {
+      if (card.dataset.minutes === savedGoal) {
+        card.classList.add('selected');
+      } else {
+        card.classList.remove('selected');
+      }
+      card.addEventListener('click', () => {
+        goalCards.forEach((c) => c.classList.remove('selected'));
+        card.classList.add('selected');
+        if (goalInput) goalInput.value = card.dataset.minutes || '15';
+      });
+      card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          card.click();
+        }
+      });
+    });
   }
 }
 

@@ -384,6 +384,18 @@ export function bindEditProfileButton() {
                     card.classList.toggle('selected', isSelected);
                 }
             });
+
+            // Precargar meta diaria de lectura
+            const dailyGoal = localStorage.getItem('daily_goal_minutes') || '15';
+            const dailyGoalInput = document.getElementById('daily-goal-input');
+            if (dailyGoalInput) {
+                dailyGoalInput.value = dailyGoal;
+            }
+            document.querySelectorAll('.daily-goal-card').forEach(card => {
+                const isSelected = card.getAttribute('data-minutes') === String(dailyGoal);
+                card.classList.toggle('selected', isSelected);
+                card.setAttribute('aria-checked', isSelected ? 'true' : 'false');
+            });
         }
     });
 

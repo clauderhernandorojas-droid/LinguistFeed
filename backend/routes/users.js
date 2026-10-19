@@ -21,7 +21,7 @@ router.get('/me/export', authenticate, async (req, res) => {
 
     const [preferences, flashcards, answerEvents, attempts, memberships, ownedClasses] = await Promise.all([
       db.get(
-        `SELECT weekly_reading_goal_minutes, created_at, updated_at
+        `SELECT weekly_reading_goal_minutes, daily_goal_minutes, created_at, updated_at
          FROM user_preferences
          WHERE user_id = ?`,
         [userId]
@@ -420,32 +420,148 @@ router.put('/:id/role', async (req, res) => {
 router.put('/me/preferences', authenticate, async (req, res) => {
   try {
     const userId = req.user.userId ?? req.user.id;
-    const raw = req.body?.weeklyReadingGoalMinutes;
-    const goal = parseInt(String(raw), 10);
-    if (!Number.isInteger(goal) || goal < 15 || goal > 600) {
+    const rawWeekly = req.body?.weeklyReadingGoalMinutes;
+    const rawDaily = req.body?.dailyGoalMinutes ?? req.body?.daily_goal_minutes;
+
+    let weeklyGoal = rawWeekly != null ? parseInt(String(rawWeekly), 10) : null;
+    let dailyGoal = rawDaily != null ? parseInt(String(rawDaily), 10) : null;
+
+    if (dailyGoal != null && (!Number.isInteger(dailyGoal) || dailyGoal < 5 || dailyGoal > 180)) {
+      return res.status(400).json({
+        error: 'dailyGoalMinutes debe ser un entero entre 5 y 180'
+      });
+    }
+
+    if (weeklyGoal != null && (!Number.isInteger(weeklyGoal) || weeklyGoal < 15 || weeklyGoal > 600)) {
       return res.status(400).json({
         error: 'weeklyReadingGoalMinutes debe ser un entero entre 15 y 600'
       });
     }
 
+    // Si uno no fue especificado, inferir o mantener valor actual
+    const current = await db.get(
+      'SELECT weekly_reading_goal_minutes, daily_goal_minutes FROM user_preferences WHERE user_id = ?',
+      [userId]
+    );
+
+    if (dailyGoal != null && weeklyGoal == null) {
+      weeklyGoal = current?.weekly_reading_goal_minutes || Math.min(Math.max(dailyGoal * 7, 15), 600);
+    } else if (weeklyGoal != null && dailyGoal == null) {
+      dailyGoal = current?.daily_goal_minutes || Math.min(Math.max(Math.round(weeklyGoal / 7), 5), 180);
+    }
+
+    const finalWeekly = weeklyGoal ?? (current?.weekly_reading_goal_minutes || 60);
+    const finalDaily = dailyGoal ?? (current?.daily_goal_minutes || 15);
+
     await db.run(
-      `INSERT INTO user_preferences (user_id, weekly_reading_goal_minutes, updated_at)
-       VALUES (?, ?, CURRENT_TIMESTAMP)
+      `INSERT INTO user_preferences (user_id, weekly_reading_goal_minutes, daily_goal_minutes, updated_at)
+       VALUES (?, ?, ?, CURRENT_TIMESTAMP)
        ON CONFLICT(user_id) DO UPDATE SET
          weekly_reading_goal_minutes = excluded.weekly_reading_goal_minutes,
+         daily_goal_minutes = excluded.daily_goal_minutes,
          updated_at = CURRENT_TIMESTAMP`,
-      [userId, goal]
+      [userId, finalWeekly, finalDaily]
     );
 
     res.json({
       ok: true,
       preferences: {
-        weeklyReadingGoalMinutes: goal
+        weeklyReadingGoalMinutes: finalWeekly,
+        dailyGoalMinutes: finalDaily,
+        daily_goal_minutes: finalDaily
       }
     });
   } catch (err) {
     console.error('❌ Error updating user preferences:', err.message);
     res.status(500).json({ error: 'Error al actualizar preferencias' });
+  }
+});
+
+// POST /api/users/study-time (Sincronización de lectura activa)
+router.post('/study-time', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId ?? req.user.id;
+    const { seconds, minutes, date: clientDate } = req.body || {};
+
+    const addedSeconds = parseInt(String(seconds ?? (minutes ? minutes * 60 : 0)), 10) || 0;
+    if (addedSeconds <= 0) {
+      return res.status(400).json({ error: 'seconds o minutes debe ser un número positivo mayor que 0' });
+    }
+
+    const logDate = clientDate && /^\d{4}-\d{2}-\d{2}$/.test(clientDate)
+      ? clientDate
+      : new Date().toISOString().split('T')[0];
+
+    await db.run(
+      `INSERT INTO reading_time_logs (user_id, date, seconds, updated_at)
+       VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(user_id, date) DO UPDATE SET
+         seconds = seconds + excluded.seconds,
+         updated_at = CURRENT_TIMESTAMP`,
+      [userId, logDate, addedSeconds]
+    );
+
+    const row = await db.get(
+      'SELECT seconds FROM reading_time_logs WHERE user_id = ? AND date = ?',
+      [userId, logDate]
+    );
+
+    const pref = await db.get(
+      'SELECT daily_goal_minutes FROM user_preferences WHERE user_id = ?',
+      [userId]
+    );
+
+    const totalSeconds = row?.seconds || addedSeconds;
+    const dailyGoalMinutes = pref?.daily_goal_minutes || 15;
+
+    res.json({
+      ok: true,
+      date: logDate,
+      addedSeconds,
+      totalSecondsToday: totalSeconds,
+      totalMinutesToday: Math.floor(totalSeconds / 60),
+      dailyGoalMinutes,
+      completed: Math.floor(totalSeconds / 60) >= dailyGoalMinutes
+    });
+  } catch (err) {
+    console.error('❌ Error recording study time:', err.message);
+    res.status(500).json({ error: 'Error al registrar tiempo de lectura' });
+  }
+});
+
+// GET /api/users/study-time/today
+router.get('/study-time/today', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId ?? req.user.id;
+    const clientDate = req.query.date;
+    const logDate = clientDate && /^\d{4}-\d{2}-\d{2}$/.test(clientDate)
+      ? clientDate
+      : new Date().toISOString().split('T')[0];
+
+    const row = await db.get(
+      'SELECT seconds FROM reading_time_logs WHERE user_id = ? AND date = ?',
+      [userId, logDate]
+    );
+
+    const pref = await db.get(
+      'SELECT daily_goal_minutes FROM user_preferences WHERE user_id = ?',
+      [userId]
+    );
+
+    const totalSeconds = row?.seconds || 0;
+    const dailyGoalMinutes = pref?.daily_goal_minutes || 15;
+
+    res.json({
+      ok: true,
+      date: logDate,
+      totalSecondsToday: totalSeconds,
+      totalMinutesToday: Math.floor(totalSeconds / 60),
+      dailyGoalMinutes,
+      completed: Math.floor(totalSeconds / 60) >= dailyGoalMinutes
+    });
+  } catch (err) {
+    console.error('❌ Error fetching study time today:', err.message);
+    res.status(500).json({ error: 'Error al obtener tiempo de lectura de hoy' });
   }
 });
 

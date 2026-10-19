@@ -215,11 +215,33 @@ async function initializeDatabase() {
     await run(`CREATE TABLE IF NOT EXISTS user_preferences (
       user_id INTEGER PRIMARY KEY,
       weekly_reading_goal_minutes INTEGER NOT NULL DEFAULT 60,
+      daily_goal_minutes INTEGER NOT NULL DEFAULT 15,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     )`);
     console.log("✅ Tabla 'user_preferences' verificada/creada");
+
+    const prefCols = await all(`PRAGMA table_info(user_preferences)`);
+    const hasDailyGoal = Array.isArray(prefCols)
+      ? prefCols.some((c) => String(c.name || '').toLowerCase() === 'daily_goal_minutes')
+      : false;
+    if (!hasDailyGoal) {
+      await run('ALTER TABLE user_preferences ADD COLUMN daily_goal_minutes INTEGER NOT NULL DEFAULT 15');
+      console.log("✅ Columna 'user_preferences.daily_goal_minutes' agregada");
+    }
+
+    await run(`CREATE TABLE IF NOT EXISTS reading_time_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      seconds INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, date),
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`);
+    console.log("✅ Tabla 'reading_time_logs' verificada/creada");
 
     await run(`CREATE TABLE IF NOT EXISTS classes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

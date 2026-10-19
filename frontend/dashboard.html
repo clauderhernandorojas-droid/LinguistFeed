@@ -303,6 +303,32 @@
               <label id="interests-label">Dinos qué te apasiona (elige al menos 2):</label>
               <div id="interests-grid" class="interests-grid"></div>
             </div>
+
+            <div id="daily-goal-section" class="form-group" style="margin-top: 18px;">
+              <label id="daily-goal-label" style="font-weight: 600; display: block; margin-bottom: 8px;">
+                ¿Cuánto tiempo quieres dedicarle a leer en inglés cada día? ⏱️
+              </label>
+              <div class="daily-goal-cards" id="daily-goal-cards">
+                <div class="daily-goal-card" data-minutes="10" role="button" tabindex="0">
+                  <div class="daily-goal-minutes">10 min</div>
+                  <div class="daily-goal-label">Casual</div>
+                </div>
+                <div class="daily-goal-card selected" data-minutes="15" role="button" tabindex="0">
+                  <span class="daily-goal-badge">Recomendado</span>
+                  <div class="daily-goal-minutes">15 min</div>
+                  <div class="daily-goal-label">Equilibrado</div>
+                </div>
+                <div class="daily-goal-card" data-minutes="20" role="button" tabindex="0">
+                  <div class="daily-goal-minutes">20 min</div>
+                  <div class="daily-goal-label">Avanzado</div>
+                </div>
+                <div class="daily-goal-card" data-minutes="30" role="button" tabindex="0">
+                  <div class="daily-goal-minutes">30 min</div>
+                  <div class="daily-goal-label">Intensivo</div>
+                </div>
+              </div>
+              <input type="hidden" id="daily-goal-input" name="daily_goal_minutes" value="15">
+            </div>
       
             <div class="modal-actions" style="display: flex; gap: 10px; justify-content: flex-end; align-items: center; margin-top: 20px; flex-wrap: wrap;">
               <button type="button" id="onboarding-cancel-btn" class="btn" style="background:#64748b; color:white; flex:1; min-width:110px; padding:10px 16px; border:none; border-radius:8px; cursor:pointer; font-weight:600;">Cancelar</button>

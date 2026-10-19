@@ -10,9 +10,25 @@
 
     <nav class="navbar"></nav>
     <div class="container mt-4">
-        <a href="topics.html" class="btn btn-secondary" style="text-decoration: none; margin-bottom: 20px; display: inline-block;">
-            ← Back to Topics
-        </a>
+        <div class="reader-top-bar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
+            <a href="topics.html" class="btn btn-secondary" style="text-decoration: none; margin: 0; display: inline-block;">
+                ← Back to Topics
+            </a>
+
+            <div id="active-reading-widget" class="active-reading-widget" title="Tiempo de lectura activa hoy">
+                <div class="widget-content">
+                    <span class="reading-status-dot" id="reading-status-dot" title="Lectura pausada"></span>
+                    <div class="widget-info">
+                        <div class="widget-text" style="font-size: 0.88rem; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+                            <span id="reading-time-display">⏱️ 0 / 15 min</span>
+                        </div>
+                        <div class="widget-bar-bg" style="width: 100px; height: 5px; background: rgba(148, 163, 184, 0.25); border-radius: 999px; overflow: hidden; margin-top: 3px;">
+                            <div id="reading-progress-bar" style="width: 0%; height: 100%; background: #2563eb; border-radius: 999px; transition: width 0.3s ease, background-color 0.3s ease;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
         
         <h1 id="topic-title">Today's Articles</h1>
         <input type="search" id="searchBarCategory" placeholder="Buscar artículos..." autocomplete="off" style="width:100%;padding:8px;margin-bottom:12px;">
@@ -73,5 +89,14 @@
             }
         });
     </script>
+
+    <div id="reading-goal-toast" class="reading-goal-toast" style="display: none;">
+        <span class="toast-icon">🎯</span>
+        <div class="toast-text">
+            <strong>¡Meta diaria completada!</strong>
+            <span>¡Excelente progreso! Puedes continuar leyendo libremente.</span>
+        </div>
+        <button type="button" class="toast-close" onclick="this.parentElement.style.display='none'" aria-label="Cerrar">&times;</button>
+    </div>
 </body>
 </html>
