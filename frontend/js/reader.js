@@ -369,21 +369,43 @@ async function trackQuizAnswerEvent(question, payload) {
 // ========================================================
 // 🎓 NIVEL PREDETERMINADO DEL ESTUDIANTE
 // ========================================================
-export function getStudentLevel() {
+function getStudentLevel() {
     let storedUser = null;
     try {
         storedUser = JSON.parse(localStorage.getItem('linguistfeed_user') || localStorage.getItem('user') || '{}');
     } catch (_) {}
-    const level = (
-        localStorage.getItem('user_level') ||
-        localStorage.getItem('user-level') ||
-        localStorage.getItem('userLevel') ||
-        storedUser?.level ||
-        'B1'
-    ).toUpperCase();
-    localStorage.setItem('user_level', level);
-    localStorage.setItem('user-level', level);
-    return level;
+
+    const validLevels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+
+    // 1. Prioridad: nivel del perfil oficial del estudiante en DB / localStorage
+    const rawProfile = storedUser?.level || storedUser?.cefr_level || storedUser?.current_level;
+    const profileLevel = rawProfile ? String(rawProfile).toUpperCase().trim() : null;
+    if (profileLevel && validLevels.includes(profileLevel)) {
+        localStorage.setItem('user_level', profileLevel);
+        localStorage.setItem('user-level', profileLevel);
+        return profileLevel;
+    }
+
+    // 2. Preferencias del usuario en localStorage (user_level o cefr_level) - NUNCA C2 como preferencia por defecto
+    const rawPref = localStorage.getItem('user_level') || localStorage.getItem('cefr_level');
+    const prefLevel = rawPref ? String(rawPref).toUpperCase().trim() : null;
+    if (prefLevel && validLevels.includes(prefLevel) && prefLevel !== 'C2') {
+        localStorage.setItem('user-level', prefLevel);
+        return prefLevel;
+    }
+
+    // 3. Claves secundarias (userLevel / user-level) - NUNCA C2
+    const rawSecondary = localStorage.getItem('userLevel') || localStorage.getItem('user-level');
+    const secondaryLevel = rawSecondary ? String(rawSecondary).toUpperCase().trim() : null;
+    if (secondaryLevel && validLevels.includes(secondaryLevel) && secondaryLevel !== 'C2') {
+        localStorage.setItem('user_level', secondaryLevel);
+        return secondaryLevel;
+    }
+
+    // 4. Fallback absoluto seguro: B1 (NUNCA C2)
+    localStorage.setItem('user_level', 'B1');
+    localStorage.setItem('user-level', 'B1');
+    return 'B1';
 }
 
 // ========================================================
@@ -577,12 +599,30 @@ async function initReader() {
     const topic = params.get('topic');
     
     // Prioridad de nivel: 
-    // 1. El que venga en la URL (?level=A1 o #level=A1)
-    // 2. El nivel guardado del estudiante (user_level / user-level / perfil)
-    // 3. B1 por defecto
+    // 1. El que venga en la URL (?level=A1 o #level=A1) si es válido
+    // 2. El nivel guardado del estudiante (user_level / cefr_level / perfil en DB)
+    // 3. Fallback B1 por defecto (nunca C2)
     const studentLevel = getStudentLevel();
-    const levelFromUrl = params.get('level');
-    const currentLevel = (levelFromUrl || studentLevel).toUpperCase();
+    const rawParamLevel = params.get('level');
+    const validLevels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+    let levelFromUrl = (rawParamLevel && validLevels.includes(rawParamLevel.toUpperCase().trim()))
+        ? rawParamLevel.toUpperCase().trim()
+        : null;
+
+    // Si la URL traía C2 espurio de sesiones anteriores y el estudiante es B1 (u otro nivel), normalizar al nivel del estudiante
+    if (levelFromUrl === 'C2' && studentLevel !== 'C2') {
+        levelFromUrl = studentLevel;
+        try {
+            params.set('level', studentLevel);
+            const cleanHash = '#' + params.toString();
+            if (window.location.hash !== cleanHash) {
+                history.replaceState(null, '', cleanHash);
+            }
+        } catch (_) {}
+    }
+
+    // Fallback: si no vino level en la URL, toma por defecto el nivel guardado del estudiante (nunca C2)
+    const currentLevel = levelFromUrl || studentLevel || 'B1';
     localStorage.setItem('user_level', currentLevel);
     localStorage.setItem('user-level', currentLevel);
 
@@ -710,7 +750,9 @@ async function loadDailyArticlesList(filterTopic = null) {
                     const classBadge = article.class_name
                         ? `<span class="classroom-badge" style="margin-left: 6px;">🏷️ ${article.class_name}</span>`
                         : '';
-                    const activeCardLevel = (localStorage.getItem(`temp-level-${identifier}`) || studentLevel).toUpperCase();
+                    // El botón activo por defecto coincide única y estrictamente con el nivel del estudiante (ej. B1)
+                    // C2 queda blanco/desactivado como los demás niveles
+                    const activeCardLevel = studentLevel;
                     const cardTitle = article.adapted_title || article.title || 'Untitled Article';
                     return `
                     <div class="card" style="border: 1px solid #ddd; padding: 15px; border-radius: 10px;">
@@ -729,7 +771,7 @@ async function loadDailyArticlesList(filterTopic = null) {
                                 <button onclick="setArticleLevel('${identifier}', '${lvl}')" 
                                         id="btn-${article.id}-${lvl}"
                                         class="level-btn ${isActive ? 'active' : ''}"
-                                        style="font-size: 0.7rem; padding: 2px 6px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; ${isActive ? 'background: #007bff; color: white;' : 'background: white; color: black;'}">
+                                        style="font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; cursor: pointer; ${isActive ? 'background: #007bff !important; color: white !important; border: 1px solid #007bff !important;' : 'background: white !important; color: #0b0b0b !important; border: 1px solid #ddd !important;'}">
                                     ${lvl}
                                 </button>`;
                             }).join('')}
@@ -797,7 +839,11 @@ async function loadFullArticle(id, level = null) {
     // --- PASO 2: DETERMINAR NIVEL ---
     const params = new URLSearchParams(window.location.hash.substring(1));
     const studentLevel = getStudentLevel();
-    const activeLevel = (level || params.get('level') || studentLevel).toUpperCase();
+    let requestedLevel = (level || params.get('level') || studentLevel).toUpperCase();
+    if (requestedLevel === 'C2' && studentLevel !== 'C2') {
+        requestedLevel = studentLevel;
+    }
+    const activeLevel = requestedLevel;
     
     // Guardamos la preferencia
     localStorage.setItem('user_level', activeLevel);
@@ -962,9 +1008,9 @@ function renderLevelSelector(containerOrArticleId, maybeArticleId, maybeActiveLe
             class="level-btn ${isThisActive ? 'active' : ''}" 
             onclick="changeArticleLevel('${currentArticleId}', '${level}')"
             style="cursor: pointer; border-radius: 22px; 
-                   border: 1px solid #007bff; 
-                   background: ${isThisActive ? '#007bff' : 'white'}; 
-                   color: ${isThisActive ? 'white' : '#007bff'};"
+                   border: 1px solid ${isThisActive ? '#007bff' : '#ddd'} !important; 
+                   background: ${isThisActive ? '#007bff' : 'white'} !important; 
+                   color: ${isThisActive ? 'white' : '#0b0b0b'} !important;"
         >
             ${level}
         </button>
@@ -2562,7 +2608,10 @@ window.setArticleLevel = async function(articleId, level) {
 window.goToArticle = function(id, mode) {
     // Buscamos si eligió un nivel, si no, usamos el nivel guardado del estudiante
     const studentLevel = getStudentLevel();
-    const selectedLevel = (localStorage.getItem(`temp-level-${id}`) || studentLevel).toUpperCase();
+    const tempLevel = localStorage.getItem(`temp-level-${id}`);
+    const selectedLevel = (tempLevel && (tempLevel.toUpperCase() !== 'C2' || studentLevel === 'C2'))
+        ? tempLevel.toUpperCase()
+        : studentLevel;
     
     localStorage.setItem('userMode', mode);
     localStorage.setItem('user_level', selectedLevel);
@@ -2582,6 +2631,7 @@ window.closeFlashcardPopup = closeFlashcardPopup; // Añade esta línea
 window.initReader = initReader;
 window.loadFullArticle = loadFullArticle;
 window.handleLogout = handleLogout;
+window.getStudentLevel = getStudentLevel;
 
 export { initReader, loadFullArticle, saveFlashcardToStorage, showFlashcardPopup, closeFlashcardPopup, getStudentLevel };
 

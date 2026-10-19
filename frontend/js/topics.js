@@ -21,16 +21,44 @@ export function getSavedStudentLevel() {
     try {
         storedUser = JSON.parse(localStorage.getItem('linguistfeed_user') || localStorage.getItem('user') || '{}');
     } catch (_) {}
-    const level = (
-        localStorage.getItem('user_level') ||
-        localStorage.getItem('user-level') ||
-        localStorage.getItem('userLevel') ||
-        storedUser?.level ||
-        'B1'
-    ).toUpperCase();
-    localStorage.setItem('user_level', level);
-    localStorage.setItem('user-level', level);
-    return level;
+
+    const validLevels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+
+    // 1. Prioridad: nivel del perfil oficial del estudiante en DB / localStorage
+    const rawProfile = storedUser?.level || storedUser?.cefr_level || storedUser?.current_level;
+    const profileLevel = rawProfile ? String(rawProfile).toUpperCase().trim() : null;
+    if (profileLevel && validLevels.includes(profileLevel)) {
+        localStorage.setItem('user_level', profileLevel);
+        localStorage.setItem('user-level', profileLevel);
+        return profileLevel;
+    }
+
+    // 2. Preferencias del usuario (user_level o cefr_level) - NUNCA C2 como preferencia por defecto
+    const rawPref = localStorage.getItem('user_level') || localStorage.getItem('cefr_level');
+    const prefLevel = rawPref ? String(rawPref).toUpperCase().trim() : null;
+    if (prefLevel && validLevels.includes(prefLevel) && prefLevel !== 'C2') {
+        localStorage.setItem('user-level', prefLevel);
+        return prefLevel;
+    }
+
+    // 3. Claves secundarias (userLevel / user-level) - NUNCA C2
+    const rawSecondary = localStorage.getItem('userLevel') || localStorage.getItem('user-level');
+    const secondaryLevel = rawSecondary ? String(rawSecondary).toUpperCase().trim() : null;
+    if (secondaryLevel && validLevels.includes(secondaryLevel) && secondaryLevel !== 'C2') {
+        localStorage.setItem('user_level', secondaryLevel);
+        return secondaryLevel;
+    }
+
+    // 4. Fallback absoluto seguro: B1 (NUNCA C2)
+    localStorage.setItem('user_level', 'B1');
+    localStorage.setItem('user-level', 'B1');
+    return 'B1';
+}
+
+export const getStudentLevel = getSavedStudentLevel;
+if (typeof window !== 'undefined') {
+    window.getSavedStudentLevel = getSavedStudentLevel;
+    window.getStudentLevel = getSavedStudentLevel;
 }
 
 export function renderTopics() {
@@ -38,8 +66,6 @@ export function renderTopics() {
     const othersGrid = document.getElementById('others-grid');
     
     if (!favoritesGrid || !othersGrid) return;
-
-    const studentLevel = getSavedStudentLevel();
 
     // 1. Obtener intereses (ej: "tech,gaming"); mismo fallback que topics.html anterior
     const normalizeTopicId = (t) => {
@@ -78,7 +104,7 @@ export function renderTopics() {
     // 3. Asegurar que Classroom es SIEMPRE el primero de los favoritos
     favorites.sort((a, b) => (b.special ? 1 : -1));
 
-    // 4. Función auxiliar para crear la tarjeta (para no repetir código)
+    // 4. Función auxiliar para crear la tarjeta (computa el nivel real al hacer clic)
     const createCard = (topic) => {
         const card = document.createElement('div');
         card.className = 'topic-card';
@@ -86,7 +112,10 @@ export function renderTopics() {
             <div style="font-size: 3rem; margin-bottom: 10px;">${topic.icon}</div>
             <strong style="font-size: 1.2rem; color: #eef2ff;">${topic.name}</strong>
         `;
-        card.onclick = () => window.location.href = `reader.html#topic=${topic.id}&level=${studentLevel}`;
+        card.onclick = () => {
+            const currentLevel = getSavedStudentLevel();
+            window.location.href = `reader.html#topic=${encodeURIComponent(topic.id)}&level=${encodeURIComponent(currentLevel)}`;
+        };
         return card;
     };
 
