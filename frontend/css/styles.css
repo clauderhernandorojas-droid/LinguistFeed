@@ -2566,23 +2566,53 @@ body.dark-mode .daily-goal-card.selected .daily-goal-minutes {
 }
 
 /* Active Reading Widget in Reader */
+#active-reading-timer,
+#active-reading-widget,
 .active-reading-widget {
   display: inline-flex;
   align-items: center;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
   padding: 6px 14px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   user-select: none;
   transition: all 0.25s ease;
+  color: #f8fafc;
 }
 
+[data-theme="dark"] #active-reading-timer,
+[data-theme="dark"] #active-reading-widget,
 [data-theme="dark"] .active-reading-widget,
+.dark-theme #active-reading-timer,
+.dark-theme #active-reading-widget,
 .dark-theme .active-reading-widget,
+body.dark-mode #active-reading-timer,
+body.dark-mode #active-reading-widget,
 body.dark-mode .active-reading-widget {
   background: rgba(30, 41, 59, 0.85);
-  border-color: #334155;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+#active-reading-timer .widget-text,
+#active-reading-widget .widget-text,
+.active-reading-widget .widget-text,
+#active-reading-timer #reading-time-display,
+#active-reading-widget #reading-time-display,
+.active-reading-widget #reading-time-display {
+  color: #f8fafc !important;
+  font-weight: 600 !important;
+  font-size: 0.88rem;
+  letter-spacing: 0.2px;
+}
+
+#active-reading-timer .active-minutes,
+#active-reading-widget .active-minutes,
+.active-reading-widget .active-minutes {
+  color: #38bdf8 !important;
+  font-weight: 700 !important;
 }
 
 .active-reading-widget .widget-content {

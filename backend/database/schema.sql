@@ -37,5 +37,7 @@ CREATE TABLE IF NOT EXISTS simplified_articles (
   article_id INTEGER NOT NULL,
   text TEXT,
   level TEXT,
+  adapted_title TEXT,
+  adapted_content TEXT,
   FOREIGN KEY (article_id) REFERENCES articles (id) ON DELETE CASCADE
 );

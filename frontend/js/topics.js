@@ -16,11 +16,30 @@ const allTopics = [
     { id: 'news', name: 'Global News', icon: '🌍', color: '#e3f2fd' }
 ];
 
+export function getSavedStudentLevel() {
+    let storedUser = null;
+    try {
+        storedUser = JSON.parse(localStorage.getItem('linguistfeed_user') || localStorage.getItem('user') || '{}');
+    } catch (_) {}
+    const level = (
+        localStorage.getItem('user_level') ||
+        localStorage.getItem('user-level') ||
+        localStorage.getItem('userLevel') ||
+        storedUser?.level ||
+        'B1'
+    ).toUpperCase();
+    localStorage.setItem('user_level', level);
+    localStorage.setItem('user-level', level);
+    return level;
+}
+
 export function renderTopics() {
     const favoritesGrid = document.getElementById('favorites-grid');
     const othersGrid = document.getElementById('others-grid');
     
     if (!favoritesGrid || !othersGrid) return;
+
+    const studentLevel = getSavedStudentLevel();
 
     // 1. Obtener intereses (ej: "tech,gaming"); mismo fallback que topics.html anterior
     const normalizeTopicId = (t) => {
@@ -67,7 +86,7 @@ export function renderTopics() {
             <div style="font-size: 3rem; margin-bottom: 10px;">${topic.icon}</div>
             <strong style="font-size: 1.2rem; color: #eef2ff;">${topic.name}</strong>
         `;
-        card.onclick = () => window.location.href = `reader.html#topic=${topic.id}`;
+        card.onclick = () => window.location.href = `reader.html#topic=${topic.id}&level=${studentLevel}`;
         return card;
     };
 

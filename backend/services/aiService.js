@@ -152,71 +152,123 @@ class AiService {
     }
 
     /**
-     * Re-escribe un artículo para un nivel específico (La función que pide articles.js)
+     * Adapta tanto el título como el contenido de un artículo al nivel CEFR objetivo.
+     * Instruye al modelo para generar un título claro, atractivo y alineado al nivel CEFR,
+     * evitando modismos oscuros o jerga innecesaria.
+     * @param {string} title - Título original
+     * @param {string} content - Contenido original
+     * @param {string} level - Nivel CEFR (A1-C2)
+     * @returns {Promise<{ title: string, content: string }>}
      */
-    async generateLeveledArticle(text, level = 'B1', interestsList = '', difficultWordsList = '') {
+    async adaptArticleForLevel(title, content, level = 'B1') {
         const rules = this.levelRules[level] || this.levelRules['B1'];
 
-        const prompt = `
-        Rewrite and adapt this article for an ${level} English learner.
-        ${interestsList}
-        ${difficultWordsList}
-        
-        Specific Rules for ${level} level:
-        ${rules}
-        - Divide the text into clear paragraphs.
-        - Each paragraph should focus on one main idea.
-        
-        Original text:
-        ${text}
-        `;
+        const systemRole = `You are an expert English teacher specialized in CEFR language adaptation.
+Your mission is to adapt both the TITLE and the TEXT of an article for an English learner at CEFR level ${level}.
+CRITICAL INSTRUCTIONS:
+1. Title requirement: Create a clear, engaging headline strictly suited for CEFR level ${level}. Avoid obscure idioms, wordplay, slang, or confusing jargon.
+2. Content requirement: Rewrite and adapt the article text to match CEFR level ${level}.
+   - Divide the text into clear, coherent paragraphs.
+   - Each paragraph must focus on one central idea.
+   - Strictly follow the grammatical and lexical rules for CEFR level ${level}.
+3. Return ONLY a valid JSON object with the keys "title" and "content". Do not include Markdown blocks, markdown fences, or extra text.`;
 
-        const systemRole = 'You are an expert English teacher specialized in CEFR levels. Output only the adapted article text, no preamble.';
+        const prompt = `Target CEFR Level: ${level}
+Specific Rules for ${level} level:
+${rules}
+
+Original Title:
+${title || 'Untitled Article'}
+
+Original Content:
+${content}
+
+Return ONLY this JSON format:
+{
+  "title": "Clear and appealing title for level ${level}",
+  "content": "Full adapted article text divided into paragraphs..."
+}`;
 
         try {
-            console.log(`✨ Generando versión nivel ${level}...`);
+            console.log(`✨ Adaptando artículo y título para nivel ${level}...`);
+
+            let rawResponse = '';
 
             if (this.useLmStudioForLeveling()) {
                 const maxTokens = parseInt(String(process.env.LMSTUDIO_LEVELING_MAX_TOKENS || '8192'), 10) || 8192;
                 const timeoutMs = parseInt(String(process.env.LMSTUDIO_LEVELING_TIMEOUT_MS || '180000'), 10) || 180000;
-                return await this.askLmStudio(prompt, systemRole, {
+                rawResponse = await this.askLmStudio(prompt, systemRole, {
                     max_tokens: maxTokens,
                     timeout: timeoutMs
                 });
-            }
-
-            if (!this.apiKey) {
-                if (this.useLmStudioForAnalyze()) {
-                    console.warn('ℹ️ generateLeveledArticle: sin API key; usando LM Studio (USE_LMSTUDIO_FOR_ANALYZE)');
-                    return await this.askLmStudio(prompt, systemRole, {
-                        max_tokens: parseInt(String(process.env.LMSTUDIO_LEVELING_MAX_TOKENS || '8192'), 10) || 8192,
-                        timeout: parseInt(String(process.env.LMSTUDIO_LEVELING_TIMEOUT_MS || '180000'), 10) || 180000
-                    });
-                }
+            } else if (!this.apiKey && this.useLmStudioForAnalyze()) {
+                rawResponse = await this.askLmStudio(prompt, systemRole, {
+                    max_tokens: parseInt(String(process.env.LMSTUDIO_LEVELING_MAX_TOKENS || '8192'), 10) || 8192,
+                    timeout: parseInt(String(process.env.LMSTUDIO_LEVELING_TIMEOUT_MS || '180000'), 10) || 180000
+                });
+            } else if (this.apiKey) {
+                const model = this.getModel('openai/gpt-4o-mini');
+                const response = await axios.post(this.apiUrl, {
+                    model,
+                    messages: [
+                        { role: 'system', content: systemRole },
+                        { role: 'user', content: prompt }
+                    ]
+                }, {
+                    headers: {
+                        Authorization: `Bearer ${this.apiKey}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                rawResponse = response.data?.choices?.[0]?.message?.content || '';
+            } else {
                 throw new Error(
-                    'GEMINI_API_KEY (o OPENROUTER_API_KEY) no configurada: define USE_LMSTUDIO_FOR_LEVELING=true o USE_LMSTUDIO_FOR_ANALYZE=true con LM Studio en marcha'
+                    'GEMINI_API_KEY (o OPENROUTER_API_KEY) no configurada: define USE_LMSTUDIO_FOR_LEVELING=true o USE_LMSTUDIO_FOR_ANALYZE=true con LM Studio'
                 );
             }
 
-            const model = this.getModel('openai/gpt-4o-mini');
-            const response = await axios.post(this.apiUrl, {
-                model,
-                messages: [
-                    { role: 'system', content: systemRole },
-                    { role: 'user', content: prompt }
-                ]
-            }, {
-                headers: {
-                    Authorization: `Bearer ${this.apiKey}`,
-                    'Content-Type': 'application/json'
+            // Parsing the JSON response
+            let parsed = null;
+            try {
+                const cleanJson = rawResponse
+                    .replace(/```json/gi, '')
+                    .replace(/```/g, '')
+                    .trim();
+                parsed = JSON.parse(cleanJson);
+            } catch (_) {
+                const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    try {
+                        parsed = JSON.parse(jsonMatch[0]);
+                    } catch (e) {}
                 }
-            });
+            }
 
-            return response.data.choices[0].message.content;
+            if (parsed && (parsed.content || parsed.text)) {
+                return {
+                    title: String(parsed.title || title || 'Untitled Article').trim(),
+                    content: String(parsed.content || parsed.text || '').trim()
+                };
+            }
+
+            // Fallback: Si no devolvió JSON válido, usar la respuesta completa como contenido
+            const fallbackText = rawResponse.replace(/```/g, '').trim();
+            return {
+                title: title || 'Untitled Article',
+                content: fallbackText
+            };
         } catch (error) {
-            console.error('❌ Error en generateLeveledArticle:', error.message);
+            console.error(`❌ Error en adaptArticleForLevel (${level}):`, error.message);
             throw error;
         }
+    }
+
+    /**
+     * Re-escribe un artículo para un nivel específico (Compatibilidad hacia atrás)
+     */
+    async generateLeveledArticle(text, level = 'B1', interestsList = '', difficultWordsList = '') {
+        const adapted = await this.adaptArticleForLevel('', text, level);
+        return adapted.content;
     }
 
     /**

@@ -86,8 +86,25 @@ async function initializeDatabase() {
       article_id INTEGER NOT NULL,
       text TEXT,
       level TEXT,
+      adapted_title TEXT,
+      adapted_content TEXT,
       FOREIGN KEY (article_id) REFERENCES articles (id) ON DELETE CASCADE
     )`);
+    const simpCols = await all(`PRAGMA table_info(simplified_articles)`);
+    const hasAdaptedTitle = Array.isArray(simpCols)
+      ? simpCols.some((c) => String(c.name || '').toLowerCase() === 'adapted_title')
+      : false;
+    if (!hasAdaptedTitle) {
+      await run('ALTER TABLE simplified_articles ADD COLUMN adapted_title TEXT');
+      console.log("✅ Columna 'simplified_articles.adapted_title' agregada");
+    }
+    const hasAdaptedContent = Array.isArray(simpCols)
+      ? simpCols.some((c) => String(c.name || '').toLowerCase() === 'adapted_content')
+      : false;
+    if (!hasAdaptedContent) {
+      await run('ALTER TABLE simplified_articles ADD COLUMN adapted_content TEXT');
+      console.log("✅ Columna 'simplified_articles.adapted_content' agregada");
+    }
     await run(`DELETE FROM simplified_articles
       WHERE id NOT IN (
         SELECT MAX(id)

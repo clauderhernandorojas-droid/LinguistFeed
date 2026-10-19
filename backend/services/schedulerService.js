@@ -27,6 +27,7 @@ function cleanArticleUrl(rawUrl) {
   } catch {
     return rawUrl;
   }
+}
 /**
  * Normaliza las claves de temas para que coincidan exactamente con los 14 slugs de Explore Topics
  */
@@ -180,8 +181,7 @@ class SchedulerService {
     console.log(`Running article fetching job (max new articles: ${maxNewArticles})`);
     
     try {
-      const levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
-      await this.fetchAndProcessArticlesFromRSS(levels, maxNewArticles);
+      await this.fetchAndProcessArticlesFromRSS(maxNewArticles);
       
       console.log('Article fetching job completed');
     } catch (error) {
@@ -190,14 +190,13 @@ class SchedulerService {
   }
 
   /**
-   * Fetch and process articles from RSS feeds
-   * @param {string|string[]} levelsOrLevel - CEFR level or array of levels
+   * Fetch and process articles from RSS feeds without precomputing levels.
+   * Saves only the original raw article. Leveled adaptations are done on demand (lazy adaptation).
    * @param {number} maxNewArticles - Maximum new articles to ingest in this cycle (default 5, satisfies 3-5 limit)
    */
-  async fetchAndProcessArticlesFromRSS(levelsOrLevel = 'B1', maxNewArticles = parseInt(process.env.MAX_NEW_ARTICLES_PER_CYCLE || '5', 10)) {
+  async fetchAndProcessArticlesFromRSS(maxNewArticles = parseInt(process.env.MAX_NEW_ARTICLES_PER_CYCLE || '5', 10)) {
     try {
-      const levels = Array.isArray(levelsOrLevel) ? levelsOrLevel : [levelsOrLevel];
-      console.log(`🚀 Fetching RSS articles (levels: [${levels.join(', ')}], limit: ${maxNewArticles} new articles per cycle)`);
+      console.log(`🚀 Fetching RSS articles (lazy adaptation enabled, limit: ${maxNewArticles} new articles per cycle)`);
       
       // Obtenemos los artículos recolectados de los feeds configurados
       const articlesData = await articleService.fetchAndProcessArticlesFromRSS();
@@ -219,7 +218,6 @@ class SchedulerService {
           );
           
           let articleId;
-          let articleContent;
           
           if (!existingArticle) {
             // Límite estricto por corrida para no saturar la base de datos
@@ -256,44 +254,18 @@ class SchedulerService {
             // Priorizamos el titular limpio del RSS con gancho editorial
             const finalTitle = (articleData.title && articleData.title.trim()) || scrapedTitle || 'Untitled Article';
 
-            // Insertamos usando cleanTopic normalizado y cleanUrl
+            // Insertamos el artículo original con su contenido sin procesar (SIN precomputar adaptaciones)
             const result = await db.run(
               'INSERT INTO articles (url, title, topic, content, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)',
               [cleanUrl, finalTitle, cleanTopic, scrapedText]
             );
             
             articleId = result.lastID;
-            articleContent = scrapedText;
-            console.log(`✅ Artículo insertado con ID: ${articleId} ("${finalTitle}") [Tema: ${cleanTopic}]`);
+            console.log(`✅ Artículo insertado con ID: ${articleId} ("${finalTitle}") [Tema: ${cleanTopic}] (Adaptación lazy bajo demanda)`);
           } else {
             articleId = existingArticle.id;
-            articleContent = existingArticle.content;
           }
 
-          // --- 🤖 GENERACIÓN DE QUIZ AUTOMÁTICO PARA LOS NIVELES ---
-          if (articleContent) {
-            for (const level of levels) {
-              const existingQuiz = await db.get(
-                'SELECT id FROM quizzes WHERE article_id = ? AND level = ?',
-                [articleId, level]
-              );
-
-              if (!existingQuiz) {
-                if (aiService.isMockSchedulerQuiz()) {
-                  // Dev: sin OpenRouter; evita 402 y ruido en logs
-                } else {
-                  console.log(`🧠 Generando Quiz IA para artículo ${articleId} (Nivel ${level})...`);
-                  try {
-                    await aiService.generateQuiz(articleId, articleContent, level);
-                    console.log(`✨ Quiz guardado con éxito (Nivel ${level}).`);
-                  } catch (aiError) {
-                    console.error(`❌ Error en IA (Quiz Nivel ${level}):`, aiError.message);
-                  }
-                }
-              }
-            }
-          }
-          
           // --- 🗓️ REGISTRO EN ARTÍCULOS DIARIOS ---
           const date = new Date().toISOString().split('T')[0];
           const existingDailyArticle = await db.get(

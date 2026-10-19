@@ -225,18 +225,39 @@ router.get('/', async (req, res) => {
     if (!topic) return res.json({ articles: [] });
     const normalizedTopic = String(topic).toLowerCase().trim();
     const requestUser = getRequestUserContext(req);
+    const requestedLevel = String(req.query.level || '').trim().toUpperCase();
+    const hasValidLevel = CEFR_LEVELS.has(requestedLevel);
 
-    const rows = await db.all(
-      `SELECT a.id, a.title, a.content, a.url, a.topic, a.source, a.created_at, a.external_id,
-              a.assigned_to_user_id, a.is_manual, a.class_id, a.author_id,
-              c.name AS class_name
-       FROM articles a
-       LEFT JOIN classes c ON a.class_id = c.id
-       WHERE LOWER(a.topic) = ?
-       ORDER BY datetime(a.created_at) DESC
-       LIMIT 120`,
-      [normalizedTopic]
-    );
+    let rows;
+    if (hasValidLevel) {
+      rows = await db.all(
+        `SELECT a.id, a.title, a.content, a.url, a.topic, a.source, a.created_at, a.external_id,
+                a.assigned_to_user_id, a.is_manual, a.class_id, a.author_id,
+                c.name AS class_name,
+                sa.adapted_title,
+                COALESCE(sa.adapted_content, sa.text) AS adapted_content
+         FROM articles a
+         LEFT JOIN classes c ON a.class_id = c.id
+         LEFT JOIN simplified_articles sa ON a.id = sa.article_id AND sa.level = ?
+         WHERE LOWER(a.topic) = ?
+         ORDER BY datetime(a.created_at) DESC
+         LIMIT 120`,
+        [requestedLevel, normalizedTopic]
+      );
+    } else {
+      rows = await db.all(
+        `SELECT a.id, a.title, a.content, a.url, a.topic, a.source, a.created_at, a.external_id,
+                a.assigned_to_user_id, a.is_manual, a.class_id, a.author_id,
+                c.name AS class_name
+         FROM articles a
+         LEFT JOIN classes c ON a.class_id = c.id
+         WHERE LOWER(a.topic) = ?
+         ORDER BY datetime(a.created_at) DESC
+         LIMIT 120`,
+        [normalizedTopic]
+      );
+    }
+
     let articles = await filterClassroomVisibility(rows, requestUser.userId, requestUser.role);
 
     if (articles.length === 0) {
@@ -244,7 +265,17 @@ router.get('/', async (req, res) => {
       if (legacy.length > 0) articles = legacy;
     }
 
-    res.json({ articles: articles.slice(0, 60) });
+    const mappedArticles = articles.map(a => {
+      const adaptedTitle = a.adapted_title || a.title;
+      return {
+        ...a,
+        title: adaptedTitle,
+        adapted_title: adaptedTitle,
+        reading_level: requestedLevel || 'B1'
+      };
+    });
+
+    res.json({ articles: mappedArticles.slice(0, 60) });
   } catch (error) {
     console.error('❌ Error en /articles:', error.message);
     res.status(500).json({ error: error.message });
@@ -622,45 +653,60 @@ async function getArticleHandler(req, res) {
     }
     if (!article) return res.status(404).json({ error: 'Artículo no encontrado' });
 
-    const rawLevel = String(req.query.level || req.body.level || '').trim().toUpperCase();
+    const rawLevel = String(req.params.cefr || req.query.level || req.body.level || '').trim().toUpperCase();
     const numericArticleId = article.id != null ? Number(article.id) : null;
     if (rawLevel && CEFR_LEVELS.has(rawLevel) && numericArticleId != null && !Number.isNaN(numericArticleId)) {
+      // 1. Verificación en SQLite (Caché bajo demanda)
       let simplified = await db.get(
-        `SELECT text FROM simplified_articles WHERE article_id = ? AND level = ?`,
+        `SELECT text, adapted_title, adapted_content FROM simplified_articles WHERE article_id = ? AND level = ?`,
         [numericArticleId, rawLevel]
       );
 
-      // Si no existe versión en DB para este nivel, intentamos adaptarla con IA bajo demanda
-      if (!simplified || !simplified.text) {
+      let adaptedTitle = simplified?.adapted_title || null;
+      let adaptedText = simplified?.adapted_content || simplified?.text || null;
+
+      // 2. Si no existe en SQLite, invocar a la IA para adaptar texto y título
+      if (!adaptedText) {
         try {
-          console.log(`🤖 Generando versión nivel ${rawLevel} bajo demanda para artículo ${numericArticleId}...`);
-          const adapted = await aiService.generateLeveledArticle(article.content, rawLevel);
-          if (adapted && typeof adapted === 'string' && adapted.trim().length > 30) {
+          console.log(`🤖 [Lazy Adaptation] Generando versión nivel ${rawLevel} con IA para artículo ${numericArticleId}...`);
+          const adapted = await aiService.adaptArticleForLevel(article.title, article.content, rawLevel);
+          if (adapted && adapted.content && adapted.content.trim().length > 30) {
+            adaptedTitle = (adapted.title || article.title || 'Untitled Article').trim();
+            adaptedText = adapted.content.trim();
+
             await db.run(
-              `INSERT OR REPLACE INTO simplified_articles (article_id, text, level) VALUES (?, ?, ?)`,
-              [numericArticleId, adapted.trim(), rawLevel]
+              `INSERT OR REPLACE INTO simplified_articles (article_id, text, level, adapted_title, adapted_content)
+               VALUES (?, ?, ?, ?, ?)`,
+              [numericArticleId, adaptedText, rawLevel, adaptedTitle, adaptedText]
             );
-            simplified = { text: adapted.trim() };
-            console.log(`✅ Versión nivel ${rawLevel} guardada en simplified_articles`);
+            console.log(`✅ [Lazy Adaptation] Versión nivel ${rawLevel} guardada en SQLite (título y contenido)`);
           }
         } catch (adaptErr) {
           console.warn(`⚠️ No se pudo generar versión nivel ${rawLevel} con IA:`, adaptErr.message);
         }
+      } else {
+        console.log(`📦 [Lazy Cache Hit] Versión nivel ${rawLevel} de artículo ${numericArticleId} servida desde SQLite sin invocar a la IA.`);
       }
 
-      const textForLevel = (simplified && simplified.text) ? simplified.text : article.content;
+      const finalContent = adaptedText || article.content;
+      const finalTitle = adaptedTitle || article.title;
+
       article = {
         ...article,
-        title: article.title, // Asegurar título original completo siempre
-        content: textForLevel,
-        simplified_content: textForLevel,
+        title: finalTitle,
+        adapted_title: finalTitle,
+        content: finalContent,
+        simplified_content: finalContent,
+        adapted_content: finalContent,
         reading_level: rawLevel
       };
     } else {
       article = {
         ...article,
         title: article.title,
+        adapted_title: article.title,
         simplified_content: article.content,
+        adapted_content: article.content,
         reading_level: rawLevel || 'B1'
       };
     }
@@ -672,6 +718,7 @@ async function getArticleHandler(req, res) {
   }
 }
 
+router.get('/:id/level/:cefr', getArticleHandler);
 router.get('/:id', getArticleHandler);
 router.get('/:id/simplify', getArticleHandler);
 router.post('/:id/simplify', getArticleHandler);

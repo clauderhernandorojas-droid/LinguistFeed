@@ -8,13 +8,16 @@ import { API_BASE_URL } from './config.js';
 // Variable global temporal para la simulación
 window.currentSimulationArticle = null;
 
-/** Obtener los artículos diarios (Conectado a la ruta de fusión) */
-export async function fetchDailyArticles(topic = 'news') {
+/** Obtener los artículos diarios (Conectado a la ruta de fusión con soporte de nivel CEFR) */
+export async function fetchDailyArticles(topic = 'news', level = null) {
     try {
         const token = localStorage.getItem('token');
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        // Llamamos a la ruta que fusiona DB + JSON pasando el tópico
-        const response = await fetch(`${API_BASE_URL}/articles?topic=${topic}`, { headers }); 
+        let url = `${API_BASE_URL}/articles?topic=${encodeURIComponent(topic)}`;
+        if (level) {
+            url += `&level=${encodeURIComponent(level)}`;
+        }
+        const response = await fetch(url, { headers }); 
         if (!response.ok) throw new Error(`Error en API: ${response.status}`);
         
         const data = await response.json();
@@ -30,7 +33,7 @@ export async function fetchDailyArticles(topic = 'news') {
  */
 export async function fetchArticleById(id, level = 'B1') {
     try {
-        const response = await fetch(`${API_BASE_URL}/articles/${id}?level=${level}`, {
+        const response = await fetch(`${API_BASE_URL}/articles/${id}/level/${level}`, {
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('token')}`
             }

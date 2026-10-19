@@ -367,6 +367,26 @@ async function trackQuizAnswerEvent(question, payload) {
 }
 
 // ========================================================
+// 🎓 NIVEL PREDETERMINADO DEL ESTUDIANTE
+// ========================================================
+export function getStudentLevel() {
+    let storedUser = null;
+    try {
+        storedUser = JSON.parse(localStorage.getItem('linguistfeed_user') || localStorage.getItem('user') || '{}');
+    } catch (_) {}
+    const level = (
+        localStorage.getItem('user_level') ||
+        localStorage.getItem('user-level') ||
+        localStorage.getItem('userLevel') ||
+        storedUser?.level ||
+        'B1'
+    ).toUpperCase();
+    localStorage.setItem('user_level', level);
+    localStorage.setItem('user-level', level);
+    return level;
+}
+
+// ========================================================
 // ⏱️ TIMER DE LECTURA ACTIVA Y META DIARIA EN EL LECTOR
 // ========================================================
 function getLocalDateString() {
@@ -425,14 +445,14 @@ function initActiveReadingTimer() {
         const pct = Math.min(Math.round((minutes / dailyGoalMinutes) * 100), 100);
 
         if (timeDisplay) {
-            timeDisplay.textContent = `⏱️ ${minutes} / ${dailyGoalMinutes} min`;
+            timeDisplay.innerHTML = `⏱️ <span class="active-minutes" style="color: #38bdf8; font-weight: 700;">${minutes}</span> / ${dailyGoalMinutes} min`;
         }
         if (progressBar) {
             progressBar.style.width = `${pct}%`;
             if (minutes >= dailyGoalMinutes) {
                 progressBar.style.background = '#10b981'; // Verde de meta completada
             } else {
-                progressBar.style.background = '#2563eb';
+                progressBar.style.background = '#38bdf8';
             }
         }
 
@@ -557,11 +577,14 @@ async function initReader() {
     const topic = params.get('topic');
     
     // Prioridad de nivel: 
-    // 1. El que venga en la URL (?level=A1)
-    // 2. El que tengamos guardado de antes
+    // 1. El que venga en la URL (?level=A1 o #level=A1)
+    // 2. El nivel guardado del estudiante (user_level / user-level / perfil)
     // 3. B1 por defecto
+    const studentLevel = getStudentLevel();
     const levelFromUrl = params.get('level');
-    const currentLevel = levelFromUrl || localStorage.getItem('user-level') || 'B1';
+    const currentLevel = (levelFromUrl || studentLevel).toUpperCase();
+    localStorage.setItem('user_level', currentLevel);
+    localStorage.setItem('user-level', currentLevel);
 
     if (!container) return;
 
@@ -643,7 +666,8 @@ async function loadDailyArticlesList(filterTopic = null) {
     if (loadingDiv) loadingDiv.style.display = 'block';
 
     try {
-        const data = await fetchDailyArticles(topic); 
+        const studentLevel = getStudentLevel();
+        const data = await fetchDailyArticles(topic, studentLevel); 
         const allData = data.articles || data;
 
         // --- DIAGNÓSTICO MEJORADO ---
@@ -674,7 +698,7 @@ async function loadDailyArticlesList(filterTopic = null) {
             })
             : articlesArray;
         
-        // Renderizado de la cuadrícula (Tu estructura original)
+        // Renderizado de la cuadrícula con nivel activo del estudiante y títulos adaptados
         container.innerHTML = `
             <div style="margin-bottom: 20px;">
                 <a href="#" onclick="window.location.hash=''; return false;" style="text-decoration:none; color:#007bff; font-weight:bold;">← Back to Topics</a>
@@ -686,6 +710,8 @@ async function loadDailyArticlesList(filterTopic = null) {
                     const classBadge = article.class_name
                         ? `<span class="classroom-badge" style="margin-left: 6px;">🏷️ ${article.class_name}</span>`
                         : '';
+                    const activeCardLevel = (localStorage.getItem(`temp-level-${identifier}`) || studentLevel).toUpperCase();
+                    const cardTitle = article.adapted_title || article.title || 'Untitled Article';
                     return `
                     <div class="card" style="border: 1px solid #ddd; padding: 15px; border-radius: 10px;">
                         <div>
@@ -693,18 +719,20 @@ async function loadDailyArticlesList(filterTopic = null) {
                                 <span class="badge" style="background: transparent; border: 1px solid #7a91ff; color: #eef2ff; padding: 2px 7px; font-size: 0.7rem; border-radius: 999px;">Subtopic: ${article.topic}</span>
                                 ${classBadge}
                             </div>
-                            <h3 style="cursor:pointer;" class="article-title">${article.title}</h3>
+                            <h3 style="cursor:pointer;" class="article-title" data-article-id="${identifier}">${cardTitle}</h3>
                             <p style="font-size: 0.85rem;">${article.content.substring(0, 80)}...</p>
                         </div>
                         <div class="level-selector-inline" style="display: flex; gap: 4px; margin: 10px 0; justify-content: center;">
-                            ${['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(lvl => `
+                            ${['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(lvl => {
+                                const isActive = (lvl === activeCardLevel);
+                                return `
                                 <button onclick="setArticleLevel('${identifier}', '${lvl}')" 
                                         id="btn-${article.id}-${lvl}"
-                                        class="level-btn ${lvl === (localStorage.getItem('user-level') || 'B1') ? 'active' : ''}"
-                                        style="font-size: 0.7rem; padding: 2px 6px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; background: white;">
+                                        class="level-btn ${isActive ? 'active' : ''}"
+                                        style="font-size: 0.7rem; padding: 2px 6px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; ${isActive ? 'background: #007bff; color: white;' : 'background: white; color: black;'}">
                                     ${lvl}
-                                </button>
-                            `).join('')}
+                                </button>`;
+                            }).join('')}
                         </div>
                         <div style="display: flex; gap: 10px;">
                             <a href="#" onclick="goToArticle('${identifier}', 'read'); return false;" style="text-decoration:none; color:#007bff; font-weight:bold;">Read</a>
@@ -768,9 +796,11 @@ async function loadFullArticle(id, level = null) {
 
     // --- PASO 2: DETERMINAR NIVEL ---
     const params = new URLSearchParams(window.location.hash.substring(1));
-    const activeLevel = level || params.get('level') || localStorage.getItem('user-level') || 'B1';
+    const studentLevel = getStudentLevel();
+    const activeLevel = (level || params.get('level') || studentLevel).toUpperCase();
     
     // Guardamos la preferencia
+    localStorage.setItem('user_level', activeLevel);
     localStorage.setItem('user-level', activeLevel);
 
     try {
@@ -785,8 +815,8 @@ async function loadFullArticle(id, level = null) {
         const safeArticleId = String(id).replace(/[^a-zA-Z0-9_-]/g, '_');
         const selectorContainerId = `level-selector-container-${safeArticleId}`;
         const articleText = article.simplified_content || article.content || '';
-        const completeTitle = (article.title && String(article.title).trim().length > 0)
-            ? String(article.title).trim()
+        const completeTitle = (article.adapted_title || (article.title && String(article.title).trim().length > 0))
+            ? String(article.adapted_title || article.title).trim()
             : 'Untitled Article';
 
         const classBadgeHtml = article.class_name
@@ -2480,44 +2510,63 @@ window.addEventListener('hashchange', () => {
     const panel = document.getElementById('audio-controls-panel');
     if (panel) panel.remove();
 });
-window.setArticleLevel = function(articleId, level) {
+window.setArticleLevel = async function(articleId, level) {
     console.log(`🎯 Nivel ${level} pre-seleccionado para la tarjeta ${articleId}`);
+    const upperLevel = String(level || 'B1').toUpperCase();
     
     // 1. Guardamos para que el sistema lo recuerde
-    localStorage.setItem(`temp-level-${articleId}`, level);
+    localStorage.setItem(`temp-level-${articleId}`, upperLevel);
     
     // 2. Buscamos la tarjeta en el DOM
-    const card = document.querySelector(`.card h3[onclick*="'${articleId}'"]`)?.closest('.card') 
+    const card = document.querySelector(`.card h3[data-article-id="${articleId}"]`)?.closest('.card')
+                 || document.querySelector(`.card h3[onclick*="'${articleId}'"]`)?.closest('.card') 
                  || document.querySelector(`button[id*="${articleId}"]`)?.closest('.card');
 
     if (card) {
         // Marcamos visualmente los botones de la tarjeta
         card.querySelectorAll('.level-btn').forEach(btn => {
+            btn.classList.remove('active');
             btn.style.background = 'white';
             btn.style.color = 'black';
         });
-        const activeBtn = card.querySelector(`[id$="-${level}"]`);
+        const activeBtn = card.querySelector(`[id$="-${upperLevel}"]`);
         if (activeBtn) {
+            activeBtn.classList.add('active');
             activeBtn.style.background = '#007bff';
             activeBtn.style.color = 'white';
         }
 
-        // ¡ESTO ES LO MÁS IMPORTANTE!: Actualizamos el botón "Read"
-        const readBtn = card.querySelector('a[onclick*="userMode\', \'read\'"]');
+        // Actualizamos el botón "Read"
+        const readBtn = card.querySelector('a[onclick*="userMode\', \'read\'"]') || card.querySelector('a[onclick*="goToArticle"]');
         if (readBtn) {
             const topic = new URLSearchParams(window.location.hash.substring(1)).get('topic') || '';
-            // Creamos la URL exacta con el nivel elegido
-            const newUrl = `reader.html#id=${articleId}&level=${level}&topic=${topic}`;
+            const newUrl = `reader.html#id=${articleId}&level=${upperLevel}&topic=${topic}`;
             readBtn.setAttribute('onclick', `localStorage.setItem('userMode', 'read'); window.location.href='${newUrl}'; return false;`);
+        }
+
+        // 3. Mostrar en la tarjeta el título adaptado correspondiente al nivel seleccionado
+        try {
+            const titleElem = card.querySelector('.article-title');
+            if (titleElem) {
+                const artData = await fetchArticleById(articleId, upperLevel);
+                if (artData && (artData.adapted_title || artData.title)) {
+                    titleElem.textContent = artData.adapted_title || artData.title;
+                }
+            }
+        } catch (err) {
+            console.warn(`No se pudo actualizar título adaptado para tarjeta ${articleId}:`, err.message);
         }
     }
 };
 
 window.goToArticle = function(id, mode) {
-    // Buscamos si eligió un nivel, si no, usamos el de su perfil o B1 por defecto
-    const selectedLevel = localStorage.getItem(`temp-level-${id}`) || localStorage.getItem('user-level') || 'B1';
+    // Buscamos si eligió un nivel, si no, usamos el nivel guardado del estudiante
+    const studentLevel = getStudentLevel();
+    const selectedLevel = (localStorage.getItem(`temp-level-${id}`) || studentLevel).toUpperCase();
     
     localStorage.setItem('userMode', mode);
+    localStorage.setItem('user_level', selectedLevel);
+    localStorage.setItem('user-level', selectedLevel);
     
     // Obtenemos el tópico actual del hash para no perder la navegación
     const params = new URLSearchParams(window.location.hash.substring(1));
@@ -2534,7 +2583,7 @@ window.initReader = initReader;
 window.loadFullArticle = loadFullArticle;
 window.handleLogout = handleLogout;
 
-export { initReader, loadFullArticle, saveFlashcardToStorage, showFlashcardPopup, closeFlashcardPopup };
+export { initReader, loadFullArticle, saveFlashcardToStorage, showFlashcardPopup, closeFlashcardPopup, getStudentLevel };
 
 // ESCUCHAR CAMBIOS DE NAVEGACIÓN
 window.addEventListener('hashchange', () => {
