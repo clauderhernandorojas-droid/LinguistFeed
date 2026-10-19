@@ -150,26 +150,18 @@ export function requireAuth() {
 async function handleOnboarding(event) {
   event.preventDefault();
 
-  const age = document.getElementById('user-age').value;
-  const level = document.getElementById('user-level').value;
-  const weeklyGoalSelect = document.getElementById('weekly-goal-select');
-  const weeklyGoalCustom = document.getElementById('weekly-goal-custom');
+  const age = document.getElementById('user-age')?.value || localStorage.getItem('userAge') || '25';
+  const level = document.getElementById('user-level')?.value || localStorage.getItem('userLevel') || 'B1';
 
   const selectedInterests = Array.from(document.querySelectorAll('input[name="interest"]:checked'))
     .map(cb => cb.value);
 
-  const selectedGoal = weeklyGoalSelect ? weeklyGoalSelect.value : '60';
-  const goalRaw = selectedGoal === 'custom'
-    ? (weeklyGoalCustom ? weeklyGoalCustom.value : '')
-    : selectedGoal;
-  const weeklyReadingGoalMinutes = parseInt(String(goalRaw), 10);
+  const dailyGoalInput = document.getElementById('daily-goal-input');
+  const dailyGoalMinutes = parseInt(dailyGoalInput?.value || localStorage.getItem('daily_goal_minutes') || '15', 10) || 15;
+  const weeklyReadingGoalMinutes = dailyGoalMinutes * 7;
 
   if (selectedInterests.length < 2) {
     alert("Por favor, elige al menos 2 temas de tu interés.");
-    return;
-  }
-  if (!Number.isInteger(weeklyReadingGoalMinutes) || weeklyReadingGoalMinutes < 15 || weeklyReadingGoalMinutes > 600) {
-    alert("La meta semanal debe ser un número entre 15 y 600 minutos.");
     return;
   }
 
@@ -231,12 +223,80 @@ async function handleOnboarding(event) {
   }
 }
 
+export const OFFICIAL_TOPICS = [
+  { id: 'science', name: 'Science', icon: '🔬' },
+  { id: 'tech', name: 'Technology', icon: '💻' },
+  { id: 'history', name: 'History', icon: '📜' },
+  { id: 'culture', name: 'Culture', icon: '🎨' },
+  { id: 'trends', name: 'Pop Culture', icon: '✨' },
+  { id: 'movies', name: 'Movies & Series', icon: '🎬' },
+  { id: 'gaming', name: 'Gaming', icon: '🎮' },
+  { id: 'travel', name: 'Travel', icon: '✈️' },
+  { id: 'lifestyle', name: 'Lifestyle', icon: '🏡' },
+  { id: 'health', name: 'Health', icon: '🏥' },
+  { id: 'edu', name: 'Education', icon: '📚' },
+  { id: 'classroom', name: 'Classroom', icon: '🧑‍🏫' },
+  { id: 'business', name: 'Business', icon: '💼' },
+  { id: 'news', name: 'Global News', icon: '🌍' }
+];
+
+export function normalizeTopicId(t) {
+  const map = {
+    technology: 'tech',
+    pop_culture: 'trends',
+    'pop-culture': 'trends',
+    movies_series: 'movies',
+    'movies-series': 'movies',
+    education: 'edu',
+    global_news: 'news',
+    'global-news': 'news',
+    world: 'news'
+  };
+  return map[t] || t;
+}
+
+export function updateInterests(savedInterests = null) {
+  const interestsGrid = document.getElementById('interests-grid');
+  const interestsSection = document.getElementById('interests-section');
+  if (!interestsGrid) return;
+  interestsGrid.innerHTML = '';
+
+  const currentSavedRaw = savedInterests !== null
+    ? savedInterests
+    : (localStorage.getItem('user-interests') || '');
+
+  const currentSavedList = (Array.isArray(currentSavedRaw) ? currentSavedRaw : currentSavedRaw.split(','))
+    .map(s => normalizeTopicId(String(s).trim().toLowerCase()))
+    .filter(Boolean);
+
+  OFFICIAL_TOPICS.forEach(topic => {
+    const card = document.createElement('label');
+    card.className = 'interest-card-item';
+    const isChecked = currentSavedList.includes(topic.id.toLowerCase());
+    if (isChecked) card.classList.add('selected');
+
+    card.innerHTML = `
+      <input type="checkbox" name="interest" value="${topic.id}" style="display:none" ${isChecked ? 'checked' : ''}>
+      <div class="card-content">
+          <span class="icon">${topic.icon}</span>
+          <span class="name">${topic.name}</span>
+      </div>
+    `;
+
+    card.addEventListener('change', (e) => {
+      card.classList.toggle('selected', e.target.checked);
+    });
+
+    interestsGrid.appendChild(card);
+  });
+
+  if (interestsSection) interestsSection.style.display = 'block';
+}
+
 function initOnboarding() {
   const modal = document.getElementById('onboarding-modal');
   const form = document.getElementById('onboarding-form');
   const ageInput = document.getElementById('user-age');
-  const weeklyGoalSelect = document.getElementById('weekly-goal-select');
-  const weeklyGoalCustom = document.getElementById('weekly-goal-custom');
   const interestsSection = document.getElementById('interests-section');
   const interestsGrid = document.getElementById('interests-grid');
 
@@ -266,11 +326,18 @@ function initOnboarding() {
       const fullUser = await response.json();
       if (!hasCompletedOnboarding(fullUser)) {
         modal.style.display = 'flex';
+        if (fullUser.interests != null) {
+          localStorage.setItem('user-interests', String(fullUser.interests));
+          updateInterests(fullUser.interests);
+        }
       } else {
         modal.style.display = 'none';
         if (fullUser.level) localStorage.setItem('userLevel', String(fullUser.level));
         if (fullUser.age != null) localStorage.setItem('userAge', String(fullUser.age));
-        if (fullUser.interests != null) localStorage.setItem('user-interests', String(fullUser.interests));
+        if (fullUser.interests != null) {
+          localStorage.setItem('user-interests', String(fullUser.interests));
+          updateInterests(fullUser.interests);
+        }
         const storedUser = readStoredUser();
         if (storedUser) {
           localStorage.setItem(USER_STORAGE_KEY, JSON.stringify({
@@ -287,72 +354,9 @@ function initOnboarding() {
     }
   };
   maybeShowOnboarding();
-  const themes = {
-    young: [
-      { id: 'gaming', name: 'Video Juegos & Deportes', icon: '🎮' },
-      { id: 'tech', name: 'Tecnología', icon: '💻' },
-      { id: 'trends', name: 'Cultura Pop', icon: '✨' },
-      { id: 'edu', name: 'Estudios/Carrera', icon: '📚' },
-      { id: 'travel', name: 'Aventura', icon: '✈️' },
-      { id: 'movies', name: 'Cine y Series', icon: '🎬' }
-    ],
-    adult: [
-      { id: 'business', name: 'Negocios y Economía', icon: '💼' },
-      { id: 'news', name: 'Noticias Globales', icon: '🌎' },
-      { id: 'health', name: 'Salud y Bienestar', icon: '🏥' },
-      { id: 'science', name: 'Ciencia', icon: '🔬' },
-      { id: 'history', name: 'Historia y Filo', icon: '📜' },
-      { id: 'lifestyle', name: 'Estilo de Vida', icon: '🏠' }
-    ]
-  };
 
-  function updateInterests(age) {
-    if (!interestsGrid) return;
-    interestsGrid.innerHTML = '';
-
-    const numAge = parseInt(age, 10);
-    const group = (!isNaN(numAge) && numAge <= 25) ? themes.young : themes.adult;
-
-    const currentSavedInterests = (localStorage.getItem('user-interests') || '')
-      .split(',')
-      .map(s => s.trim().toLowerCase())
-      .filter(Boolean);
-
-    group.forEach(theme => {
-      const card = document.createElement('label');
-      card.className = 'interest-card-item';
-      const isChecked = currentSavedInterests.includes(theme.id.toLowerCase());
-      if (isChecked) card.classList.add('selected');
-
-      card.innerHTML = `
-        <input type="checkbox" name="interest" value="${theme.id}" style="display:none" ${isChecked ? 'checked' : ''}>
-        <div class="card-content">
-            <span class="icon">${theme.icon}</span>
-            <span class="name">${theme.name}</span>
-        </div>
-      `;
-
-      card.addEventListener('change', (e) => {
-        card.classList.toggle('selected', e.target.checked);
-      });
-
-      interestsGrid.appendChild(card);
-    });
-
-    if (interestsSection) interestsSection.style.display = 'block';
-  }
-
-  // Inicializar temas inmediatamente para que la lista esté visible y no se quede bloqueada
-  const initialAge = (ageInput && ageInput.value) ? ageInput.value : (localStorage.getItem('userAge') || '25');
-  if (ageInput && !ageInput.value && localStorage.getItem('userAge')) {
-    ageInput.value = localStorage.getItem('userAge');
-  }
-  updateInterests(initialAge);
-
-  ageInput?.addEventListener('input', (e) => {
-    const age = parseInt(e.target.value, 10);
-    updateInterests(age);
-  });
+  // Inicializar los 14 temas inmediatamente para que la lista esté completa y visible
+  updateInterests();
 
   // Funciones de cierre del modal (Botón X, Botón Cancelar, Backdrop click y Escape)
   const closeModal = () => {
@@ -378,18 +382,6 @@ function initOnboarding() {
       closeModal();
     }
   });
-
-  if (weeklyGoalSelect && weeklyGoalCustom) {
-    const toggleCustomGoalInput = () => {
-      const isCustom = weeklyGoalSelect.value === 'custom';
-      weeklyGoalCustom.style.display = isCustom ? 'block' : 'none';
-      if (!isCustom) {
-        weeklyGoalCustom.value = '';
-      }
-    };
-    weeklyGoalSelect.addEventListener('change', toggleCustomGoalInput);
-    toggleCustomGoalInput();
-  }
 
   // Interacción de tarjetas para meta diaria (10, 15, 20, 30 min)
   const goalCards = document.querySelectorAll('.daily-goal-card');

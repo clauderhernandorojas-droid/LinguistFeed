@@ -4,7 +4,7 @@
  * This module provides functions for displaying user progress and dashboard information.
  */
 
-import { getUser, requireAuth, logout } from './auth.js';
+import { getUser, requireAuth, logout, updateInterests } from './auth.js';
 import { API_BASE_URL } from './config.js';
 
 /**
@@ -349,41 +349,16 @@ export function bindEditProfileButton() {
                 .split(',')
                 .map(s => s.trim().toLowerCase())
                 .filter(Boolean);
-            const weeklyGoal = localStorage.getItem('weeklyReadingGoalMinutes') || '60';
-
             const ageInput = document.getElementById('user-age');
             const levelSelect = document.getElementById('user-level');
-            const weeklyGoalSelect = document.getElementById('weekly-goal-select');
-            const weeklyGoalCustom = document.getElementById('weekly-goal-custom');
             
-            if (ageInput) {
-                ageInput.value = age;
-                // Dispara el evento input para renderizar temas acordes a la edad
-                ageInput.dispatchEvent(new Event('input'));
-            }
+            if (ageInput) ageInput.value = age;
             if (levelSelect) levelSelect.value = level;
-            if (weeklyGoalSelect && weeklyGoalCustom) {
-                const allowed = ['30', '45', '60', '90', '120', '180'];
-                if (allowed.includes(weeklyGoal)) {
-                    weeklyGoalSelect.value = weeklyGoal;
-                    weeklyGoalCustom.style.display = 'none';
-                    weeklyGoalCustom.value = '';
-                } else {
-                    weeklyGoalSelect.value = 'custom';
-                    weeklyGoalCustom.style.display = 'block';
-                    weeklyGoalCustom.value = weeklyGoal;
-                }
-            }
 
-            // Marcar visualmente los checkboxes de temas guardados
-            document.querySelectorAll('input[name="interest"]').forEach(cb => {
-                const isSelected = rawInterests.includes(cb.value.toLowerCase());
-                cb.checked = isSelected;
-                const card = cb.closest('.interest-card-item');
-                if (card) {
-                    card.classList.toggle('selected', isSelected);
-                }
-            });
+            // Renderizar y marcar visualmente las 14 categorías oficiales con los intereses guardados
+            if (typeof updateInterests === 'function') {
+                updateInterests(rawInterests);
+            }
 
             // Precargar meta diaria de lectura
             const dailyGoal = localStorage.getItem('daily_goal_minutes') || '15';

@@ -1,19 +1,19 @@
 // Definimos la lista maestra de temas (alineada con onboarding joven/adulto y RssService.js)
 const allTopics = [
-    { id: 'classroom', name: 'Classroom', icon: '👨‍🏫', color: '#fff9c4', special: true },
-    { id: 'news', name: 'Global News', icon: '🌎', color: '#e3f2fd' },
-    { id: 'business', name: 'Business', icon: '💼', color: '#f3e5f5' },
-    { id: 'tech', name: 'Technology', icon: '💻', color: '#e8f5e9' },
     { id: 'science', name: 'Science', icon: '🔬', color: '#e0f2f1' },
+    { id: 'tech', name: 'Technology', icon: '💻', color: '#e8f5e9' },
     { id: 'history', name: 'History', icon: '📜', color: '#fff8e1' },
     { id: 'culture', name: 'Culture', icon: '🎨', color: '#fce4ec' },
-    { id: 'gaming', name: 'Gaming', icon: '🎮', color: '#ede7f6' },
     { id: 'trends', name: 'Pop Culture', icon: '✨', color: '#fff3e0' },
-    { id: 'health', name: 'Health', icon: '🏥', color: '#f1f8e9' },
-    { id: 'lifestyle', name: 'Lifestyle', icon: '🏠', color: '#efebe9' },
-    { id: 'edu', name: 'Education', icon: '📚', color: '#f0f4c3' },
+    { id: 'movies', name: 'Movies & Series', icon: '🎬', color: '#d1c4e9' },
+    { id: 'gaming', name: 'Gaming', icon: '🎮', color: '#ede7f6' },
     { id: 'travel', name: 'Travel', icon: '✈️', color: '#ffe0b2' },
-    { id: 'movies', name: 'Movies & Series', icon: '🎬', color: '#d1c4e9' }
+    { id: 'lifestyle', name: 'Lifestyle', icon: '🏡', color: '#efebe9' },
+    { id: 'health', name: 'Health', icon: '🏥', color: '#f1f8e9' },
+    { id: 'edu', name: 'Education', icon: '📚', color: '#f0f4c3' },
+    { id: 'classroom', name: 'Classroom', icon: '🧑‍🏫', color: '#fff9c4', special: true },
+    { id: 'business', name: 'Business', icon: '💼', color: '#f3e5f5' },
+    { id: 'news', name: 'Global News', icon: '🌍', color: '#e3f2fd' }
 ];
 
 export function renderTopics() {
