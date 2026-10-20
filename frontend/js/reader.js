@@ -654,34 +654,127 @@ async function initReader() {
 }
 
 /**
- * Muestra la cuadrícula de temas inicial
+ * Curated high-resolution editorial photography from Unsplash CDN for each topic
+ * Rotated via article.id % 3 so every article card has an attractive cover
+ */
+const CURATED_TOPIC_PHOTOS = {
+    science: [
+        'https://images.unsplash.com/photo-1507668077129-56e32842fceb?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1532094349884-543bc11b234d?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1518152006812-edab29b069ac?auto=format&fit=crop&w=600&q=80'
+    ],
+    tech: [
+        'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?auto=format&fit=crop&w=600&q=80'
+    ],
+    technology: [
+        'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?auto=format&fit=crop&w=600&q=80'
+    ],
+    history: [
+        'https://images.unsplash.com/photo-1461360370896-922624d12aa1?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=600&q=80'
+    ],
+    culture: [
+        'https://images.unsplash.com/photo-1499785127369-8a5b1504c359?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1533158307587-828f0a76ef46?auto=format&fit=crop&w=600&q=80'
+    ],
+    trends: [
+        'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=600&q=80'
+    ],
+    movies: [
+        'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?auto=format&fit=crop&w=600&q=80'
+    ],
+    gaming: [
+        'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1612287233261-75fe1a8a29a1?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=600&q=80'
+    ],
+    travel: [
+        'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=600&q=80'
+    ],
+    lifestyle: [
+        'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&w=600&q=80'
+    ],
+    health: [
+        'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1505751172876-fa1923c5c528?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1498837167922-ddd27525d352?auto=format&fit=crop&w=600&q=80'
+    ],
+    edu: [
+        'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=600&q=80'
+    ],
+    education: [
+        'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=600&q=80'
+    ],
+    classroom: [
+        'https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=600&q=80'
+    ],
+    business: [
+        'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=600&q=80'
+    ],
+    news: [
+        'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?auto=format&fit=crop&w=600&q=80',
+        'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=600&q=80'
+    ]
+};
+
+function getCuratedTopicPhoto(topic, articleId = 0) {
+    const raw = String(topic || 'news').toLowerCase().trim();
+    const list = CURATED_TOPIC_PHOTOS[raw] || CURATED_TOPIC_PHOTOS.news;
+    const numId = typeof articleId === 'number' ? articleId : (parseInt(String(articleId).replace(/\D/g, ''), 10) || 0);
+    const index = Math.abs(numId) % list.length;
+    return list[index];
+}
+
+/**
+ * Muestra la cuadrícula de temas con diseño moderno y SVG limpios
  */
 function displayTopicSelection() {
     const container = document.getElementById('articles-container');
     const levels = document.getElementById('level-selector-container');
     if (levels) levels.innerHTML = ''; 
     
-    // Lista completa de 10 temas para que no se vea vacía
     const topics = [
-        { id: 'news', icon: '🌎', label: 'News', color: '#e3f2fd' },
-        { id: 'business', icon: '💼', label: 'Business', color: '#f3e5f5' },
-        { id: 'tech', icon: '💻', label: 'Tech', color: '#e8f5e9' },
-        { id: 'science', icon: '🔬', label: 'Science', color: '#e0f2f1' },
-        { id: 'history', icon: '📜', label: 'History', color: '#fff8e1' },
-        { id: 'culture', icon: '🎨', label: 'Culture', color: '#fce4ec' },
-        { id: 'gaming', icon: '🎮', label: 'Gaming', color: '#ede7f6' },
-        { id: 'trends', icon: '✨', label: 'Trends', color: '#fff3e0' },
-        { id: 'health', icon: '🏥', label: 'Health', color: '#f1f8e9' },
-        { id: 'lifestyle', icon: '🏠', label: 'Lifestyle', color: '#efebe9' }
+        { id: 'news', label: 'News', svg: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>' },
+        { id: 'business', label: 'Business', svg: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>' },
+        { id: 'tech', label: 'Technology', svg: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/><path d="m9 8-2 2 2 2"/><path d="m15 8 2 2-2 2"/></svg>' },
+        { id: 'science', label: 'Science', svg: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.31L4.36 19.34A2 2 0 0 0 6.09 22h11.82a2 2 0 0 0 1.73-2.66L14 9.31V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/></svg>' },
+        { id: 'history', label: 'History', svg: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M6 18V9"/><path d="M10 18V9"/><path d="M14 18V9"/><path d="M18 18V9"/><path d="m2 9 10-6 10 6"/><path d="M4 18h16"/></svg>' },
+        { id: 'culture', label: 'Culture', svg: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.992 6.301 17.491 2 12 2z"/></svg>' },
+        { id: 'gaming', label: 'Gaming', svg: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="10" y1="12" y2="12"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="15" x2="15.01" y1="13" y2="13"/><line x1="18" x2="18.01" y1="11" y2="11"/><rect width="20" height="12" x="2" y="6" rx="6"/></svg>' },
+        { id: 'trends', label: 'Trends', svg: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"/><path d="M5 3v4"/><path d="M3 5h4"/><path d="M19 17v4"/><path d="M17 19h4"/></svg>' },
+        { id: 'health', label: 'Health', svg: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M12 5v14"/><path d="M5 12h14"/></svg>' },
+        { id: 'lifestyle', label: 'Lifestyle', svg: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>' }
     ];
 
     container.innerHTML = `
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px; margin-top: 30px;">
+        <div class="topics-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 18px; margin-top: 25px;">
             ${topics.map(t => `
-                <div onclick="window.location.hash = 'topic=${t.id}'" 
-                     style="background:${t.color}; padding: 30px; border-radius: 15px; text-align: center; cursor: pointer; border: 1px solid #ddd; transition: transform 0.2s;">
-                    <div style="font-size: 3rem; margin-bottom: 10px;">${t.icon}</div>
-                    <strong style="font-size: 1.2rem; color: #2d3748;">${t.label}</strong>
+                <div class="topic-card" onclick="window.location.hash = 'topic=${t.id}'">
+                    <div class="topic-icon-wrap">${t.svg}</div>
+                    <span class="topic-name">${t.label}</span>
                 </div>
             `).join('')}
         </div>
@@ -718,17 +811,25 @@ function getTopicPlaceholderHtml(topic) {
 function renderArticleCardThumb(article) {
     const rawTitle = article?.title ? String(article.title).replace(/"/g, '&quot;') : 'Article thumbnail';
     const topic = article?.topic || 'news';
-    const safeTopic = String(topic).replace(/'/g, "\\'");
+    const fallbackPhoto = getCuratedTopicPhoto(topic, article?.id || 0);
+
+    // Si tiene URL real de imagen scraped, usarla y fallback a la foto editorial curada si da error
     if (article?.image_url && String(article.image_url).trim().startsWith('http')) {
         const safeImgUrl = String(article.image_url).trim().replace(/"/g, '&quot;');
         return `<div class="article-card-thumb">
             <img src="${safeImgUrl}" 
                  alt="${rawTitle}" 
                  loading="lazy" 
-                 onerror="this.onerror=null; if (this.parentElement) this.parentElement.innerHTML = (window.getTopicPlaceholderHtml ? window.getTopicPlaceholderHtml('${safeTopic}') : '');">
+                 onerror="this.onerror=null; this.src='${fallbackPhoto}';">
         </div>`;
     }
-    return `<div class="article-card-thumb">${getTopicPlaceholderHtml(topic)}</div>`;
+
+    return `<div class="article-card-thumb">
+        <img src="${fallbackPhoto}" 
+             alt="${rawTitle}" 
+             loading="lazy"
+             onerror="this.onerror=null; if (this.parentElement) this.parentElement.innerHTML = (window.getTopicPlaceholderHtml ? window.getTopicPlaceholderHtml('${String(topic).replace(/'/g, "\\'")}') : '');">
+    </div>`;
 }
 
 
@@ -2682,8 +2783,9 @@ window.handleLogout = handleLogout;
 window.getStudentLevel = getStudentLevel;
 window.renderArticleCardThumb = renderArticleCardThumb;
 window.getTopicPlaceholderHtml = getTopicPlaceholderHtml;
+window.getCuratedTopicPhoto = getCuratedTopicPhoto;
 
-export { initReader, loadFullArticle, saveFlashcardToStorage, showFlashcardPopup, closeFlashcardPopup, getStudentLevel, renderArticleCardThumb, getTopicPlaceholderHtml };
+export { initReader, loadFullArticle, saveFlashcardToStorage, showFlashcardPopup, closeFlashcardPopup, getStudentLevel, renderArticleCardThumb, getTopicPlaceholderHtml, getCuratedTopicPhoto };
 
 // ESCUCHAR CAMBIOS DE NAVEGACIÓN
 window.addEventListener('hashchange', () => {

@@ -1,19 +1,76 @@
-// Definimos la lista maestra de temas (alineada con onboarding joven/adulto y RssService.js)
+// Definimos la lista maestra de temas con íconos SVG vectoriales limpios (estilo Lucide/Feather)
 const allTopics = [
-    { id: 'science', name: 'Science', icon: '🔬', color: '#e0f2f1' },
-    { id: 'tech', name: 'Technology', icon: '💻', color: '#e8f5e9' },
-    { id: 'history', name: 'History', icon: '📜', color: '#fff8e1' },
-    { id: 'culture', name: 'Culture', icon: '🎨', color: '#fce4ec' },
-    { id: 'trends', name: 'Pop Culture', icon: '✨', color: '#fff3e0' },
-    { id: 'movies', name: 'Movies & Series', icon: '🎬', color: '#d1c4e9' },
-    { id: 'gaming', name: 'Gaming', icon: '🎮', color: '#ede7f6' },
-    { id: 'travel', name: 'Travel', icon: '✈️', color: '#ffe0b2' },
-    { id: 'lifestyle', name: 'Lifestyle', icon: '🏡', color: '#efebe9' },
-    { id: 'health', name: 'Health', icon: '🏥', color: '#f1f8e9' },
-    { id: 'edu', name: 'Education', icon: '📚', color: '#f0f4c3' },
-    { id: 'classroom', name: 'Classroom', icon: '🧑‍🏫', color: '#fff9c4', special: true },
-    { id: 'business', name: 'Business', icon: '💼', color: '#f3e5f5' },
-    { id: 'news', name: 'Global News', icon: '🌍', color: '#e3f2fd' }
+    { 
+        id: 'science', 
+        name: 'Science', 
+        svg: `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.31L4.36 19.34A2 2 0 0 0 6.09 22h11.82a2 2 0 0 0 1.73-2.66L14 9.31V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/></svg>` 
+    },
+    { 
+        id: 'tech', 
+        name: 'Technology', 
+        svg: `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/><path d="m9 8-2 2 2 2"/><path d="m15 8 2 2-2 2"/></svg>` 
+    },
+    { 
+        id: 'history', 
+        name: 'History', 
+        svg: `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M6 18V9"/><path d="M10 18V9"/><path d="M14 18V9"/><path d="M18 18V9"/><path d="m2 9 10-6 10 6"/><path d="M4 18h16"/></svg>` 
+    },
+    { 
+        id: 'culture', 
+        name: 'Culture', 
+        svg: `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.992 6.301 17.491 2 12 2z"/></svg>` 
+    },
+    { 
+        id: 'trends', 
+        name: 'Pop Culture', 
+        svg: `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"/><path d="M5 3v4"/><path d="M3 5h4"/><path d="M19 17v4"/><path d="M17 19h4"/></svg>` 
+    },
+    { 
+        id: 'movies', 
+        name: 'Movies & Series', 
+        svg: `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="20" x="2" y="2" rx="2.18"/><line x1="7" x2="7" y1="2" y2="22"/><line x1="17" x2="17" y1="2" y2="22"/><line x1="2" x2="22" y1="12" y2="12"/><line x1="2" x2="7" y1="7" y2="7"/><line x1="2" x2="7" y1="17" y2="17"/><line x1="17" x2="22" y1="17" y2="17"/><line x1="17" x2="22" y1="7" y2="7"/></svg>` 
+    },
+    { 
+        id: 'gaming', 
+        name: 'Gaming', 
+        svg: `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="10" y1="12" y2="12"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="15" x2="15.01" y1="13" y2="13"/><line x1="18" x2="18.01" y1="11" y2="11"/><rect width="20" height="12" x="2" y="6" rx="6"/></svg>` 
+    },
+    { 
+        id: 'travel', 
+        name: 'Travel', 
+        svg: `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>` 
+    },
+    { 
+        id: 'lifestyle', 
+        name: 'Lifestyle', 
+        svg: `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>` 
+    },
+    { 
+        id: 'health', 
+        name: 'Health', 
+        svg: `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M12 5v14"/><path d="M5 12h14"/></svg>` 
+    },
+    { 
+        id: 'edu', 
+        name: 'Education', 
+        svg: `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>` 
+    },
+    { 
+        id: 'classroom', 
+        name: 'Classroom', 
+        special: true,
+        svg: `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>` 
+    },
+    { 
+        id: 'business', 
+        name: 'Business', 
+        svg: `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>` 
+    },
+    { 
+        id: 'news', 
+        name: 'Global News', 
+        svg: `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>` 
+    }
 ];
 
 export function getSavedStudentLevel() {
@@ -107,10 +164,13 @@ export function renderTopics() {
     // 4. Función auxiliar para crear la tarjeta (computa el nivel real al hacer clic)
     const createCard = (topic) => {
         const card = document.createElement('div');
-        card.className = 'topic-card';
+        card.className = `topic-card ${topic.special ? 'topic-special' : ''}`;
         card.innerHTML = `
-            <div style="font-size: 3rem; margin-bottom: 10px;">${topic.icon}</div>
-            <strong style="font-size: 1.2rem; color: #eef2ff;">${topic.name}</strong>
+            <div class="topic-icon-wrap">${topic.svg}</div>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <span class="topic-name">${topic.name}</span>
+                ${topic.special ? '<span class="topic-special-badge">Classroom</span>' : ''}
+            </div>
         `;
         card.onclick = () => {
             const currentLevel = getSavedStudentLevel();

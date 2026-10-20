@@ -1,88 +1,82 @@
 const { run, get, all } = require('../database/db');
 const scraperService = require('../services/scraperService');
 
-async function backfillImages() {
-  console.log('🔄 Starting backfill of real article images...');
+/**
+ * Backfill exhaustivo y seguro de imágenes de artículos
+ * Procesa todos los artículos sin imagen con throttling de 1.8 segundos para evitar bloqueos 429/403.
+ */
+async function backfillAllArticleImages() {
+  console.log('🔄 Iniciando backfill exhaustivo de imágenes de artículos con throttling...');
 
-  // 1. Get recent daily articles missing images
-  const dailyArticles = await all(`
-    SELECT DISTINCT a.id, a.title, a.url, a.topic
-    FROM daily_articles da
-    JOIN articles a ON da.article_id = a.id
-    WHERE a.image_url IS NULL AND a.url IS NOT NULL AND a.url LIKE 'http%'
-    ORDER BY da.id DESC
-    LIMIT 50
+  // Tomamos todos los artículos con URL válida que aún no tienen imagen de portada
+  const articlesToProcess = await all(`
+    SELECT id, title, url, topic
+    FROM articles
+    WHERE image_url IS NULL 
+      AND url IS NOT NULL 
+      AND (url LIKE 'http://%' OR url LIKE 'https://%')
+    ORDER BY id DESC
   `);
 
-  console.log(`Found ${dailyArticles.length} recent daily articles without image_url.`);
+  const total = articlesToProcess.length;
+  console.log(`📋 Total de artículos pendientes de procesar: ${total}`);
 
-  // 2. Also get latest 8 articles per topic without images
-  const topics = [
-    'science', 'tech', 'history', 'culture', 'trends',
-    'movies', 'gaming', 'travel', 'lifestyle', 'health',
-    'edu', 'classroom', 'business', 'news'
-  ];
-
-  const targetArticlesMap = new Map();
-  for (const art of dailyArticles) {
-    targetArticlesMap.set(art.id, art);
+  if (total === 0) {
+    console.log('✨ Todos los artículos ya cuentan con imagen de portada asignada.');
+    return;
   }
-
-  for (const topic of topics) {
-    const topicArticles = await all(`
-      SELECT id, title, url, topic
-      FROM articles
-      WHERE topic = ? AND image_url IS NULL AND url IS NOT NULL AND url LIKE 'http%'
-      ORDER BY id DESC
-      LIMIT 6
-    `, [topic]);
-
-    for (const art of topicArticles) {
-      if (!targetArticlesMap.has(art.id)) {
-        targetArticlesMap.set(art.id, art);
-      }
-    }
-  }
-
-  const articlesToProcess = Array.from(targetArticlesMap.values());
-  console.log(`📋 Total distinct articles to scrape images for: ${articlesToProcess.length}`);
 
   let successCount = 0;
   let failCount = 0;
+  const startTime = Date.now();
 
-  for (let i = 0; i < articlesToProcess.length; i++) {
+  for (let i = 0; i < total; i++) {
     const art = articlesToProcess[i];
-    console.log(`[${i + 1}/${articlesToProcess.length}] (${art.topic}) Scraping: "${art.title.slice(0, 45)}..." -> ${art.url}`);
+    const progress = `[${i + 1}/${total}] (${Math.round(((i + 1) / total) * 100)}%)`;
+    console.log(`${progress} [ID:${art.id}] [${art.topic}] "${(art.title || '').slice(0, 40)}..."`);
 
     try {
       const scraped = await scraperService.scrapeArticle(art.url);
-      if (scraped && scraped.imageUrl) {
-        await run('UPDATE articles SET image_url = ? WHERE id = ?', [scraped.imageUrl, art.id]);
-        console.log(`  ✅ Extracted real image: ${scraped.imageUrl.slice(0, 80)}...`);
+      if (scraped && scraped.imageUrl && String(scraped.imageUrl).startsWith('http')) {
+        await run('UPDATE articles SET image_url = ? WHERE id = ?', [scraped.imageUrl.trim(), art.id]);
+        console.log(`  ✅ Imagen extraída y guardada: ${scraped.imageUrl.slice(0, 75)}...`);
         successCount++;
       } else {
-        console.log(`  ⚠️ No cover image found in page metadata for ID ${art.id}`);
+        console.log(`  ⚠️ Sin metadato de imagen de portada para ID: ${art.id}`);
         failCount++;
       }
     } catch (err) {
-      console.warn(`  ❌ Failed to scrape ${art.url}: ${err.message}`);
+      console.warn(`  ❌ Error al procesar ${art.url}: ${err.message}`);
       failCount++;
     }
 
-    // Small delay between requests to be polite to host servers
-    await new Promise(r => setTimeout(r, 400));
+    // Retardo obligatorio de 1.8 segundos entre peticiones para proteger contra 429/403
+    if (i < total - 1) {
+      await new Promise(r => setTimeout(r, 1800));
+    }
+
+    // Reporte periódico cada 25 artículos
+    if ((i + 1) % 25 === 0) {
+      const elapsedMins = ((Date.now() - startTime) / 60000).toFixed(1);
+      console.log(`\n📊 Hito de progreso: ${i + 1}/${total} artículos procesados en ${elapsedMins} min (Éxitos: ${successCount}, Sin imagen/Error: ${failCount})\n`);
+    }
   }
 
-  console.log(`\n🎉 Backfill complete! Success: ${successCount}, No image/failed: ${failCount}`);
-  
-  // Show updated stats
-  const withImg = await get('SELECT count(*) as count FROM articles WHERE image_url IS NOT NULL');
-  console.log(`Total articles in DB with real image_url now: ${withImg.count}`);
+  const totalElapsed = ((Date.now() - startTime) / 60000).toFixed(1);
+  console.log(`\n🎉 Backfill completado en ${totalElapsed} minutos.`);
+  console.log(`   - Nuevas imágenes guardadas: ${successCount}`);
+  console.log(`   - Sin imagen o error: ${failCount}`);
+
+  const totalWithImg = await get('SELECT count(*) as count FROM articles WHERE image_url IS NOT NULL');
+  console.log(`✨ Total de artículos con imagen en la base de datos ahora: ${totalWithImg.count}`);
 }
 
-backfillImages()
-  .then(() => process.exit(0))
+backfillAllArticleImages()
+  .then(() => {
+    console.log('✅ Proceso terminado exitosamente.');
+    process.exit(0);
+  })
   .catch((err) => {
-    console.error('Fatal error during backfill:', err);
+    console.error('❌ Error fatal en backfill:', err);
     process.exit(1);
   });
