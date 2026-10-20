@@ -44,6 +44,72 @@ class ScraperService {
                    $('h1').first().text().trim() || 
                    $('title').text().trim() || 
                    'Untitled Article';
+
+      // Extract main cover image (Open Graph, Twitter, JSON-LD, or prominent article image)
+      let imageUrl = $('meta[property="og:image"]').attr('content')?.trim() ||
+                     $('meta[property="og:image:url"]').attr('content')?.trim() ||
+                     $('meta[property="og:image:secure_url"]').attr('content')?.trim() ||
+                     $('meta[name="twitter:image"]').attr('content')?.trim() ||
+                     $('meta[name="twitter:image:src"]').attr('content')?.trim() ||
+                     $('meta[property="twitter:image"]').attr('content')?.trim() ||
+                     $('meta[itemprop="image"]').attr('content')?.trim() ||
+                     $('meta[name="thumbnail"]').attr('content')?.trim() ||
+                     $('link[rel="image_src"]').attr('href')?.trim() ||
+                     null;
+
+      // Check JSON-LD structured data if meta tags are missing
+      if (!imageUrl) {
+        $('script[type="application/ld+json"]').each((_, el) => {
+          if (imageUrl) return;
+          try {
+            const rawJson = $(el).html();
+            if (!rawJson) return;
+            const parsed = JSON.parse(rawJson);
+            const candidates = Array.isArray(parsed) ? parsed : [parsed, ...(parsed['@graph'] || [])];
+            for (const item of candidates) {
+              if (!item) continue;
+              const imgField = item.image || item.thumbnailUrl;
+              if (typeof imgField === 'string' && imgField.startsWith('http')) {
+                imageUrl = imgField.trim();
+                break;
+              } else if (Array.isArray(imgField) && typeof imgField[0] === 'string') {
+                imageUrl = imgField[0].trim();
+                break;
+              } else if (imgField && typeof imgField.url === 'string') {
+                imageUrl = imgField.url.trim();
+                break;
+              }
+            }
+          } catch (_) {}
+        });
+      }
+
+      if (!imageUrl) {
+        const firstImg = $('article figure img, main figure img, article img, main img, .article-content img, .entry-content img, .post-content img')
+          .filter((_, el) => {
+            const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-original-src');
+            if (!src) return false;
+            const width = parseInt($(el).attr('width') || '100', 10);
+            const height = parseInt($(el).attr('height') || '100', 10);
+            return width > 80 && height > 80 && !src.includes('tracker') && !src.includes('pixel') && !src.includes('avatar') && !src.includes('icon');
+          })
+          .first();
+
+        const candidateSrc = firstImg.attr('src') || firstImg.attr('data-src') || firstImg.attr('data-original-src');
+        if (candidateSrc) {
+          try {
+            imageUrl = new URL(candidateSrc, url).href;
+          } catch (_) {
+            imageUrl = candidateSrc.startsWith('http') ? candidateSrc : null;
+          }
+        }
+      }
+
+      if (imageUrl && !imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+        try {
+          imageUrl = new URL(imageUrl, url).href;
+        } catch (_) {}
+      }
       
       // Extract main content
       const mainContent = textCleaner.extractMainContent($);
@@ -85,16 +151,18 @@ class ScraperService {
         
         return {
           title: textCleaner.cleanText(title),
-          text: cleanedText
+          text: cleanedText,
+          imageUrl: imageUrl || null
         };
       }
       
       console.log(`Successfully extracted ${mainContent.length} characters`);
       
-      // Return the extracted title and text
+      // Return the extracted title, text and image URL
       return {
         title: textCleaner.cleanText(title),
-        text: mainContent
+        text: mainContent,
+        imageUrl: imageUrl || null
       };
       
     } catch (error) {

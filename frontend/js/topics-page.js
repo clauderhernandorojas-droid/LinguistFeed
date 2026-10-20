@@ -1,7 +1,9 @@
 import { requireAuth, logout } from './auth.js';
-import { handleLogout } from './reader.js';
+import { handleLogout, renderArticleCardThumb, getTopicPlaceholderHtml } from './reader.js';
 import { mountNavbarForCurrentUser } from './navbar.js';
 import { renderTopics, getSavedStudentLevel } from './topics.js';
+
+export { renderArticleCardThumb, getTopicPlaceholderHtml };
 
 document.addEventListener('DOMContentLoaded', () => {
   requireAuth();

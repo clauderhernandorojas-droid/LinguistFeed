@@ -688,6 +688,50 @@ function displayTopicSelection() {
     `;
 }
 
+function getTopicPlaceholderHtml(topic) {
+    const raw = String(topic || 'General').toLowerCase().trim();
+    const map = {
+        science: { bg: 'linear-gradient(135deg, #061e2b 0%, #0c3547 50%, #051a24 100%)', label: 'SCIENCE', icon: '🔬' },
+        tech: { bg: 'linear-gradient(135deg, #091533 0%, #152759 50%, #0c183b 100%)', label: 'TECHNOLOGY', icon: '💻' },
+        technology: { bg: 'linear-gradient(135deg, #091533 0%, #152759 50%, #0c183b 100%)', label: 'TECHNOLOGY', icon: '💻' },
+        history: { bg: 'linear-gradient(135deg, #2a1b08 0%, #4a2f0e 50%, #201406 100%)', label: 'HISTORY', icon: '📜' },
+        culture: { bg: 'linear-gradient(135deg, #2b0b1e 0%, #4a1636 50%, #210817 100%)', label: 'CULTURE', icon: '🎨' },
+        trends: { bg: 'linear-gradient(135deg, #2d1607 0%, #52270d 50%, #221005 100%)', label: 'POP CULTURE', icon: '✨' },
+        movies: { bg: 'linear-gradient(135deg, #1f0b36 0%, #3d1469 50%, #180829 100%)', label: 'CINEMA & TV', icon: '🎬' },
+        gaming: { bg: 'linear-gradient(135deg, #1c1038 0%, #36206e 50%, #150c2a 100%)', label: 'GAMING', icon: '🎮' },
+        travel: { bg: 'linear-gradient(135deg, #07241c 0%, #114234 50%, #051c16 100%)', label: 'TRAVEL', icon: '✈️' },
+        lifestyle: { bg: 'linear-gradient(135deg, #0d2627 0%, #174244 50%, #0a1f20 100%)', label: 'LIFESTYLE', icon: '🏡' },
+        health: { bg: 'linear-gradient(135deg, #0b2915 0%, #164726 50%, #092111 100%)', label: 'HEALTH', icon: '🏥' },
+        edu: { bg: 'linear-gradient(135deg, #0c1b3d 0%, #17326e 50%, #0a1733 100%)', label: 'EDUCATION', icon: '📚' },
+        education: { bg: 'linear-gradient(135deg, #0c1b3d 0%, #17326e 50%, #0a1733 100%)', label: 'EDUCATION', icon: '📚' },
+        classroom: { bg: 'linear-gradient(135deg, #14163d 0%, #26296b 50%, #0f102e 100%)', label: 'CLASSROOM', icon: '🧑‍🏫' },
+        business: { bg: 'linear-gradient(135deg, #111a2e 0%, #202e4d 50%, #0d1424 100%)', label: 'BUSINESS', icon: '💼' },
+        news: { bg: 'linear-gradient(135deg, #0d1838 0%, #192d66 50%, #09122c 100%)', label: 'GLOBAL NEWS', icon: '🌍' }
+    };
+    const conf = map[raw] || { bg: 'linear-gradient(135deg, #0b112c 0%, #172042 50%, #0d1430 100%)', label: (topic || 'ARTICLE').toUpperCase(), icon: '📰' };
+    return `<div class="article-card-placeholder" style="background: ${conf.bg};">
+        <span class="placeholder-watermark">${conf.label}</span>
+        <span class="placeholder-badge"><span>${conf.icon}</span> ${conf.label}</span>
+    </div>`;
+}
+
+function renderArticleCardThumb(article) {
+    const rawTitle = article?.title ? String(article.title).replace(/"/g, '&quot;') : 'Article thumbnail';
+    const topic = article?.topic || 'news';
+    const safeTopic = String(topic).replace(/'/g, "\\'");
+    if (article?.image_url && String(article.image_url).trim().startsWith('http')) {
+        const safeImgUrl = String(article.image_url).trim().replace(/"/g, '&quot;');
+        return `<div class="article-card-thumb">
+            <img src="${safeImgUrl}" 
+                 alt="${rawTitle}" 
+                 loading="lazy" 
+                 onerror="this.onerror=null; if (this.parentElement) this.parentElement.innerHTML = (window.getTopicPlaceholderHtml ? window.getTopicPlaceholderHtml('${safeTopic}') : '');">
+        </div>`;
+    }
+    return `<div class="article-card-thumb">${getTopicPlaceholderHtml(topic)}</div>`;
+}
+
+
 /**
  * Carga la lista de artículos obtenidos por el scraper real
  */
@@ -754,31 +798,35 @@ async function loadDailyArticlesList(filterTopic = null) {
                     // C2 queda blanco/desactivado como los demás niveles
                     const activeCardLevel = studentLevel;
                     const cardTitle = article.adapted_title || article.title || 'Untitled Article';
+                    const thumbHtml = renderArticleCardThumb(article);
                     return `
-                    <div class="card" style="border: 1px solid #ddd; padding: 15px; border-radius: 10px;">
-                        <div>
-                            <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
-                                <span class="badge" style="background: transparent; border: 1px solid #7a91ff; color: #eef2ff; padding: 2px 7px; font-size: 0.7rem; border-radius: 999px;">Subtopic: ${article.topic}</span>
-                                ${classBadge}
+                    <div class="card article-card" style="border: 1px solid #ddd; padding: 0; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column;">
+                        ${thumbHtml}
+                        <div class="article-card-content" style="padding: 15px; display: flex; flex-direction: column; flex-grow: 1;">
+                            <div>
+                                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
+                                    <span class="badge" style="background: transparent; border: 1px solid #7a91ff; color: #eef2ff; padding: 2px 7px; font-size: 0.7rem; border-radius: 999px;">Subtopic: ${article.topic}</span>
+                                    ${classBadge}
+                                </div>
+                                <h3 style="cursor:pointer;" class="article-title" data-article-id="${identifier}">${cardTitle}</h3>
+                                <p style="font-size: 0.85rem; margin-bottom: 12px;">${(article.content || '').substring(0, 80)}...</p>
                             </div>
-                            <h3 style="cursor:pointer;" class="article-title" data-article-id="${identifier}">${cardTitle}</h3>
-                            <p style="font-size: 0.85rem;">${article.content.substring(0, 80)}...</p>
-                        </div>
-                        <div class="level-selector-inline" style="display: flex; gap: 4px; margin: 10px 0; justify-content: center;">
-                            ${['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(lvl => {
-                                const isActive = (lvl === activeCardLevel);
-                                return `
-                                <button onclick="setArticleLevel('${identifier}', '${lvl}')" 
-                                        id="btn-${article.id}-${lvl}"
-                                        class="level-btn ${isActive ? 'active' : ''}"
-                                        style="font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; cursor: pointer; ${isActive ? 'background: #007bff !important; color: white !important; border: 1px solid #007bff !important;' : 'background: white !important; color: #0b0b0b !important; border: 1px solid #ddd !important;'}">
-                                    ${lvl}
-                                </button>`;
-                            }).join('')}
-                        </div>
-                        <div style="display: flex; gap: 10px;">
-                            <a href="#" onclick="goToArticle('${identifier}', 'read'); return false;" style="text-decoration:none; color:#007bff; font-weight:bold;">Read</a>
-                            <a href="#" onclick="goToArticle('${identifier}', 'listen'); return false;" style="text-decoration:none; color:#007bff; font-weight:bold;">Listen 🔊</a>
+                            <div class="level-selector-inline" style="display: flex; gap: 4px; margin: 10px 0; justify-content: center;">
+                                ${['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(lvl => {
+                                    const isActive = (lvl === activeCardLevel);
+                                    return `
+                                    <button onclick="setArticleLevel('${identifier}', '${lvl}')" 
+                                            id="btn-${article.id}-${lvl}"
+                                            class="level-btn ${isActive ? 'active' : ''}"
+                                            style="font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; cursor: pointer; ${isActive ? 'background: #007bff !important; color: white !important; border: 1px solid #007bff !important;' : 'background: white !important; color: #0b0b0b !important; border: 1px solid #ddd !important;'}">
+                                        ${lvl}
+                                    </button>`;
+                                }).join('')}
+                            </div>
+                            <div style="display: flex; gap: 10px; margin-top: auto;">
+                                <a href="#" onclick="goToArticle('${identifier}', 'read'); return false;" style="text-decoration:none; color:#007bff; font-weight:bold;">Read</a>
+                                <a href="#" onclick="goToArticle('${identifier}', 'listen'); return false;" style="text-decoration:none; color:#007bff; font-weight:bold;">Listen 🔊</a>
+                            </div>
                         </div>
                     </div>`;
                 }).join('')}
@@ -2632,8 +2680,10 @@ window.initReader = initReader;
 window.loadFullArticle = loadFullArticle;
 window.handleLogout = handleLogout;
 window.getStudentLevel = getStudentLevel;
+window.renderArticleCardThumb = renderArticleCardThumb;
+window.getTopicPlaceholderHtml = getTopicPlaceholderHtml;
 
-export { initReader, loadFullArticle, saveFlashcardToStorage, showFlashcardPopup, closeFlashcardPopup, getStudentLevel };
+export { initReader, loadFullArticle, saveFlashcardToStorage, showFlashcardPopup, closeFlashcardPopup, getStudentLevel, renderArticleCardThumb, getTopicPlaceholderHtml };
 
 // ESCUCHAR CAMBIOS DE NAVEGACIÓN
 window.addEventListener('hashchange', () => {

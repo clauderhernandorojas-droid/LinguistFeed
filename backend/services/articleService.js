@@ -104,11 +104,31 @@ class ArticleService {
               continue;
             }
 
+            let rssImageUrl = null;
+            if (item.enclosure?.url && typeof item.enclosure.url === 'string' && item.enclosure.url.trim().startsWith('http')) {
+              rssImageUrl = item.enclosure.url.trim();
+            } else if (item['media:content']) {
+              const mc = Array.isArray(item['media:content']) ? item['media:content'][0] : item['media:content'];
+              const u = mc?.['$']?.url || mc?.url;
+              if (u && typeof u === 'string') rssImageUrl = u.trim();
+            } else if (item['media:thumbnail']) {
+              const mt = Array.isArray(item['media:thumbnail']) ? item['media:thumbnail'][0] : item['media:thumbnail'];
+              const u = mt?.['$']?.url || mt?.url;
+              if (u && typeof u === 'string') rssImageUrl = u.trim();
+            } else if (item.image?.url && typeof item.image.url === 'string') {
+              rssImageUrl = item.image.url.trim();
+            } else {
+              const htmlBlob = item['content:encoded'] || item.content || item.description || '';
+              const m = htmlBlob.match(/<img[^>]+src=["'](https?:\/\/[^"']+)["']/i);
+              if (m && m[1]) rssImageUrl = m[1].trim();
+            }
+
             articlesToProcess.push({
               id: item.id || articleLink,
               url: articleLink,
               title: articleTitle,
               category: topic,
+              image_url: rssImageUrl,
               original_text: (item.content || item['content:encoded'] || item.contentSnippet || item.description || '').trim()
             });
           }
