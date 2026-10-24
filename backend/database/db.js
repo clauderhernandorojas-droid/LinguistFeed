@@ -1,27 +1,140 @@
-const sqlite3 = require('sqlite3').verbose();
-const fs = require('fs');
 const path = require('path');
+const { createClient } = require('@libsql/client');
+const sqlite3 = require('sqlite3').verbose();
 
-// Database file path (C:\Proyectos Cursor\LinguistFeed\backend\linguistfeed.db)
-const dbPath = path.join(__dirname, '../linguistfeed.db');
+// Detectar si están configuradas las variables de Turso (libSQL en la nube)
+const tursoUrl = process.env.TURSO_DATABASE_URL ? process.env.TURSO_DATABASE_URL.trim() : '';
+const tursoToken = process.env.TURSO_AUTH_TOKEN ? process.env.TURSO_AUTH_TOKEN.trim() : '';
+const isTurso = Boolean(tursoUrl && tursoToken);
 
-// Create a new database connection
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('❌ Error connecting to the database:', err.message);
+let tursoClient = null;
+let sqliteDb = null;
+
+if (isTurso) {
+  console.log('🌐 [DB] Modo TURSO activo. Conectando a libSQL en la nube:', tursoUrl);
+  try {
+    tursoClient = createClient({
+      url: tursoUrl,
+      authToken: tursoToken
+    });
+    console.log('✅ [DB] Cliente Turso configurado correctamente.');
+  } catch (err) {
+    console.error('❌ [DB] Error al inicializar cliente Turso:', err.message);
     process.exit(1);
   }
-  console.log('✅ Connected to the SQLite database at:', dbPath);
-});
+} else {
+  const dbPath = path.join(__dirname, '../linguistfeed.db');
+  console.log('💾 [DB] Modo SQLite local activo. Archivo:', dbPath);
+  sqliteDb = new sqlite3.Database(dbPath, (err) => {
+    if (err) {
+      console.error('❌ [DB] Error conectando a la base de datos local SQLite:', err.message);
+      process.exit(1);
+    }
+    console.log('✅ [DB] Conectado a SQLite local exitosamente en:', dbPath);
+  });
+}
+
+// --- HELPER FUNCTIONS (compatibles con Turso y SQLite local) ---
 
 /**
- * Initialize the database tables one by one.
- * This is safer than reading an external .sql file as it ensures
- * all tables exist before the server starts handling requests.
+ * Ejecuta una consulta INSERT, UPDATE o DELETE y retorna { lastID, changes }
+ */
+const run = async (sql, params = []) => {
+  if (isTurso) {
+    try {
+      const res = await tursoClient.execute({ sql, args: params });
+      return {
+        lastID: res.lastInsertRowid != null ? Number(res.lastInsertRowid) : undefined,
+        changes: res.rowsAffected
+      };
+    } catch (err) {
+      console.error('❌ [DB] Turso SQL Run Error:', err.message);
+      throw err;
+    }
+  }
+
+  return new Promise((resolve, reject) => {
+    sqliteDb.run(sql, params, function (err) {
+      if (err) {
+        console.error('❌ [DB] SQL Run Error:', err.message);
+        reject(err);
+      } else {
+        resolve({ lastID: this.lastID, changes: this.changes });
+      }
+    });
+  });
+};
+
+/**
+ * Ejecuta una consulta SELECT y retorna la primera fila o undefined
+ */
+const get = async (sql, params = []) => {
+  if (isTurso) {
+    try {
+      const res = await tursoClient.execute({ sql, args: params });
+      return res.rows && res.rows.length > 0 ? res.rows[0] : undefined;
+    } catch (err) {
+      console.error('❌ [DB] Turso SQL Get Error:', err.message);
+      throw err;
+    }
+  }
+
+  return new Promise((resolve, reject) => {
+    sqliteDb.get(sql, params, (err, row) => {
+      if (err) reject(err);
+      else resolve(row);
+    });
+  });
+};
+
+/**
+ * Ejecuta una consulta SELECT y retorna un arreglo con todas las filas
+ */
+const all = async (sql, params = []) => {
+  if (isTurso) {
+    try {
+      const res = await tursoClient.execute({ sql, args: params });
+      return res.rows ? Array.from(res.rows) : [];
+    } catch (err) {
+      console.error('❌ [DB] Turso SQL All Error:', err.message);
+      throw err;
+    }
+  }
+
+  return new Promise((resolve, reject) => {
+    sqliteDb.all(sql, params, (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows || []);
+    });
+  });
+};
+
+/**
+ * Cierre controlado de la conexión
+ */
+const close = async () => {
+  if (isTurso) {
+    if (tursoClient && typeof tursoClient.close === 'function') {
+      tursoClient.close();
+    }
+    return;
+  }
+  if (sqliteDb) {
+    return new Promise((resolve) => {
+      sqliteDb.close((err) => {
+        if (err) console.error('❌ [DB] Error cerrando base de datos SQLite:', err.message);
+        resolve();
+      });
+    });
+  }
+};
+
+/**
+ * Inicializa las tablas del esquema en la base de datos activa (Turso o SQLite local)
  */
 async function initializeDatabase() {
-  console.log('🚀 Initializing database tables...');
-  
+  console.log('🚀 Inicializando tablas de base de datos...');
+
   try {
     // 1. Articles table (Main storage for scraped content)
     await run(`CREATE TABLE IF NOT EXISTS articles (
@@ -33,6 +146,7 @@ async function initializeDatabase() {
       source TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
+
     const articleCols = await all(`PRAGMA table_info(articles)`);
     const hasExternalId = Array.isArray(articleCols)
       ? articleCols.some((c) => String(c.name || '').toLowerCase() === 'external_id')
@@ -49,6 +163,10 @@ async function initializeDatabase() {
     const hasClassId = Array.isArray(articleCols)
       ? articleCols.some((c) => String(c.name || '').toLowerCase() === 'class_id')
       : false;
+    const hasImageUrl = Array.isArray(articleCols)
+      ? articleCols.some((c) => String(c.name || '').toLowerCase() === 'image_url')
+      : false;
+
     if (!hasExternalId) {
       await run('ALTER TABLE articles ADD COLUMN external_id TEXT');
       console.log("✅ Columna 'articles.external_id' agregada");
@@ -69,6 +187,11 @@ async function initializeDatabase() {
       await run('ALTER TABLE articles ADD COLUMN class_id INTEGER REFERENCES classes(id)');
       console.log("✅ Columna 'articles.class_id' agregada");
     }
+    if (!hasImageUrl) {
+      await run('ALTER TABLE articles ADD COLUMN image_url TEXT');
+      console.log("✅ Columna 'articles.image_url' agregada");
+    }
+
     await run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_articles_external_id_unique
       ON articles (external_id)`);
     await run(`CREATE INDEX IF NOT EXISTS idx_articles_topic_created
@@ -90,21 +213,38 @@ async function initializeDatabase() {
       adapted_content TEXT,
       FOREIGN KEY (article_id) REFERENCES articles (id) ON DELETE CASCADE
     )`);
+
     const simpCols = await all(`PRAGMA table_info(simplified_articles)`);
-    const hasAdaptedTitle = Array.isArray(simpCols)
-      ? simpCols.some((c) => String(c.name || '').toLowerCase() === 'adapted_title')
-      : false;
-    if (!hasAdaptedTitle) {
+    const simpColNames = new Set((simpCols || []).map((c) => String(c.name || '').toLowerCase()));
+    if (!simpColNames.has('adapted_title')) {
       await run('ALTER TABLE simplified_articles ADD COLUMN adapted_title TEXT');
       console.log("✅ Columna 'simplified_articles.adapted_title' agregada");
     }
-    const hasAdaptedContent = Array.isArray(simpCols)
-      ? simpCols.some((c) => String(c.name || '').toLowerCase() === 'adapted_content')
-      : false;
-    if (!hasAdaptedContent) {
+    if (!simpColNames.has('adapted_content')) {
       await run('ALTER TABLE simplified_articles ADD COLUMN adapted_content TEXT');
       console.log("✅ Columna 'simplified_articles.adapted_content' agregada");
     }
+    if (!simpColNames.has('url')) {
+      await run('ALTER TABLE simplified_articles ADD COLUMN url TEXT');
+      console.log("✅ Columna 'simplified_articles.url' agregada");
+    }
+    if (!simpColNames.has('title')) {
+      await run('ALTER TABLE simplified_articles ADD COLUMN title TEXT');
+      console.log("✅ Columna 'simplified_articles.title' agregada");
+    }
+    if (!simpColNames.has('topic')) {
+      await run('ALTER TABLE simplified_articles ADD COLUMN topic TEXT');
+      console.log("✅ Columna 'simplified_articles.topic' agregada");
+    }
+    if (!simpColNames.has('content')) {
+      await run('ALTER TABLE simplified_articles ADD COLUMN content TEXT');
+      console.log("✅ Columna 'simplified_articles.content' agregada");
+    }
+    if (!simpColNames.has('created_at')) {
+      await run('ALTER TABLE simplified_articles ADD COLUMN created_at DATETIME');
+      console.log("✅ Columna 'simplified_articles.created_at' agregada");
+    }
+
     await run(`DELETE FROM simplified_articles
       WHERE id NOT IN (
         SELECT MAX(id)
@@ -114,7 +254,7 @@ async function initializeDatabase() {
     await run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_simplified_articles_article_level
       ON simplified_articles (article_id, level)`);
 
-    // Añade esto en db.js junto a las otras tablas:
+    // 3. Flashcards table
     await run(`CREATE TABLE IF NOT EXISTS flashcards (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       word TEXT NOT NULL,
@@ -124,6 +264,7 @@ async function initializeDatabase() {
     )`);
     console.log("✅ Tabla 'flashcards' verificada/creada");
 
+    // 4. User flashcards table
     await run(`CREATE TABLE IF NOT EXISTS user_flashcards (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
@@ -135,7 +276,7 @@ async function initializeDatabase() {
     )`);
     console.log("✅ Tabla 'user_flashcards' verificada/creada");
 
-    // 3. Quizzes table
+    // 5. Quizzes table
     await run(`CREATE TABLE IF NOT EXISTS quizzes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       article_id INTEGER NOT NULL,
@@ -149,6 +290,7 @@ async function initializeDatabase() {
       FOREIGN KEY (article_id) REFERENCES articles (id) ON DELETE CASCADE
     )`);
 
+    // 6. Attempts table
     await run(`CREATE TABLE IF NOT EXISTS attempts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
@@ -161,6 +303,7 @@ async function initializeDatabase() {
     )`);
     console.log("✅ Tabla 'attempts' verificada/creada");
 
+    // 7. Answer Events table
     await run(`CREATE TABLE IF NOT EXISTS answer_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
@@ -186,7 +329,7 @@ async function initializeDatabase() {
       ON answer_events (user_id, article_id)`);
     console.log("✅ Tabla 'answer_events' verificada/creada");
 
-    // 4. Vocabulary table
+    // 8. Vocabulary table
     await run(`CREATE TABLE IF NOT EXISTS vocabulary (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       article_id INTEGER NOT NULL,
@@ -197,7 +340,7 @@ async function initializeDatabase() {
       FOREIGN KEY (article_id) REFERENCES articles (id) ON DELETE CASCADE
     )`);
 
-    // 5. Daily Articles table (For the daily reading feature)
+    // 9. Daily Articles table
     await run(`CREATE TABLE IF NOT EXISTS daily_articles (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       article_id INTEGER NOT NULL,
@@ -205,8 +348,8 @@ async function initializeDatabase() {
       topic TEXT,
       FOREIGN KEY (article_id) REFERENCES articles (id) ON DELETE CASCADE
     )`);
-    
-    // 0. Users table (Estructura definitiva)
+
+    // 10. Users table
     await run(`CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT UNIQUE NOT NULL,
@@ -214,12 +357,13 @@ async function initializeDatabase() {
       email TEXT UNIQUE,
       level TEXT DEFAULT 'B1',
       age INTEGER,
-      interests TEXT,  -- ⬅️ Agrégala aquí directamente
+      interests TEXT,
       onboarding_completed INTEGER DEFAULT 0,
       role TEXT DEFAULT 'student',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
     console.log("✅ Tabla 'users' verificada/creada");
+
     const userCols = await all(`PRAGMA table_info(users)`);
     const hasOnboardingCompleted = Array.isArray(userCols)
       ? userCols.some((c) => String(c.name || '').toLowerCase() === 'onboarding_completed')
@@ -229,6 +373,7 @@ async function initializeDatabase() {
       console.log("✅ Columna 'users.onboarding_completed' agregada");
     }
 
+    // 11. User Preferences table
     await run(`CREATE TABLE IF NOT EXISTS user_preferences (
       user_id INTEGER PRIMARY KEY,
       weekly_reading_goal_minutes INTEGER NOT NULL DEFAULT 60,
@@ -248,6 +393,7 @@ async function initializeDatabase() {
       console.log("✅ Columna 'user_preferences.daily_goal_minutes' agregada");
     }
 
+    // 12. Reading Time Logs table
     await run(`CREATE TABLE IF NOT EXISTS reading_time_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
@@ -260,6 +406,7 @@ async function initializeDatabase() {
     )`);
     console.log("✅ Tabla 'reading_time_logs' verificada/creada");
 
+    // 13. Classes table
     await run(`CREATE TABLE IF NOT EXISTS classes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       teacher_id INTEGER NOT NULL,
@@ -274,6 +421,7 @@ async function initializeDatabase() {
       ON classes (teacher_id, created_at)`);
     console.log("✅ Tabla 'classes' verificada/creada");
 
+    // 14. Class Members table
     await run(`CREATE TABLE IF NOT EXISTS class_members (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       class_id INTEGER NOT NULL,
@@ -288,58 +436,43 @@ async function initializeDatabase() {
     await run(`CREATE INDEX IF NOT EXISTS idx_class_members_student
       ON class_members (student_id, joined_at)`);
     console.log("✅ Tabla 'class_members' verificada/creada");
-    
-    // -------------------------------------------
 
-    console.log('✨ Database schema initialized successfully. All tables verified.');
+    // 15. Reader Quiz Cache table
+    await run(`CREATE TABLE IF NOT EXISTS reader_quiz_cache (
+      article_key TEXT NOT NULL,
+      level TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (article_key, level)
+    )`);
+    console.log("✅ Tabla 'reader_quiz_cache' verificada/creada");
+
+    // 16. Activities table (opcional para ejercicios avanzados)
+    await run(`CREATE TABLE IF NOT EXISTS activities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      article_id INTEGER NOT NULL,
+      cefr_level TEXT NOT NULL,
+      type TEXT NOT NULL,
+      question TEXT NOT NULL,
+      data_json TEXT NOT NULL,
+      paragraph_index INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+    console.log("✅ Tabla 'activities' verificada/creada");
+
+    console.log('✨ Esquema de base de datos inicializado exitosamente.');
   } catch (err) {
-    console.error('❌ Error initializing database schema:', err.message);
+    console.error('❌ Error inicializando esquema de base de datos:', err.message);
     throw err;
   }
 }
 
-// --- HELPER FUNCTIONS (Promisified for async/await) ---
-
-// En backend/database/db.js
-
-// Funciones de ayuda con Promesas para usar async/await
-// --- Asegúrate de que estas funciones estén definidas antes del export ---
-const run = (sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function(err) {
-      if (err) {
-        console.error('❌ SQL Run Error:', err.message);
-        reject(err);
-      } else {
-        resolve({ lastID: this.lastID, changes: this.changes });
-      }
-    });
-  });
-};
-
-const get = (sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
-};
-
-const all = (sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
-};
-
-// --- AQUÍ ESTÁ EL TRUCO: EXPORTAR TODO, INCLUYENDO EL INICIALIZADOR ---
 module.exports = {
-  initializeDatabase, // <--- ESTA ES LA QUE FALTABA
+  initializeDatabase,
   run,
   get,
   all,
-  db
+  close,
+  db: isTurso ? tursoClient : sqliteDb,
+  isTurso
 };

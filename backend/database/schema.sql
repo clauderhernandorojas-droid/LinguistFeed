@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS articles (
   title TEXT,
   topic TEXT,
   content TEXT,
+  image_url TEXT,
   source TEXT,
   external_id TEXT,
   assigned_to_user_id INTEGER,

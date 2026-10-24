@@ -10,6 +10,7 @@
     "batch-simplify": "node scripts/batch-simplify-top-per-topic.js"
   },
   "dependencies": {
+    "@libsql/client": "^0.18.0",
     "axios": "^1.6.2",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^3.0.3",
