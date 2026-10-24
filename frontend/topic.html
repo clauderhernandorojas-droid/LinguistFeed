@@ -94,7 +94,7 @@
     <script src="./js/search.js"></script>
     <script type="module">
         import { logout, requireAuth } from './js/auth.js';
-        import { handleLogout } from './js/reader.js';
+        import { handleLogout, renderArticleCardThumb } from './js/reader.js';
         import { mountNavbarForCurrentUser } from './js/navbar.js';
 
         document.addEventListener('DOMContentLoaded', function () {
@@ -132,13 +132,28 @@
                     data.articles.forEach(article => {
                         const card = document.createElement('div');
                         card.className = 'article-card card';
+                        card.style.padding = '0';
+                        card.style.overflow = 'hidden';
+
+                        const thumbWrap = document.createElement('div');
+                        thumbWrap.innerHTML = renderArticleCardThumb(article);
+                        if (thumbWrap.firstElementChild) {
+                            card.appendChild(thumbWrap.firstElementChild);
+                        }
+
+                        const body = document.createElement('div');
+                        body.className = 'article-card-content';
+                        body.style.padding = '15px';
+                        body.style.display = 'flex';
+                        body.style.flexDirection = 'column';
+                        body.style.flexGrow = '1';
 
                         if (article.class_name) {
                             const badge = document.createElement('span');
                             badge.className = 'classroom-badge';
                             badge.style.marginBottom = '8px';
                             badge.textContent = `🏷️ ${article.class_name}`;
-                            card.appendChild(badge);
+                            body.appendChild(badge);
                         }
 
                         const title = document.createElement('h3');
@@ -149,12 +164,14 @@
                         
                         const link = document.createElement('a');
                         link.className = 'btn btn-block';
+                        link.style.marginTop = 'auto';
                         link.href = `reader.html?id=${article.id}&level=${level}`;
                         link.textContent = 'Read & Practice';
 
-                        card.appendChild(title);
-                        card.appendChild(preview);
-                        card.appendChild(link);
+                        body.appendChild(title);
+                        body.appendChild(preview);
+                        body.appendChild(link);
+                        card.appendChild(body);
                         container.appendChild(card);
                     });
 

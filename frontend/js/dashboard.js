@@ -6,6 +6,7 @@
 
 import { getUser, requireAuth, logout, updateInterests } from './auth.js';
 import { API_BASE_URL } from './config.js';
+import { renderArticleCardThumb } from './reader.js';
 
 /**
  * Displays user progress on the dashboard
@@ -448,17 +449,21 @@ function renderArticles(articles) {
             ? `<span class="classroom-badge" style="margin-bottom: 0;">🏷️ ${article.class_name}</span>`
             : '';
 
+        const thumbHtml = renderArticleCardThumb(article);
         const articleCard = `
-            <div class="article-card">
-                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
-                    <span class="topic-tag" style="margin-bottom:0;">${article.topic || 'General'}</span>
-                    ${classBadge}
+            <div class="article-card" style="padding: 0; overflow: hidden; display: flex; flex-direction: column;">
+                ${thumbHtml}
+                <div class="article-card-content" style="padding: 16px; display: flex; flex-direction: column; flex-grow: 1;">
+                    <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+                        <span class="topic-tag" style="margin-bottom:0;">${article.topic || 'General'}</span>
+                        ${classBadge}
+                    </div>
+                    <h3 style="font-size: 16px; margin: 0 0 10px 0;" class="article-title">${article.title}</h3>
+                    <p style="font-size: 14px; color: #aeb8df; font-weight: normal; margin-bottom: 15px;">
+                        ${preview}
+                    </p>
+                    <a href="reader.html?id=${article.id}" class="btn-read" style="margin-top: auto;">Read Article</a>
                 </div>
-                <h3 style="font-size: 16px; margin: 0 0 10px 0;" class="article-title">${article.title}</h3>
-                <p style="font-size: 14px; color: #666; font-weight: normal; margin-bottom: 15px;">
-                    ${preview}
-                </p>
-                <a href="reader.html?id=${article.id}" class="btn-read">Read Article</a>
             </div>
         `;
         articlesContainer.innerHTML += articleCard;

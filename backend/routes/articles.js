@@ -57,8 +57,8 @@ function normalizeLegacyArticle(raw) {
 async function insertManualArticleInDb(article) {
   return db.run(
     `INSERT INTO articles
-      (title, content, topic, source, created_at, external_id, assigned_to_user_id, is_manual, author_id, class_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+      (title, content, topic, source, created_at, external_id, assigned_to_user_id, is_manual, author_id, class_id, image_url)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
     [
       article.title,
       article.content,
@@ -68,7 +68,8 @@ async function insertManualArticleInDb(article) {
       article.externalId,
       article.assignedToUserId,
       article.authorId || null,
-      article.classId || null
+      article.classId || null,
+      article.imageUrl || article.image_url || null
     ]
   );
 }
@@ -201,7 +202,7 @@ router.get('/personalized-feed', authenticate, async (req, res) => {
 
     const placeholders = interestList.map(() => '?').join(',');
     const query = `
-      SELECT a.id, a.title, a.content, a.topic, a.created_at, a.assigned_to_user_id, a.class_id, a.author_id,
+      SELECT a.id, a.title, a.content, a.topic, a.created_at, a.image_url, a.assigned_to_user_id, a.class_id, a.author_id,
              c.name AS class_name
       FROM articles a
       LEFT JOIN classes c ON a.class_id = c.id
@@ -231,7 +232,7 @@ router.get('/', async (req, res) => {
     let rows;
     if (hasValidLevel) {
       rows = await db.all(
-        `SELECT a.id, a.title, a.content, a.url, a.topic, a.source, a.created_at, a.external_id,
+        `SELECT a.id, a.title, a.content, a.url, a.topic, a.source, a.created_at, a.external_id, a.image_url,
                 a.assigned_to_user_id, a.is_manual, a.class_id, a.author_id,
                 c.name AS class_name,
                 sa.adapted_title,
@@ -246,7 +247,7 @@ router.get('/', async (req, res) => {
       );
     } else {
       rows = await db.all(
-        `SELECT a.id, a.title, a.content, a.url, a.topic, a.source, a.created_at, a.external_id,
+        `SELECT a.id, a.title, a.content, a.url, a.topic, a.source, a.created_at, a.external_id, a.image_url,
                 a.assigned_to_user_id, a.is_manual, a.class_id, a.author_id,
                 c.name AS class_name
          FROM articles a
@@ -287,7 +288,7 @@ router.get('/daily-articles', async (req, res) => {
     await ensureLegacyJsonMigrated();
     const requestUser = getRequestUserContext(req);
     const rows = await db.all(
-      `SELECT a.id, a.title, a.content, a.url, a.topic, a.source, a.created_at, a.external_id,
+      `SELECT a.id, a.title, a.content, a.url, a.topic, a.source, a.created_at, a.external_id, a.image_url,
               a.assigned_to_user_id, a.is_manual, a.class_id, a.author_id,
               c.name AS class_name
        FROM articles a
@@ -412,6 +413,7 @@ router.post('/manual-upload', authenticate, async (req, res) => {
       assignedToUserId: hasTargetStudent ? Number(studentId) : null,
       classId: parsedClassId && !Number.isNaN(parsedClassId) ? parsedClassId : null,
       authorId: req.user?.id ? Number(req.user.id) : null,
+      imageUrl: req.body.imageUrl || req.body.image_url || null,
       createdAt: new Date().toISOString()
     };
 

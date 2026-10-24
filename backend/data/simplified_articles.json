@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "id": "manual-1792346642642",
+    "title": "Prueba polisemia 1",
+    "topic": "classroom",
+    "content": "The legal team gathered inside the court to present new evidence regarding the incident. Outside the building, children played basketball on an asphalt court.\n\nDuring the hearing, the judge decided to sentence the suspect after reviewing the financial audit. Earlier that morning, the editor had to rewrite a confusing sentence in the final report.\n\nA local manufacturing plant closed its doors yesterday due to supply shortages. Meanwhile, a biologist discovered a rare medicinal plant growing near the river bank. Later that day, she deposited her research grant directly into an international bank.\n\nThe company struggled to manage the sudden run on its shares in the stock market. Across the city, hundreds of athletes prepared to run the annual charity marathon.\n\nEngineers noticed a tiny metal spring had snapped inside the pressure valve. In the countryside, clear water flowed steadily from a natural underground spring.",
+    "date": "2026-10-18T18:04:02.642Z",
+    "assigned_to_user_id": null,
+    "class_id": 8
+  }
+]

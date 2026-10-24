@@ -213,7 +213,7 @@ class SchedulerService {
 
           // Verificamos si ya existe el artículo
           const existingArticle = await db.get(
-            'SELECT id, content FROM articles WHERE url = ? OR url = ?',
+            'SELECT id, content, image_url FROM articles WHERE url = ? OR url = ?',
             [cleanUrl, articleData.url]
           );
           
@@ -231,10 +231,12 @@ class SchedulerService {
             
             let scrapedText = '';
             let scrapedTitle = '';
+            let scrapedImageUrl = null;
             try {
               const scrapedArticle = await scraperService.scrapeArticle(articleData.url);
               scrapedText = scrapedArticle.text || '';
               scrapedTitle = scrapedArticle.title || '';
+              scrapedImageUrl = scrapedArticle.imageUrl || null;
             } catch (scrapeErr) {
               console.warn(`⚠️ Scraping web falló para ${articleData.url} (${scrapeErr.message}). Utilizando texto provisto por el feed RSS.`);
               scrapedText = (articleData.original_text || '').trim();
@@ -253,17 +255,22 @@ class SchedulerService {
 
             // Priorizamos el titular limpio del RSS con gancho editorial
             const finalTitle = (articleData.title && articleData.title.trim()) || scrapedTitle || 'Untitled Article';
+            const finalImageUrl = scrapedImageUrl || articleData.image_url || null;
 
-            // Insertamos el artículo original con su contenido sin procesar (SIN precomputar adaptaciones)
+            // Insertamos el artículo original con su contenido sin procesar y su imagen
             const result = await db.run(
-              'INSERT INTO articles (url, title, topic, content, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)',
-              [cleanUrl, finalTitle, cleanTopic, scrapedText]
+              'INSERT INTO articles (url, title, topic, content, image_url, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
+              [cleanUrl, finalTitle, cleanTopic, scrapedText, finalImageUrl]
             );
             
             articleId = result.lastID;
-            console.log(`✅ Artículo insertado con ID: ${articleId} ("${finalTitle}") [Tema: ${cleanTopic}] (Adaptación lazy bajo demanda)`);
+            console.log(`✅ Artículo insertado con ID: ${articleId} ("${finalTitle}") [Tema: ${cleanTopic}] [Img: ${finalImageUrl ? 'Sí' : 'No'}] (Adaptación lazy bajo demanda)`);
           } else {
             articleId = existingArticle.id;
+            // Si el artículo ya existía pero no tenía imagen, intentamos poblarla
+            if (!existingArticle.image_url && articleData.image_url) {
+              await db.run('UPDATE articles SET image_url = ? WHERE id = ?', [articleData.image_url, articleId]);
+            }
           }
 
           // --- 🗓️ REGISTRO EN ARTÍCULOS DIARIOS ---

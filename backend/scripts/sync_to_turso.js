@@ -142,6 +142,8 @@ async function syncToTurso() {
         continue;
       }
 
+      const columnNamesSql = commonColumns.map(c => `"${c}"`).join(', ');
+      const placeholders = commonColumns.map(() => '?').join(', ');
       const hasIdColumn = commonColumns.includes('id');
       const updateClause = hasIdColumn
         ? `ON CONFLICT(id) DO UPDATE SET ` + commonColumns.filter(c => c !== 'id').map(c => `"${c}" = excluded."${c}"`).join(', ')
