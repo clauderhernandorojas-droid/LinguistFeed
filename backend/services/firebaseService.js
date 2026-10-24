@@ -4,10 +4,50 @@
 
 const fs = require('fs');
 const path = require('path');
-const admin = require('firebase-admin');
-const { initializeApp, getApps, cert } = require('firebase-admin/app');
-const { getFirestore, FieldValue } = require('firebase-admin/firestore');
-const { getAuth } = require('firebase-admin/auth');
+
+let admin = null;
+let appModule = null;
+let firestoreModule = null;
+let authModule = null;
+
+try {
+  admin = require('firebase-admin');
+  appModule = require('firebase-admin/app');
+} catch (_) {}
+
+function getFirestoreModule() {
+  if (!firestoreModule) {
+    try {
+      firestoreModule = require('firebase-admin/firestore');
+    } catch (e) {
+      console.warn('⚠️ [Firebase] Módulo @google-cloud/firestore no disponible:', e.message);
+      return null;
+    }
+  }
+  return firestoreModule;
+}
+
+function getAuthModule() {
+  if (!authModule) {
+    try {
+      authModule = require('firebase-admin/auth');
+    } catch (_) {
+      return null;
+    }
+  }
+  return authModule;
+}
+
+const FieldValue = {
+  serverTimestamp: () => {
+    const fsMod = getFirestoreModule();
+    return fsMod ? fsMod.FieldValue.serverTimestamp() : new Date().toISOString();
+  },
+  increment: (val) => {
+    const fsMod = getFirestoreModule();
+    return fsMod ? fsMod.FieldValue.increment(val) : val;
+  }
+};
 
 let firestoreInstance = null;
 let appInstance = null;
@@ -39,6 +79,16 @@ function initFirebase() {
     return firestoreInstance;
   }
 
+  if (!appModule) {
+    appModule = require('firebase-admin/app');
+  }
+  const { initializeApp, getApps, cert } = appModule;
+
+  const fsMod = getFirestoreModule();
+  if (!fsMod) {
+    throw new Error("El módulo '@google-cloud/firestore' no está disponible en este entorno.");
+  }
+
   const existingApps = getApps();
   if (existingApps.length > 0) {
     appInstance = existingApps[0];
@@ -58,8 +108,11 @@ function initFirebase() {
   }
 
   // Asegura compatibilidad con la sintaxis admin.auth() requerida
-  admin.auth = (app = appInstance) => getAuth(app);
-  firestoreInstance = getFirestore(appInstance);
+  const authMod = getAuthModule();
+  if (authMod && admin) {
+    admin.auth = (app = appInstance) => authMod.getAuth(app);
+  }
+  firestoreInstance = fsMod.getFirestore(appInstance);
   console.log(`🔥 [Firebase] Conectado a Cloud Firestore y Firebase Auth (Proyecto: ${appInstance.options.projectId || 'lexispelling'})`);
   return firestoreInstance;
 }
